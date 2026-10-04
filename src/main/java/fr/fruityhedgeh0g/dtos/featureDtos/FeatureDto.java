@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Value;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
 
 /** A Feature, with its lever's last switch for the whole site (from the Journal). */
 @Value
@@ -20,7 +22,15 @@ public class FeatureDto {
     @JsonView({Views.Basic.class, Views.UpdateResponse.class})
     Boolean isActive;
 
-    /** Attempts refused since it was last turned off. */
+    /** It also has a lever per Secteur (Inscription aux événements, Export de la liste). */
+    @JsonView({Views.Basic.class, Views.UpdateResponse.class})
+    Boolean perSecteur;
+
+    /** The Secteurs where it is turned off, whatever its lever for the whole site. */
+    @JsonView({Views.Basic.class, Views.UpdateResponse.class})
+    List<UUID> offSectors;
+
+    /** Attempts refused since it was last turned off, for the whole site or a Secteur. */
     @JsonView({Views.Basic.class, Views.UpdateResponse.class})
     Long refusedCount;
 

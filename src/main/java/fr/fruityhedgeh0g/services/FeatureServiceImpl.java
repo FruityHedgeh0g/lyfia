@@ -4,13 +4,18 @@ import fr.fruityhedgeh0g.utilities.logging.Logged;
 
 import fr.fruityhedgeh0g.dtos.featureDtos.FeatureDto;
 import fr.fruityhedgeh0g.dtos.featureDtos.FeatureSwitchEntryDto;
+import fr.fruityhedgeh0g.entities.SectorEntity;
 import fr.fruityhedgeh0g.entities.configurations.FeatureEntity;
+import fr.fruityhedgeh0g.entities.configurations.FeatureSectorLeverEntity;
 import fr.fruityhedgeh0g.entities.configurations.FeatureSwitchEntity;
 import fr.fruityhedgeh0g.enums.FeatureEnum;
+import fr.fruityhedgeh0g.exceptions.InvalidResourceException;
 import fr.fruityhedgeh0g.exceptions.UnknownResourceException;
 import fr.fruityhedgeh0g.keycloak.KeycloakRegistration;
 import fr.fruityhedgeh0g.repositories.FeatureRepository;
+import fr.fruityhedgeh0g.repositories.FeatureSectorLeverRepository;
 import fr.fruityhedgeh0g.repositories.FeatureSwitchRepository;
+import fr.fruityhedgeh0g.repositories.SectorRepository;
 import fr.fruityhedgeh0g.repositories.UserRepository;
 import fr.fruityhedgeh0g.services.interfaces.FeatureService;
 import fr.fruityhedgeh0g.utilities.mappers.FeatureMapper;
@@ -43,6 +48,12 @@ public class FeatureServiceImpl implements FeatureService {
     UserRepository userRepository;
 
     @Inject
+    FeatureSectorLeverRepository sectorLeverRepository;
+
+    @Inject
+    SectorRepository sectorRepository;
+
+    @Inject
     KeycloakRegistration keycloakRegistration;
 
     @Override
@@ -70,17 +81,49 @@ public class FeatureServiceImpl implements FeatureService {
         // Refusals count from the moment it is turned off
         if (wasActive && !active) feature.setRefusedCount(0);
         feature.setIsActive(active);
+        String why = journal(feature, null, active, reason, by);
+        Log.infof("Feature %s turned %s (was %s) for the whole site by %s%s", feature.getName(),
+                active ? "on" : "off", wasActive ? "on" : "off", by, why == null ? "" : ": " + why);
+        return toDto(feature);
+    }
+
+    @Override
+    @Transactional
+    public FeatureDto switchSectorLever(String name, UUID sectorId, boolean active, String reason, UUID by) {
+        FeatureEntity feature = featureOrThrow(name);
+        if (FeatureEnum.of(name).filter(FeatureEnum::perSecteur).isEmpty())
+            throw new InvalidResourceException("The Feature " + name + " has a lever for the whole site only.");
+        SectorEntity sector = sectorRepository.findByIdOptional(sectorId)
+                .orElseThrow(() -> new UnknownResourceException("Sector not found: " + sectorId));
+        if (sector.isClosed()) throw new InvalidResourceException("A Secteur fermé is read-only.");
+
+        FeatureSectorLeverEntity lever = sectorLeverRepository.find(name, sectorId).orElseGet(() -> {
+            FeatureSectorLeverEntity created = FeatureSectorLeverEntity.builder().feature(name).sector(sector).isActive(true).build();
+            sectorLeverRepository.persist(created);
+            return created;
+        });
+        boolean wasActive = lever.getIsActive();
+        // Refusals count from the moment it is turned off, here or for the whole site
+        if (wasActive && !active) feature.setRefusedCount(0);
+        lever.setIsActive(active);
+        String why = journal(feature, sector, active, reason, by);
+        Log.infof("Feature %s turned %s (was %s) for the Secteur %s by %s%s", name, active ? "on" : "off",
+                wasActive ? "on" : "off", sector.getName(), by, why == null ? "" : ": " + why);
+        return toDto(feature);
+    }
+
+    /** Writes the switch in the Journal; returns the reason kept, if any. */
+    private String journal(FeatureEntity feature, SectorEntity sector, boolean active, String reason, UUID by) {
         String why = reason == null || reason.isBlank() ? null : reason.trim();
         switchRepository.persist(FeatureSwitchEntity.builder()
                 .feature(feature.getName())
+                .sector(sector)
                 .isActive(active)
                 .reason(why)
                 .switchedBy(by == null ? null : userRepository.findById(by))
                 .switchedAt(LocalDateTime.now())
                 .build());
-        Log.infof("Feature %s turned %s (was %s) for the whole site by %s%s", feature.getName(),
-                active ? "on" : "off", wasActive ? "on" : "off", by, why == null ? "" : ": " + why);
-        return toDto(feature);
+        return why;
     }
 
     @Override
@@ -93,9 +136,13 @@ public class FeatureServiceImpl implements FeatureService {
                 .orElseThrow(() -> new UnknownResourceException("Feature not found: " + name));
     }
 
-    /** The Feature with its lever's last switch for the whole site. */
+    /** The Feature with the Secteurs where it is off and its lever's last switch for the whole site. */
     private FeatureDto toDto(FeatureEntity feature) {
-        FeatureDto dto = featureMapper.toDto(feature);
+        boolean perSecteur = FeatureEnum.of(feature.getName()).map(FeatureEnum::perSecteur).orElse(false);
+        FeatureDto dto = featureMapper.toDto(feature).toBuilder()
+                .perSecteur(perSecteur)
+                .offSectors(perSecteur ? sectorLeverRepository.offSecteurs(feature.getName()) : List.of())
+                .build();
         return switchRepository.lastSiteWide(feature.getName())
                 .map(last -> dto.toBuilder()
                         .lastSwitchedBy(FeatureSwitchEntryDto.of(last).switchedBy())

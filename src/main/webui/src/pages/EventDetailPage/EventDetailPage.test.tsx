@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "../../auth/AuthContext";
-import { createEventsApi, createRegistrationsApi, setFakeFeature } from "../../test/fakeApi";
+import { createEventsApi, createRegistrationsApi, setFakeFeature, setFakeFeatureOffIn } from "../../test/fakeApi";
 import EventDetailPage from "./EventDetailPage";
 import { testUser } from "../../test/testUser";
 
@@ -79,6 +79,13 @@ describe("EventDetailPage sign-up", () => {
 
     expect(await screen.findByText("Les inscriptions en ligne sont temporairement suspendues.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "M'inscrire comme pilote" })).not.toBeInTheDocument();
+  });
+
+  it("says sign-ups are suspended when Inscription aux événements is off for the Event's Secteur only", async () => {
+    setFakeFeatureOffIn("inscription-evenements", "sector-1");
+    renderPage();
+
+    expect(await screen.findByText("Les inscriptions en ligne sont temporairement suspendues.")).toBeInTheDocument();
   });
 
   it("still lets a Participant withdraw while Inscription aux événements is off", async () => {

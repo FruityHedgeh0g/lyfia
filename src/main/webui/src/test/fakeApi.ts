@@ -94,7 +94,10 @@ const empty = (status: number) => new Response(null, { status });
 
 const isSuperAdmin = () => state.viewer.role === "super_admin";
 /** Une Fonctionnalité que l'API ne connaît pas est active, comme FeatureLevers côté backend. */
-const isOn = (name: FeatureFlag["name"]) => state.features.find((f) => f.name === name)?.isActive ?? true;
+const isOn = (name: FeatureFlag["name"], sectorId?: string) => {
+  const flag = state.features.find((f) => f.name === name);
+  return !flag || (flag.isActive && !(sectorId && flag.offSectors?.includes(sectorId)));
+};
 /** 503 `feature-off`, la réponse de l'API à ce qu'une Fonctionnalité désactivée couvre (ADR 0009). */
 const featureOff = (feature: FeatureFlag["name"]) => json({ error: "feature-off", feature }, 503);
 const visibleSector = (s: Sector) => !s.closed || isSuperAdmin();
@@ -108,7 +111,7 @@ async function handle(input: RequestInfo | URL, init: RequestInit = {}): Promise
   if (parts[0] === "api" && parts[1] === "sectors") return sectors(method, parts.slice(2), body);
   if (parts[0] === "api" && parts[1] === "groups") return groups(method, parts.slice(2), body);
   if (parts[0] === "api" && parts[1] === "users") return users(method, parts.slice(2), body);
-  if (parts[0] === "api" && parts[1] === "features") return features(method, parts[2], body, url.searchParams);
+  if (parts[0] === "api" && parts[1] === "features") return features(method, parts.slice(2), body, url.searchParams);
   if (parts[0] === "api" && parts[1] === "feature-requests") return featureRequests(method, body);
   if (parts[0] === "api" && parts[1] === "medias") return medias(method, parts.slice(2), body);
   if (parts[0] === "api" && parts[1] === "carousel") return carousel(method, parts.slice(2), body);
@@ -311,7 +314,7 @@ async function events(method: string, [eventId, ...rest]: string[], body: any, q
   if (!path && method === "GET") return json(event);
   if (path === "status" && method === "PUT") return answer(() => ev.changeStatus(eventId, body.status));
   const signsUp = (path === "registration" || path === "registration/demande") && method === "PUT";
-  if (signsUp && !isOn("inscription-evenements")) return featureOff("inscription-evenements");
+  if (signsUp && !isOn("inscription-evenements", event.sectorId)) return featureOff("inscription-evenements");
   if (path === "registration" && method === "PUT") {
     const groupId = query.get("groupId") ?? undefined;
     const piloteId = query.get("piloteId") ?? undefined;
@@ -440,6 +443,12 @@ function carousel(method: string, [id, action, direction]: string[], body: any):
 }
 
 /** Une Fonctionnalité, telle qu'un test la veut avant de rendre une page. */
+/** Une Fonctionnalité désactivée pour un Secteur seulement, sans passer par les leviers. */
+export function setFakeFeatureOffIn(name: FeatureFlag["name"], sectorId: string) {
+  const feature = state.features.find((f) => f.name === name);
+  if (feature) feature.offSectors = [...(feature.offSectors ?? []), sectorId];
+}
+
 export function setFakeFeature(name: FeatureFlag["name"], isActive: boolean) {
   const feature = state.features.find((f) => f.name === name);
   if (feature) feature.isActive = isActive;
@@ -461,7 +470,8 @@ export function seedJournal(count: number) {
   }
 }
 
-function features(method: string, name: string | undefined, body: any, query: URLSearchParams): Response {
+function features(method: string, [name, scope, sectorId]: string[], body: any, query: URLSearchParams): Response {
+  if (scope && scope !== "sectors") return empty(404);
   if (!name) return method === "GET" ? json(state.features) : empty(405);
   if (name === "journal") {
     if (method !== "GET") return empty(405);
@@ -474,6 +484,25 @@ function features(method: string, name: string | undefined, body: any, query: UR
   if (!isSuperAdmin()) return empty(403);
   const feature = state.features.find((f) => f.name === name);
   if (!feature) return empty(404);
+  if (sectorId) {
+    if (!feature.perSecteur) return empty(400);
+    const sector = state.sectors.find((s) => s.sectorId === sectorId);
+    if (!sector) return empty(404);
+    if (sector.closed) return empty(400);
+    const others = (feature.offSectors ?? []).filter((id) => id !== sectorId);
+    feature.offSectors = body.isActive ? others : [...others, sectorId];
+    state.journal.unshift({
+      id: `journal-${state.journal.length + 1}`,
+      feature: feature.name,
+      sectorId,
+      sectorName: sector.name,
+      isActive: body.isActive,
+      reason: body.reason ?? null,
+      switchedBy: `${state.viewer.firstName} ${state.viewer.lastName}`,
+      switchedAt: new Date().toISOString(),
+    });
+    return json(feature);
+  }
   if (feature.isActive && !body.isActive) feature.refusedCount = 0;
   feature.isActive = body.isActive;
   const by = `${state.viewer.firstName} ${state.viewer.lastName}`;

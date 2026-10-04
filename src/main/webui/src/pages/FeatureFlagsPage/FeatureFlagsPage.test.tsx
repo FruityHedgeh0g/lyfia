@@ -34,4 +34,14 @@ describe("FeatureFlagsPage", () => {
     expect(await within(gallery).findByText(/Désactivée par Jean Dupont .* — « Spam »/)).toBeInTheDocument();
     expect(within(gallery).getByText("0 tentative refusée depuis la coupure")).toBeInTheDocument();
   });
+
+  it("turns Inscription aux événements off for one Secteur only (ADR 0009)", async () => {
+    renderAs("super_admin");
+    const perSecteur = await screen.findByRole("list", { name: "Inscription aux événements par secteur" });
+    await userEvent.click(within(perSecteur).getByRole("button", { name: "Désactiver pour Secteur Algrange" }));
+
+    expect(await within(perSecteur).findByRole("button", { name: "Activer pour Secteur Algrange" })).toBeInTheDocument();
+    expect(within(perSecteur).getByText("Secteur Algrange : désactivée")).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Galerie photos par secteur" })).not.toBeInTheDocument();
+  });
 });

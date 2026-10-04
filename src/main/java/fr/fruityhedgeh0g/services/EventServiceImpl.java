@@ -148,7 +148,7 @@ public class EventServiceImpl implements EventService {
 
         Optional<EventRegistrationEntity> existing = registrationRepository.findByEventAndPerson(eventId, personId);
         if (existing.isPresent()) return toDto(existing.get());
-        featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS);
+        featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS, event.getSector());
         requireSignUpOpenTo(event, person);
 
         EventRegistrationEntity registration = event.currentStatus() == EventStatusEnum.OUVERT && placeLeft(event, 1)
@@ -172,7 +172,7 @@ public class EventServiceImpl implements EventService {
                 throw new InvalidResourceException(personId + " is already signed up for " + eventId + " otherwise.");
             return toDto(existing.get());
         }
-        featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS);
+        featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS, event.getSector());
         requireSignUpOpenTo(event, person);
 
         EventRegistrationEntity pilote = registrationRepository.findByEventAndPerson(eventId, pilotePersonId)
@@ -201,8 +201,9 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public RegistrationDto requestGroup(UUID eventId, UUID personId, UUID groupId) {
-        featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS);
-        refuseOnArchived(eventOrThrow(eventId));
+        EventEntity event = eventOrThrow(eventId);
+        featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS, event.getSector());
+        refuseOnArchived(event);
         EventRegistrationEntity registration = registrationOrThrow(eventId, personId);
         registration.requestGroup(groupOrThrow(groupId));
         return toDto(registration);
@@ -351,7 +352,7 @@ public class EventServiceImpl implements EventService {
     @Override
     public RosterExportDto exportRoster(UUID eventId) {
         EventEntity event = managedEventOrThrow(eventId);
-        featureLevers.require(FeatureEnum.EXPORT_LISTE);
+        featureLevers.require(FeatureEnum.EXPORT_LISTE, event.getSector());
         return new RosterExportDto(RosterSpreadsheet.fileName(event.getName(), event.getStartDateTime().toLocalDate()),
                 RosterSpreadsheet.of(rosterOf(event)));
     }

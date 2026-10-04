@@ -1,9 +1,12 @@
 package fr.fruityhedgeh0g.services;
 
+import fr.fruityhedgeh0g.entities.SectorEntity;
 import fr.fruityhedgeh0g.entities.configurations.FeatureEntity;
+import fr.fruityhedgeh0g.entities.configurations.FeatureSectorLeverEntity;
 import fr.fruityhedgeh0g.enums.FeatureEnum;
 import fr.fruityhedgeh0g.exceptions.FeatureOffException;
 import fr.fruityhedgeh0g.repositories.FeatureRepository;
+import fr.fruityhedgeh0g.repositories.FeatureSectorLeverRepository;
 import fr.fruityhedgeh0g.security.Viewer;
 import io.quarkus.logging.Log;
 import io.quarkus.narayana.jta.QuarkusTransaction;
@@ -21,6 +24,9 @@ public class FeatureLevers {
     FeatureRepository featureRepository;
 
     @Inject
+    FeatureSectorLeverRepository sectorLeverRepository;
+
+    @Inject
     Viewer viewer;
 
     public boolean isOn(FeatureEnum feature) {
@@ -29,9 +35,26 @@ public class FeatureLevers {
                 .orElse(true));
     }
 
+    /**
+     * On in a Secteur only while both its lever for the whole site and the Secteur's are on: the two are independent
+     * (ADR 0009). A Secteur without its own lever has it on.
+     */
+    public boolean isOn(FeatureEnum feature, SectorEntity sector) {
+        if (!isOn(feature)) return false;
+        if (!feature.perSecteur() || sector == null) return true;
+        return QuarkusTransaction.joiningExisting().call(() -> sectorLeverRepository.find(feature.id(), sector.getSectorId())
+                .map(FeatureSectorLeverEntity::getIsActive)
+                .orElse(true));
+    }
+
     /** Refuses what {@code feature} covers while it is off. */
     public void require(FeatureEnum feature) {
         if (!isOn(feature)) throw refused(feature);
+    }
+
+    /** Refuses what {@code feature} covers in that Secteur while it is off there or for the whole site. */
+    public void require(FeatureEnum feature, SectorEntity sector) {
+        if (!isOn(feature, sector)) throw refused(feature);
     }
 
     /**

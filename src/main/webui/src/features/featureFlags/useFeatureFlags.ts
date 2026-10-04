@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchFeatureFlags, fetchJournal, JOURNAL_PAGE_SIZE, setFeatureFlagActive } from "./featureFlagsApi";
+import { fetchFeatureFlags, fetchJournal, JOURNAL_PAGE_SIZE, setFeatureFlagActive, setFeatureFlagActiveInSector } from "./featureFlagsApi";
 import { FeatureName } from "./types";
 import { queryKeys } from "../queryKeys";
 
@@ -9,24 +9,30 @@ export function useFeatureFlags() {
 
 /**
  * État des fonctionnalités ; `isActive` renvoie false tant que les flags ne sont pas chargés, puis true pour une
- * Fonctionnalité que l'API ne connaît pas : un levier jamais tiré (comme FeatureLevers côté backend).
+ * Fonctionnalité que l'API ne connaît pas : un levier jamais tiré (comme FeatureLevers côté backend). Avec un
+ * Secteur, elle n'est active que si son levier pour tout le site et celui du Secteur le sont (ADR 0009).
  */
 export function useFeatures() {
   const { data, isSuccess } = useFeatureFlags();
   return {
     ready: isSuccess,
-    isActive: (name: FeatureName) => (data ? (data.find((f) => f.name === name)?.isActive ?? true) : false),
+    isActive: (name: FeatureName, sectorId?: string | null) => {
+      if (!data) return false;
+      const flag = data.find((f) => f.name === name);
+      if (!flag) return true;
+      return flag.isActive && !(sectorId && flag.offSectors?.includes(sectorId));
+    },
   };
 }
 
-export function useFeature(name: FeatureName): boolean {
-  return useFeatures().isActive(name);
+export function useFeature(name: FeatureName, sectorId?: string | null): boolean {
+  return useFeatures().isActive(name, sectorId);
 }
 
 /** La Fonctionnalité est connue pour être désactivée : de quoi dire ce qui est suspendu sans le faire clignoter au chargement. */
-export function useFeatureOff(name: FeatureName): boolean {
+export function useFeatureOff(name: FeatureName, sectorId?: string | null): boolean {
   const { ready, isActive } = useFeatures();
-  return ready && !isActive(name);
+  return ready && !isActive(name, sectorId);
 }
 
 export function useSetFeatureFlagActive() {
@@ -35,6 +41,15 @@ export function useSetFeatureFlagActive() {
     mutationFn: (input: { name: FeatureName; isActive: boolean; reason?: string }) =>
       setFeatureFlagActive(input.name, input.isActive, input.reason),
     // Le site suit aussitôt : ce que la Fonctionnalité couvre peut avoir changé, et le Journal s'est allongé
+    onSuccess: () => queryClient.invalidateQueries(),
+  });
+}
+
+export function useSetFeatureFlagActiveInSector() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: FeatureName; sectorId: string; isActive: boolean; reason?: string }) =>
+      setFeatureFlagActiveInSector(input.name, input.sectorId, input.isActive, input.reason),
     onSuccess: () => queryClient.invalidateQueries(),
   });
 }

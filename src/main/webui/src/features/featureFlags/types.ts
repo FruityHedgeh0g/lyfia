@@ -31,6 +31,10 @@ export interface FeatureFlag {
   name: FeatureName;
   description: string;
   isActive: boolean;
+  /** Elle a aussi un levier par Secteur (Inscription aux événements, Export de la liste). */
+  perSecteur?: boolean;
+  /** Les Secteurs où elle est désactivée, quel que soit son levier pour tout le site. */
+  offSectors?: string[];
   /** Tentatives refusées depuis qu'elle a été désactivée. */
   refusedCount?: number;
   lastSwitchedBy?: string | null;

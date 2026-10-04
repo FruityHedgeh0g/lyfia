@@ -47,6 +47,17 @@ public class FeatureController {
         return featureService.switchLever(name, change.isActive(), change.reason(), me());
     }
 
+    /** A Feature's lever for one Secteur (Inscription aux événements, Export de la liste), independent of the site-wide one. */
+    @PUT
+    @Path("/{name}/sectors/{sectorId}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @RolesAllowed("super_admin")
+    public @JsonView(Views.Basic.class) FeatureDto setActiveInSector(@PathParam("name") String name, @PathParam("sectorId") UUID sectorId,
+                                                                     @NotNull FeatureSwitchDto change){
+        if (change.isActive() == null) throw new BadRequestException("A feature is turned on or off.");
+        return featureService.switchSectorLever(name, sectorId, change.isActive(), change.reason(), me());
+    }
+
     /** The Journal, newest first, one page at a time; never changed nor deleted from the site. */
     @GET
     @Path("/journal")

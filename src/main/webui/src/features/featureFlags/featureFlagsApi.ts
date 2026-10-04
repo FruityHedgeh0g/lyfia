@@ -13,6 +13,13 @@ export const setFeatureFlagActive = (name: FeatureName, isActive: boolean, reaso
     body: JSON.stringify({ isActive, reason: reason?.trim() || undefined }),
   });
 
+/** Le levier d'une Fonctionnalité pour un Secteur, indépendant de celui de tout le site. */
+export const setFeatureFlagActiveInSector = (name: FeatureName, sectorId: string, isActive: boolean, reason?: string) =>
+  apiFetch<FeatureFlag>(`/api/features/${encodeURIComponent(name)}/sectors/${encodeURIComponent(sectorId)}`, {
+    method: "PUT",
+    body: JSON.stringify({ isActive, reason: reason?.trim() || undefined }),
+  });
+
 /** Nombre d'entrées du Journal chargées à la fois. */
 export const JOURNAL_PAGE_SIZE = 20;
 

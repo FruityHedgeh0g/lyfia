@@ -89,8 +89,8 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
   const { roster, moveUp, removePerson, place, setMaximum } = useRoster(eventId);
   const { decide, takeOut } = useGroupActions();
   const { data: groups } = useGroups();
-  const exportOn = useFeature("export-liste");
-  const exportOff = useFeatureOff("export-liste");
+  const exportOn = useFeature("export-liste", sectorId);
+  const exportOff = useFeatureOff("export-liste", sectorId);
   const pending =
     moveUp.isPending || removePerson.isPending || place.isPending || setMaximum.isPending || decide.isPending || takeOut.isPending;
 

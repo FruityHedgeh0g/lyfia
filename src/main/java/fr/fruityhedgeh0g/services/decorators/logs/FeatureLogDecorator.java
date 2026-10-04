@@ -2,6 +2,7 @@ package fr.fruityhedgeh0g.services.decorators.logs;
 
 import fr.fruityhedgeh0g.dtos.featureDtos.FeatureDto;
 import fr.fruityhedgeh0g.dtos.featureDtos.FeatureSwitchEntryDto;
+import fr.fruityhedgeh0g.exceptions.InvalidResourceException;
 import fr.fruityhedgeh0g.exceptions.KeycloakUnavailableException;
 import fr.fruityhedgeh0g.exceptions.UnknownResourceException;
 import fr.fruityhedgeh0g.services.interfaces.FeatureService;
@@ -58,6 +59,21 @@ public class FeatureLogDecorator implements FeatureService{
                         case UnknownResourceException ex -> Log.errorf(ex,"Feature %s not found.", name);
                         case KeycloakUnavailableException ex -> Log.errorf(ex,"Feature %s left as it was: Keycloak could not be changed.", name);
                         default -> Log.errorf(t,"An error occurred while switching the Feature %s.", name);
+                    }
+                })
+                .get();
+    }
+
+    @Override
+    public FeatureDto switchSectorLever(String name, UUID sectorId, boolean active, String reason, UUID by) {
+        Log.infof("Switching the Feature %s %s for the Secteur %s, asked by %s...", name, active ? "on" : "off", sectorId, by);
+        return Try.of(() -> featureService.switchSectorLever(name, sectorId, active, reason, by))
+                .onSuccess(feature -> Log.infof("Feature %s is now %s for the Secteur %s.", name, active ? "on" : "off", sectorId))
+                .onFailure(t -> {
+                    switch(t){
+                        case UnknownResourceException ex -> Log.errorf(ex,"Feature %s or Secteur %s not found.", name, sectorId);
+                        case InvalidResourceException ex -> Log.warnf("Feature %s not switched for the Secteur %s: %s", name, sectorId, ex.getMessage());
+                        default -> Log.errorf(t,"An error occurred while switching the Feature %s for the Secteur %s.", name, sectorId);
                     }
                 })
                 .get();

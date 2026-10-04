@@ -39,8 +39,8 @@ export const EventDetailPage: React.FC = () => {
   const [mode, setMode] = useState<RideMode>("pilote");
   const [piloteId, setPiloteId] = useState("");
   const { data: pilotes } = usePilotes(mode === "passager" ? eventId : undefined);
-  const registrationOpen = useFeature("inscription-evenements");
-  const registrationOff = useFeatureOff("inscription-evenements");
+  const registrationOpen = useFeature("inscription-evenements", event?.sectorId);
+  const registrationOff = useFeatureOff("inscription-evenements", event?.sectorId);
   const [askPhone, setAskPhone] = useState(false);
   const [phone, setPhone] = useState("");
 

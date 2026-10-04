@@ -14,6 +14,8 @@ public interface FeatureMapper {
     @Mapping(target = "lastSwitchedBy", ignore = true)
     @Mapping(target = "lastSwitchedAt", ignore = true)
     @Mapping(target = "lastReason", ignore = true)
+    @Mapping(target = "perSecteur", ignore = true)
+    @Mapping(target = "offSectors", ignore = true)
     FeatureDto toDto(FeatureEntity entity);
 
     FeatureEntity toEntity(FeatureDto dto);
