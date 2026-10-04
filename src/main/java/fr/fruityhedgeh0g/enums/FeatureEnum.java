@@ -15,7 +15,9 @@ public enum FeatureEnum {
     CARROUSEL("carrousel"),
     DEPOT_MEDIAS("depot-medias"),
     DEMANDES_FONCTIONNALITE("demandes-fonctionnalite"),
-    EXPORT_LISTE("export-liste");
+    EXPORT_LISTE("export-liste"),
+    /** Also opens or closes Keycloak's registration form, where people register. */
+    INSCRIPTION_SITE("inscription-site");
 
     private final String id;
 

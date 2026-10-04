@@ -42,3 +42,10 @@
   font-size: var(--text-sm);
   color: var(--color-muted);
 }
+
+.error {
+  max-width: 900px;
+  margin: 0 0 var(--space-4);
+  color: var(--color-danger);
+  font-weight: 600;
+}

@@ -14,6 +14,12 @@ export const FeatureFlagsPage: React.FC = () => {
   if (isLoading) return <Spinner label="Chargement des fonctionnalités..." />;
 
   return (
+    <>
+    {setActive.isError && (
+      <p className={styles.error} role="alert">
+        Le changement n'a pas pu être fait : rien n'a changé. Réessayez dans un instant.
+      </p>
+    )}
     <ul className={styles.list}>
       {flags?.map((flag) => (
         <li key={flag.name} className={`${styles.item}${flag.isActive ? ` ${styles.active}` : ""}`}>
@@ -33,6 +39,7 @@ export const FeatureFlagsPage: React.FC = () => {
         </li>
       ))}
     </ul>
+    </>
   );
 };
 

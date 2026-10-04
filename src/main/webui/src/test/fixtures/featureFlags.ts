@@ -8,5 +8,6 @@ export const mockFeatureFlags: FeatureFlag[] = [
   { name: "carrousel", description: "Montrer le carrousel de la page d'accueil.", isActive: true },
   { name: "depot-medias", description: "Permettre au Bureau de déposer des images dans la médiathèque.", isActive: true },
   { name: "demandes-fonctionnalite", description: "Permettre au Bureau de demander des fonctionnalités.", isActive: true },
+  { name: "inscription-site", description: "Permettre aux visiteurs de créer leur compte sur le site.", isActive: true },
   { name: "export-liste", description: "Permettre au Bureau de télécharger la liste des inscrits d'un événement.", isActive: true },
 ];

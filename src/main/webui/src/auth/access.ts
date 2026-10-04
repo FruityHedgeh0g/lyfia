@@ -22,6 +22,8 @@ export interface AccessEntry {
   feature?: FeatureName;
   /** Lien actif uniquement sur le chemin exact (NavLink `end`). */
   end?: boolean;
+  /** Route gardée sans lien dans la navigation (on y arrive par des boutons des pages). */
+  hidden?: boolean;
 }
 
 export const ACCESS = {
@@ -38,7 +40,15 @@ export const ACCESS = {
   contact: { path: "/contact", label: "Contact", minRole: "visiteur", section: "main", menu: "Association" },
   events: { path: "/evenements", label: "Événements", minRole: "visiteur", section: "main" },
   donation: { path: "/don", label: "Faire un don", minRole: "visiteur", section: "main", menu: "Soutenir" },
-  volunteer: { path: "/#benevolat", label: "Devenir bénévole", minRole: "visiteur", section: "main", menu: "Soutenir" },
+  volunteer: {
+    path: "/#benevolat",
+    label: "Devenir bénévole",
+    minRole: "visiteur",
+    section: "main",
+    menu: "Soutenir",
+    feature: "inscription-site",
+  },
+  register: { path: "/inscription", label: "Inscription", minRole: "visiteur", section: "main", feature: "inscription-site", hidden: true },
   account: { path: "/mon-compte", label: "Mon espace", minRole: "benevole", section: "main" },
   administration: { path: "/administration", label: "Administration", minRole: "bureau", section: "main" },
   featureRequests: {
@@ -97,7 +107,7 @@ export function canAccess(id: AccessId, ctx: AccessContext): boolean {
 /** Entrées visibles d'une section, dans l'ordre de déclaration. */
 export function navFor(section: AccessSection, ctx: AccessContext): (AccessEntry & { id: AccessId })[] {
   return (Object.keys(ACCESS) as AccessId[])
-    .filter((id) => entry(id).section === section && canAccess(id, ctx))
+    .filter((id) => entry(id).section === section && !entry(id).hidden && canAccess(id, ctx))
     .map((id) => ({ id, ...entry(id) }));
 }
 

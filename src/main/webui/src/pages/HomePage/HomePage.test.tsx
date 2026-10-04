@@ -39,3 +39,19 @@ describe("HomePage carousel", () => {
     expect(await screen.findByRole("region", { name: "Carrousel" })).toBeInTheDocument();
   });
 });
+
+describe("HomePage registration", () => {
+  it("offers Je m'engage while Inscription sur le site is on", async () => {
+    renderAs("visiteur");
+    expect(await screen.findByText("Devenir bénévole")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Je m'engage" })).toBeInTheDocument();
+  });
+
+  it("hides Je m'engage while Inscription sur le site is off (ADR 0009)", async () => {
+    setFakeFeature("inscription-site", false);
+    renderAs("visiteur");
+    await waitFor(() => expect(screen.getByText("Faire un don", { selector: "h3" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("Devenir bénévole")).not.toBeInTheDocument());
+    expect(screen.queryByRole("link", { name: "Je m'engage" })).not.toBeInTheDocument();
+  });
+});

@@ -70,7 +70,7 @@ export const router = createBrowserRouter(
         route("contact", <ContactPage />),
         route("donation", <DonationPage />),
         { path: "connexion", element: <LoginPage /> },
-        { path: "inscription", element: <RegisterPage /> },
+        route("register", <RegisterPage />),
         route("account", <AccountLayout />, null, [
           route("accountProfile", <ProfilePage />, "account"),
           route("accountEvents", <MyEventsPage />, "account"),

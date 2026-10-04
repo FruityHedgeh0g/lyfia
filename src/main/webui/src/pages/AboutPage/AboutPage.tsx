@@ -3,6 +3,8 @@ import PageHero from "../../components/organisms/PageHero/PageHero";
 import SectionHeading from "../../components/molecules/SectionHeading/SectionHeading";
 import ButtonLink from "../../components/atoms/ButtonLink/ButtonLink";
 import Icon, { IconName } from "../../components/atoms/Icon/Icon";
+import IfAccess from "../../auth/IfAccess";
+import { entry } from "../../auth/access";
 import styles from "./AboutPage.module.css";
 
 const values: { title: string; description: string; icon: IconName }[] = [
@@ -106,7 +108,9 @@ export const AboutPage: React.FC = () => (
           align="center"
         />
         <div className={styles.ctaActions}>
-          <ButtonLink to="/inscription" label="Devenir membre" variant="accent" arrow />
+          <IfAccess id="register">
+            <ButtonLink to={entry("register").path} label="Devenir membre" variant="accent" arrow />
+          </IfAccess>
           <ButtonLink to="/don" label="Faire un don" variant="outline" />
         </div>
       </div>

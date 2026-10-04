@@ -5,7 +5,9 @@ import fr.fruityhedgeh0g.utilities.logging.Logged;
 import fr.fruityhedgeh0g.dtos.featureDtos.FeatureDto;
 import fr.fruityhedgeh0g.entities.configurations.ConfigurationEntity;
 import fr.fruityhedgeh0g.entities.configurations.FeatureEntity;
+import fr.fruityhedgeh0g.enums.FeatureEnum;
 import fr.fruityhedgeh0g.exceptions.UnknownResourceException;
+import fr.fruityhedgeh0g.keycloak.KeycloakRegistration;
 import fr.fruityhedgeh0g.repositories.FeatureRepository;
 import fr.fruityhedgeh0g.services.interfaces.FeatureService;
 import fr.fruityhedgeh0g.utilities.mappers.FeatureMapper;
@@ -31,6 +33,9 @@ public class FeatureServiceImpl implements FeatureService {
     @Inject
     FeatureRepository featureRepository;
 
+    @Inject
+    KeycloakRegistration keycloakRegistration;
+
     @Override
     public List<FeatureDto> listAll() {
         return featureRepository.listAll()
@@ -52,6 +57,9 @@ public class FeatureServiceImpl implements FeatureService {
     public FeatureDto update(FeatureDto featureDto) {
         FeatureEntity featureEntity = featureRepository.findByName(featureDto.getName())
                 .orElseThrow(() -> new UnknownResourceException("Feature not found: " + featureDto.getName()));
+        // Keycloak's form first: if it cannot be closed, the lever must not look pulled (ADR 0009)
+        if (FeatureEnum.INSCRIPTION_SITE.id().equals(featureEntity.getName()) && featureDto.getIsActive() != null)
+            keycloakRegistration.allowSelfRegistration(featureDto.getIsActive());
 
         featureEntity = featureMapper.partialDtoToEntity(featureEntity,featureDto);
         featureRepository.persist(featureEntity);

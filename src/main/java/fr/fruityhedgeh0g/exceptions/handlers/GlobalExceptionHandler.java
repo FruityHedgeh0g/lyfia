@@ -5,6 +5,7 @@ import fr.fruityhedgeh0g.exceptions.FeatureOffException;
 import fr.fruityhedgeh0g.exceptions.ForbiddenActionException;
 import fr.fruityhedgeh0g.exceptions.ForbiddenRoleChangeException;
 import fr.fruityhedgeh0g.exceptions.InvalidResourceException;
+import fr.fruityhedgeh0g.exceptions.KeycloakUnavailableException;
 import fr.fruityhedgeh0g.exceptions.NotImplementedYetException;
 import fr.fruityhedgeh0g.exceptions.PhoneRequiredException;
 import fr.fruityhedgeh0g.exceptions.UnknownResourceException;
@@ -64,6 +65,11 @@ public class GlobalExceptionHandler {
         return RestResponse.ResponseBuilder.<Map<String, String>>create(Response.Status.SERVICE_UNAVAILABLE)
                 .type(MediaType.APPLICATION_JSON_TYPE)
                 .entity(Map.of("error", "feature-off", "feature", x.getFeature().id())).build();
+    }
+
+    @ServerExceptionMapper
+    public RestResponse<Void> mapKeycloakUnavailableException(KeycloakUnavailableException x) {
+        return RestResponse.status(Response.Status.BAD_GATEWAY);
     }
 
     @ServerExceptionMapper

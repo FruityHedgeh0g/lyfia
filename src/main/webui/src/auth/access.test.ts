@@ -46,6 +46,16 @@ describe("access map", () => {
     expect(canAccess("gallery", ctx("visiteur"))).toBe(true);
   });
 
+  it("keeps hidden entries out of the navigation", () => {
+    expect(canAccess("register", ctx("visiteur"))).toBe(true);
+    expect(ids(navFor("main", ctx("visiteur")))).not.toContain("register");
+  });
+
+  it("closes registration while Inscription sur le site is off", () => {
+    expect(canAccess("register", ctx("visiteur", ["inscription-site"]))).toBe(false);
+    expect(canAccess("volunteer", ctx("visiteur", ["inscription-site"]))).toBe(false);
+  });
+
   it("lets the Super admin see what is turned off (ADR 0009)", () => {
     expect(canAccess("gallery", { ...ctx("super_admin", ["galerie-photos"]), seesTurnedOff: true })).toBe(true);
     expect(isTurnedOff("gallery", ctx("super_admin", ["galerie-photos"]))).toBe(true);

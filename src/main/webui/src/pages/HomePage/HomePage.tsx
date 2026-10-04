@@ -12,6 +12,7 @@ import { DEFAULT_IMAGE_SRC, mediaImage } from "../../features/medias/mediaImage"
 import FeatureNotice from "../../components/molecules/FeatureNotice/FeatureNotice";
 import { useFeature } from "../../features/featureFlags/useFeatureFlags";
 import { useAccess } from "../../auth/useAccess";
+import { AccessId, entry } from "../../auth/access";
 import styles from "./HomePage.module.css";
 
 /** Le carrousel disparaît quand Carrousel est désactivé ; le Super admin le voit, marqué comme tel (ADR 0009). */
@@ -62,6 +63,8 @@ interface ActionTile {
   description: string;
   to: string;
   linkLabel: string;
+  /** L'entrée de la carte d'accès dont dépend la tuile. */
+  access?: AccessId;
 }
 
 const actions: ActionTile[] = [
@@ -82,6 +85,7 @@ const actions: ActionTile[] = [
       "Rejoignez notre équipe de bénévoles engagés. Que ce soit pour les collectes, les événements ou la communication, votre aide compte énormément.",
     to: "/inscription",
     linkLabel: "Je m'engage",
+    access: "register",
   },
   {
     id: "contact",
@@ -93,7 +97,9 @@ const actions: ActionTile[] = [
   },
 ];
 
-export const HomePage: React.FC = () => (
+export const HomePage: React.FC = () => {
+  const { canAccess } = useAccess();
+  return (
   <>
     <h1 className="sr-only">Une Rose Un Espoir - Algrange</h1>
     <HeroCarousel />
@@ -133,7 +139,7 @@ export const HomePage: React.FC = () => (
           align="center"
         />
         <div className={styles.tiles}>
-          {actions.map((action, i) => (
+          {actions.filter((action) => !action.access || canAccess(action.access)).map((action, i) => (
             <article key={action.id} id={action.id} className={styles.tile}>
               <span className={styles.tileIndex} aria-hidden="true">
                 {String(i + 1).padStart(2, "0")}
@@ -172,11 +178,12 @@ export const HomePage: React.FC = () => (
         </h2>
         <div className={styles.bannerActions}>
           <ButtonLink to="/don" label="Faire un don" variant="accent" arrow />
-          <ButtonLink to="/inscription" label="Je m'engage" variant="inverse" />
+          {canAccess("register") && <ButtonLink to={entry("register").path} label="Je m'engage" variant="inverse" />}
         </div>
       </div>
     </section>
   </>
-);
+  );
+};
 
 export default HomePage;

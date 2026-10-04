@@ -10,7 +10,8 @@ export type FeatureName =
   | "carrousel"
   | "depot-medias"
   | "demandes-fonctionnalite"
-  | "export-liste";
+  | "export-liste"
+  | "inscription-site";
 
 /** Ce que chaque Fonctionnalité laisse faire, pour la page Fonctionnalités et les messages de suspension. */
 export const FEATURE_LABELS: Record<FeatureName, string> = {
@@ -22,6 +23,7 @@ export const FEATURE_LABELS: Record<FeatureName, string> = {
   "depot-medias": "Dépôt de médias",
   "demandes-fonctionnalite": "Demandes de fonctionnalité",
   "export-liste": "Export de la liste",
+  "inscription-site": "Inscription sur le site",
 };
 
 /** Reflète FeatureDto côté backend. */
