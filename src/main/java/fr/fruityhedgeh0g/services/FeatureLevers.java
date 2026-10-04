@@ -42,8 +42,11 @@ public class FeatureLevers {
         if (!viewer.preparesContent()) require(feature);
     }
 
+    /** Counted for the Journal in a transaction of its own: the refused request's rolls back. */
     private FeatureOffException refused(FeatureEnum feature) {
         Log.warnf("Refused while the Feature %s is off: %s", feature.id(), viewer.describe());
+        QuarkusTransaction.requiringNew().run(() ->
+                featureRepository.update("refusedCount = refusedCount + 1 where name = ?1", feature.id()));
         return new FeatureOffException(feature);
     }
 }

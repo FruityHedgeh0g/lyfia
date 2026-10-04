@@ -26,9 +26,26 @@ export const FEATURE_LABELS: Record<FeatureName, string> = {
   "inscription-site": "Inscription sur le site",
 };
 
-/** Reflète FeatureDto côté backend. */
+/** Reflète FeatureDto côté backend, avec le dernier changement de son levier pour tout le site (le Journal). */
 export interface FeatureFlag {
   name: FeatureName;
   description: string;
   isActive: boolean;
+  /** Tentatives refusées depuis qu'elle a été désactivée. */
+  refusedCount?: number;
+  lastSwitchedBy?: string | null;
+  lastSwitchedAt?: string | null;
+  lastReason?: string | null;
+}
+
+/** Une entrée du Journal (FeatureSwitchEntryDto) ; `sectorId` null : tout le site. */
+export interface JournalEntry {
+  id: string;
+  feature: FeatureName;
+  sectorId: string | null;
+  sectorName: string | null;
+  isActive: boolean;
+  reason: string | null;
+  switchedBy: string | null;
+  switchedAt: string;
 }

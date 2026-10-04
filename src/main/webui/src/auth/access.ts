@@ -74,6 +74,7 @@ export const ACCESS = {
   adminMedias: { path: "/administration/medias", label: "Médiathèque", minRole: "bureau", section: "admin" },
   adminConfiguration: { path: "/administration/configuration", label: "Configuration", minRole: "super_admin", section: "admin" },
   adminFeatureFlags: { path: "/administration/fonctionnalites", label: "Fonctionnalités", minRole: "super_admin", section: "admin" },
+  adminJournal: { path: "/administration/journal", label: "Journal", minRole: "super_admin", section: "admin" },
 } satisfies Record<string, AccessEntry>;
 
 export type AccessId = keyof typeof ACCESS;

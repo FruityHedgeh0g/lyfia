@@ -30,6 +30,7 @@ import CarouselAdminPage from "../pages/CarouselAdminPage/CarouselAdminPage";
 import MediasAdminPage from "../pages/MediasAdminPage/MediasAdminPage";
 import ConfigurationPage from "../pages/ConfigurationPage/ConfigurationPage";
 import FeatureFlagsPage from "../pages/FeatureFlagsPage/FeatureFlagsPage";
+import JournalPage from "../pages/JournalPage/JournalPage";
 import NotFoundPage from "../pages/NotFoundPage/NotFoundPage";
 
 // Aligné sur la base de Vite (quarkus.quinoa.ui-root-path) pour que les liens
@@ -88,6 +89,7 @@ export const router = createBrowserRouter(
           route("adminMedias", <MediasAdminPage />, "administration"),
           route("adminConfiguration", <ConfigurationPage />, "administration"),
           route("adminFeatureFlags", <FeatureFlagsPage />, "administration"),
+          route("adminJournal", <JournalPage />, "administration"),
         ]),
         route("featureRequests", <FeatureRequestsPage />),
         { path: "*", element: <NotFoundPage /> },

@@ -25,6 +25,6 @@ export const queryKeys = {
   medias: { all: ["medias"] as const, gallery: ["medias", "gallery"] as const },
   carousel: { all: ["carousel-items"] as const, active: ["carousel-items", "active"] as const },
   configurations: { all: ["configurations"] as const },
-  featureFlags: { all: ["feature-flags"] as const },
+  featureFlags: { all: ["feature-flags"] as const, journal: ["feature-flags", "journal"] as const },
   featureRequests: { all: ["feature-requests"] as const },
 };

@@ -19,7 +19,7 @@ import { Media } from "../features/medias/types";
 import { mockCarouselItems } from "./fixtures/carousel";
 import { CarouselItem } from "../features/carousel/types";
 import { mockFeatureFlags } from "./fixtures/featureFlags";
-import { FeatureFlag } from "../features/featureFlags/types";
+import { FeatureFlag, JournalEntry } from "../features/featureFlags/types";
 import { mockFeatureRequests } from "./fixtures/featureRequests";
 import { FeatureRequest } from "../features/featureRequests/types";
 
@@ -49,6 +49,8 @@ interface State {
   medias: Media[];
   carousel: CarouselItem[];
   features: FeatureFlag[];
+  /** Le Journal, les plus récentes d'abord. */
+  journal: JournalEntry[];
   featureRequests: FeatureRequest[];
 }
 
@@ -71,6 +73,7 @@ export function resetFakeApi() {
     medias: structuredClone(mockMedias),
     carousel: structuredClone(mockCarouselItems),
     features: structuredClone(mockFeatureFlags),
+    journal: [],
     featureRequests: structuredClone(mockFeatureRequests),
   };
   vi.stubGlobal("fetch", vi.fn(handle));
@@ -105,7 +108,7 @@ async function handle(input: RequestInfo | URL, init: RequestInit = {}): Promise
   if (parts[0] === "api" && parts[1] === "sectors") return sectors(method, parts.slice(2), body);
   if (parts[0] === "api" && parts[1] === "groups") return groups(method, parts.slice(2), body);
   if (parts[0] === "api" && parts[1] === "users") return users(method, parts.slice(2), body);
-  if (parts[0] === "api" && parts[1] === "features") return features(method, parts[2], body);
+  if (parts[0] === "api" && parts[1] === "features") return features(method, parts[2], body, url.searchParams);
   if (parts[0] === "api" && parts[1] === "feature-requests") return featureRequests(method, body);
   if (parts[0] === "api" && parts[1] === "medias") return medias(method, parts.slice(2), body);
   if (parts[0] === "api" && parts[1] === "carousel") return carousel(method, parts.slice(2), body);
@@ -442,13 +445,50 @@ export function setFakeFeature(name: FeatureFlag["name"], isActive: boolean) {
   if (feature) feature.isActive = isActive;
 }
 
-function features(method: string, name: string | undefined, body: any): Response {
+/** Ajoute des entrées au Journal, sans passer par les leviers. */
+export function seedJournal(count: number) {
+  for (let i = 0; i < count; i++) {
+    state.journal.push({
+      id: `journal-seed-${state.journal.length + 1}`,
+      feature: "galerie-photos",
+      sectorId: null,
+      sectorName: null,
+      isActive: i % 2 === 0,
+      reason: null,
+      switchedBy: "Jean Dupont",
+      switchedAt: new Date(2026, 9, 1, 12, 0, 0).toISOString(),
+    });
+  }
+}
+
+function features(method: string, name: string | undefined, body: any, query: URLSearchParams): Response {
   if (!name) return method === "GET" ? json(state.features) : empty(405);
+  if (name === "journal") {
+    if (method !== "GET") return empty(405);
+    if (!isSuperAdmin()) return empty(403);
+    const page = Number(query.get("page") ?? 0);
+    const size = Number(query.get("size") ?? 20);
+    return json(state.journal.slice(page * size, (page + 1) * size));
+  }
   if (method !== "PUT") return empty(405);
   if (!isSuperAdmin()) return empty(403);
   const feature = state.features.find((f) => f.name === name);
   if (!feature) return empty(404);
+  if (feature.isActive && !body.isActive) feature.refusedCount = 0;
   feature.isActive = body.isActive;
+  const by = `${state.viewer.firstName} ${state.viewer.lastName}`;
+  const at = new Date().toISOString();
+  Object.assign(feature, { lastSwitchedBy: by, lastSwitchedAt: at, lastReason: body.reason ?? null });
+  state.journal.unshift({
+    id: `journal-${state.journal.length + 1}`,
+    feature: feature.name,
+    sectorId: null,
+    sectorName: null,
+    isActive: body.isActive,
+    reason: body.reason ?? null,
+    switchedBy: by,
+    switchedAt: at,
+  });
   return json(feature);
 }
 

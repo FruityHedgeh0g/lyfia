@@ -24,4 +24,8 @@ public class FeatureEntity {
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive;
+
+    /** Attempts refused since the Feature was last turned off (the Journal shows it). */
+    @Column(name = "refused_count", nullable = false)
+    private long refusedCount;
 }

@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchFeatureFlags, setFeatureFlagActive } from "./featureFlagsApi";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchFeatureFlags, fetchJournal, JOURNAL_PAGE_SIZE, setFeatureFlagActive } from "./featureFlagsApi";
 import { FeatureName } from "./types";
 import { queryKeys } from "../queryKeys";
 
@@ -32,8 +32,19 @@ export function useFeatureOff(name: FeatureName): boolean {
 export function useSetFeatureFlagActive() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { name: FeatureName; isActive: boolean }) => setFeatureFlagActive(input.name, input.isActive),
-    // Le site suit aussitôt : ce que la Fonctionnalité couvre peut avoir changé
+    mutationFn: (input: { name: FeatureName; isActive: boolean; reason?: string }) =>
+      setFeatureFlagActive(input.name, input.isActive, input.reason),
+    // Le site suit aussitôt : ce que la Fonctionnalité couvre peut avoir changé, et le Journal s'est allongé
     onSuccess: () => queryClient.invalidateQueries(),
+  });
+}
+
+/** Le Journal, page après page : la suivante existe tant qu'une page arrive pleine. */
+export function useJournal() {
+  return useInfiniteQuery({
+    queryKey: queryKeys.featureFlags.journal,
+    queryFn: ({ pageParam }) => fetchJournal(pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, _pages, lastPageParam) => (lastPage.length === JOURNAL_PAGE_SIZE ? lastPageParam + 1 : undefined),
   });
 }

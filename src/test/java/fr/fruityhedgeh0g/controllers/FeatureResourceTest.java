@@ -4,6 +4,7 @@ import fr.fruityhedgeh0g.entities.configurations.FeatureEntity;
 import fr.fruityhedgeh0g.enums.FeatureEnum;
 import fr.fruityhedgeh0g.keycloak.FakeKeycloakRegistration;
 import fr.fruityhedgeh0g.repositories.FeatureRepository;
+import fr.fruityhedgeh0g.repositories.FeatureSwitchRepository;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.common.http.TestHTTPEndpoint;
 import io.quarkus.test.junit.QuarkusTest;
@@ -30,6 +31,7 @@ class FeatureResourceTest {
 
     @Inject FeatureRepository featureRepository;
     @Inject FakeKeycloakRegistration keycloakRegistration;
+    @Inject FeatureSwitchRepository switchRepository;
 
     @BeforeEach
     void seed() {
@@ -42,6 +44,7 @@ class FeatureResourceTest {
         QuarkusTransaction.requiringNew().run(() -> {
             featureRepository.delete("name", NAME);
             featureRepository.delete("name", FeatureEnum.INSCRIPTION_SITE.id());
+            switchRepository.delete("feature in ?1", java.util.List.of(NAME, FeatureEnum.INSCRIPTION_SITE.id()));
         });
         keycloakRegistration.reset();
     }

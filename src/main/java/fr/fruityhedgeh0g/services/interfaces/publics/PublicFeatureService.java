@@ -1,18 +1,19 @@
 package fr.fruityhedgeh0g.services.interfaces.publics;
 
 import fr.fruityhedgeh0g.dtos.featureDtos.FeatureDto;
-import jakarta.validation.Valid;
+import fr.fruityhedgeh0g.dtos.featureDtos.FeatureSwitchEntryDto;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.UUID;
 
 public interface PublicFeatureService {
     List<FeatureDto> listAll();
     FeatureDto getByName(@NotNull String name);
-    FeatureDto update(@NotNull @Valid FeatureDto featureDto );
 
-//    Try<List<FeatureDto>> getAllFeatures();
-//    Try<FeatureDto> getFeatureByName(@NotBlank String name);
-//    Try<FeatureDto> updateFeature(@NotNull @Valid FeatureDto featureDto);
+    /** Pulls a Feature's lever for the whole site and writes it in the Journal; {@code by} may be unknown. */
+    FeatureDto switchLever(@NotNull String name, boolean active, String reason, UUID by);
+
+    /** One page of the Journal, newest first. */
+    List<FeatureSwitchEntryDto> journal(int page, int size);
 }

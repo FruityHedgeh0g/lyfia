@@ -3,24 +3,27 @@ package fr.fruityhedgeh0g.services;
 import fr.fruityhedgeh0g.utilities.logging.Logged;
 
 import fr.fruityhedgeh0g.dtos.featureDtos.FeatureDto;
-import fr.fruityhedgeh0g.entities.configurations.ConfigurationEntity;
+import fr.fruityhedgeh0g.dtos.featureDtos.FeatureSwitchEntryDto;
 import fr.fruityhedgeh0g.entities.configurations.FeatureEntity;
+import fr.fruityhedgeh0g.entities.configurations.FeatureSwitchEntity;
 import fr.fruityhedgeh0g.enums.FeatureEnum;
 import fr.fruityhedgeh0g.exceptions.UnknownResourceException;
 import fr.fruityhedgeh0g.keycloak.KeycloakRegistration;
 import fr.fruityhedgeh0g.repositories.FeatureRepository;
+import fr.fruityhedgeh0g.repositories.FeatureSwitchRepository;
+import fr.fruityhedgeh0g.repositories.UserRepository;
 import fr.fruityhedgeh0g.services.interfaces.FeatureService;
 import fr.fruityhedgeh0g.utilities.mappers.FeatureMapper;
-import io.quarkus.security.Authenticated;
-import io.smallrye.common.annotation.Identifier;
+import io.quarkus.logging.Log;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Default;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
+import java.util.UUID;
 
 @AllArgsConstructor
 @Logged
@@ -34,78 +37,71 @@ public class FeatureServiceImpl implements FeatureService {
     FeatureRepository featureRepository;
 
     @Inject
+    FeatureSwitchRepository switchRepository;
+
+    @Inject
+    UserRepository userRepository;
+
+    @Inject
     KeycloakRegistration keycloakRegistration;
 
     @Override
     public List<FeatureDto> listAll() {
         return featureRepository.listAll()
                 .stream()
-                .map(featureMapper::toDto)
+                .map(this::toDto)
                 .toList();
     }
 
     @Override
     public FeatureDto getByName(String name) {
-        return featureMapper.toDto(
-                featureRepository.findByName(name)
-                .orElseThrow(() -> new UnknownResourceException("Feature not found: " + name))
-        );
+        return toDto(featureOrThrow(name));
     }
 
     @Override
     @Transactional
-    public FeatureDto update(FeatureDto featureDto) {
-        FeatureEntity featureEntity = featureRepository.findByName(featureDto.getName())
-                .orElseThrow(() -> new UnknownResourceException("Feature not found: " + featureDto.getName()));
+    public FeatureDto switchLever(String name, boolean active, String reason, UUID by) {
+        FeatureEntity feature = featureOrThrow(name);
         // Keycloak's form first: if it cannot be closed, the lever must not look pulled (ADR 0009)
-        if (FeatureEnum.INSCRIPTION_SITE.id().equals(featureEntity.getName()) && featureDto.getIsActive() != null)
-            keycloakRegistration.allowSelfRegistration(featureDto.getIsActive());
+        if (FeatureEnum.INSCRIPTION_SITE.id().equals(feature.getName()))
+            keycloakRegistration.allowSelfRegistration(active);
 
-        featureEntity = featureMapper.partialDtoToEntity(featureEntity,featureDto);
-        featureRepository.persist(featureEntity);
-
-        return featureMapper.toDto(featureEntity);
+        boolean wasActive = feature.getIsActive();
+        // Refusals count from the moment it is turned off
+        if (wasActive && !active) feature.setRefusedCount(0);
+        feature.setIsActive(active);
+        String why = reason == null || reason.isBlank() ? null : reason.trim();
+        switchRepository.persist(FeatureSwitchEntity.builder()
+                .feature(feature.getName())
+                .isActive(active)
+                .reason(why)
+                .switchedBy(by == null ? null : userRepository.findById(by))
+                .switchedAt(LocalDateTime.now())
+                .build());
+        Log.infof("Feature %s turned %s (was %s) for the whole site by %s%s", feature.getName(),
+                active ? "on" : "off", wasActive ? "on" : "off", by, why == null ? "" : ": " + why);
+        return toDto(feature);
     }
 
-//    @Override
-//    @Transactional
-//    public Try<FeatureDto> getFeatureByName( String name) {
-//        Log.infof("Getting feature by name: %s", name);
-//        return Try.of(() -> featureRepository.findByIdOptional(name).orElseThrow(
-//                () -> new UnknownResourceException("Feature not found: " + name)))
-//        .map(featureMapper::toDto)
-//        .onFailure(e -> {
-//            if (e instanceof UnknownResourceException ex) {
-//                Log.warn(ex.getMessage());
-//            } else {
-//                Log.errorf(e,"Error getting feature by name: %s", name );
-//            }
-//        });
-//    }
-//
-//    @Override
-//    @Transactional
-//    public Try<List<FeatureDto>> getAllFeatures() {
-//        Log.info("Getting all features");
-//        return Try.of(() -> featureRepository
-//                .findAll()
-//                .stream()
-//                .map(featureMapper::toDto)
-//                .toList())
-//                .onFailure(e -> {
-//                    Log.errorf(e,"Error getting all features");
-//                });
-//    }
-//
-//    public Try<FeatureDto> updateFeature( FeatureDto dto) {
-//        Log.infof("Updating feature: %s", dto.getName());
-//        return Try.of(() -> {
-//            Log.infof("Updating feature: %s", dto.getName());
-//            FeatureEntity feature = featureRepository.findByIdOptional(dto.getName())
-//                    .orElseThrow(() -> new UnknownResourceException("Feature not found: " + dto.getName()));
-//
-//            featureMapper.partialDtoToEntity(feature, dto);
-//            return featureMapper.toDto(feature);
-//        });
-//    }
+    @Override
+    public List<FeatureSwitchEntryDto> journal(int page, int size) {
+        return switchRepository.page(page, size).stream().map(FeatureSwitchEntryDto::of).toList();
+    }
+
+    private FeatureEntity featureOrThrow(String name) {
+        return featureRepository.findByName(name)
+                .orElseThrow(() -> new UnknownResourceException("Feature not found: " + name));
+    }
+
+    /** The Feature with its lever's last switch for the whole site. */
+    private FeatureDto toDto(FeatureEntity feature) {
+        FeatureDto dto = featureMapper.toDto(feature);
+        return switchRepository.lastSiteWide(feature.getName())
+                .map(last -> dto.toBuilder()
+                        .lastSwitchedBy(FeatureSwitchEntryDto.of(last).switchedBy())
+                        .lastSwitchedAt(last.getSwitchedAt())
+                        .lastReason(last.getReason())
+                        .build())
+                .orElse(dto);
+    }
 }
