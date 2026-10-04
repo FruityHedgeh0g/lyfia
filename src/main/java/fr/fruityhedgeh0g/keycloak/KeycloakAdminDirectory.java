@@ -1,5 +1,6 @@
 package fr.fruityhedgeh0g.keycloak;
 
+import io.quarkus.arc.profile.UnlessBuildProfile;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -10,6 +11,7 @@ import java.util.UUID;
 
 /** Looks people up through the Keycloak admin API. */
 @ApplicationScoped
+@UnlessBuildProfile("dev")
 public class KeycloakAdminDirectory implements KeycloakDirectory {
 
     @Inject

@@ -5,69 +5,92 @@ import fr.fruityhedgeh0g.entities.UserEntity;
 import fr.fruityhedgeh0g.enums.RoleEnum;
 import fr.fruityhedgeh0g.repositories.SectorRepository;
 import fr.fruityhedgeh0g.repositories.UserRepository;
+import fr.fruityhedgeh0g.security.DevPersonaAuthentication;
+import io.quarkus.arc.profile.IfBuildProfile;
 import io.quarkus.logging.Log;
-import io.quarkus.security.Authenticated;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.eclipse.microprofile.jwt.JsonWebToken;
+import jakarta.ws.rs.core.NewCookie;
+import jakarta.ws.rs.core.Response;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.UUID;
 
 /**
- * Development only, off unless {@code lyfia.dev-personas} is on (the dev and test profiles): the logged-in person
- * takes any Role (and a Secteur for the Roles that have one) to try the site as that persona, without another
- * Keycloak account. It writes the person's own Role
- * in the database, the source of truth (ADR 0002), skipping the promotion rules and the Keycloak mirror. The Super
- * admin appointed by configuration gets the Role back at the next startup (ADR 0006).
+ * Development only, built into dev and test builds alone: try the site as any Role, without Keycloak. Each persona
+ * is a person of its own in the database (one per Role and Secteur), created on first use; choosing one sets a
+ * cookie with which every request acts as that person (DevPersonaAuthentication), so whatever the Role may do can
+ * really be done. A production build has no such endpoint (404), so the site offers no persona there.
  */
 @Path("/dev/persona")
-@Authenticated
+@Produces(MediaType.APPLICATION_JSON)
+@IfBuildProfile(anyOf = {"dev", "test"})
 public class DevPersonaController {
 
     /** A persona: a Role and, from Membre to Admin, a Secteur (the first open one when none is given). */
     public record Persona(RoleEnum role, UUID sectorId) {}
 
-    @Inject JsonWebToken token;
     @Inject UserRepository userRepository;
     @Inject SectorRepository sectorRepository;
 
-    @ConfigProperty(name = "lyfia.dev-personas", defaultValue = "false")
-    boolean enabled;
-
-    /** 204 where personas are offered, 404 elsewhere: the site shows its persona choice accordingly. */
+    /** The persona in use, or no content when none. */
     @GET
-    public void offered() {
-        requireEnabled();
+    public Persona current(@CookieParam(DevPersonaAuthentication.COOKIE) String personId) {
+        if (personId == null || personId.isBlank()) return null;
+        try {
+            return userRepository.findByIdOptional(UUID.fromString(personId))
+                    .map(person -> new Persona(person.getRole(), person.getSector() == null ? null : person.getSector().getSectorId()))
+                    .orElse(null);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     @PUT
     @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.APPLICATION_JSON)
     @Transactional
-    public Persona become(@NotNull Persona persona) {
-        requireEnabled();
+    public Response become(@NotNull Persona persona) {
         if (persona.role() == null || persona.role() == RoleEnum.VISITEUR)
-            throw new BadRequestException("A persona is a registered Role: from benevole to super_admin.");
-        UserEntity me = userRepository.findByIdOptional(UUID.fromString(token.getSubject()))
-                .orElseThrow(() -> new NotFoundException("Unknown person: log in once first."));
-
+            throw new BadRequestException("A persona is a registered Role: from benevole to super_admin; a Visiteur has none.");
         boolean hasSecteur = persona.role().isAtLeast(RoleEnum.MEMBRE) && persona.role() != RoleEnum.SUPER_ADMIN;
         SectorEntity sector = hasSecteur ? sectorOf(persona.sectorId()) : null;
-        me.setRole(persona.role());
-        me.setSector(sector);
-        me.setPresident(false);
-        Log.warnf("Dev persona: %s is now %s%s", me.getUserId(), persona.role().id(),
-                sector == null ? "" : " of " + sector.getName());
-        return new Persona(persona.role(), sector == null ? null : sector.getSectorId());
+
+        UUID personId = UUID.nameUUIDFromBytes(("lyfia-dev-persona:" + persona.role().id() + ":"
+                + (sector == null ? "" : sector.getSectorId())).getBytes(StandardCharsets.UTF_8));
+        UserEntity person = userRepository.findByIdOptional(personId).orElseGet(() -> {
+            UserEntity created = UserEntity.builder().userId(personId).firstName("Persona").lastName("").build();
+            userRepository.persist(created);
+            return created;
+        });
+        person.setFirstName("Persona");
+        person.setLastName(label(persona.role()) + (sector == null ? "" : " " + sector.getName()));
+        person.setPhone("06 00 00 00 00");
+        person.setRole(persona.role());
+        person.setSector(sector);
+        Log.warnf("Dev persona in use: %s%s (%s)", persona.role().id(), sector == null ? "" : " of " + sector.getName(), personId);
+        return Response.ok(new Persona(persona.role(), sector == null ? null : sector.getSectorId()))
+                .cookie(cookie(personId.toString(), NewCookie.DEFAULT_MAX_AGE))
+                .build();
     }
 
-    private void requireEnabled() {
-        if (!enabled) throw new NotFoundException();
+    /** Back to no persona: a Visiteur. */
+    @DELETE
+    public Response leave() {
+        return Response.noContent().cookie(cookie("", 0)).build();
+    }
+
+    private static NewCookie cookie(String value, int maxAge) {
+        return new NewCookie.Builder(DevPersonaAuthentication.COOKIE).value(value).path("/").maxAge(maxAge)
+                .httpOnly(true).sameSite(NewCookie.SameSite.LAX).build();
+    }
+
+    private static String label(RoleEnum role) {
+        String id = role.id().replace('_', ' ');
+        return Character.toUpperCase(id.charAt(0)) + id.substring(1);
     }
 
     private SectorEntity sectorOf(UUID sectorId) {
@@ -80,6 +103,6 @@ public class DevPersonaController {
         return sectorRepository.listAll().stream()
                 .filter(s -> !s.isClosed())
                 .min(Comparator.comparing(SectorEntity::getName))
-                .orElseThrow(() -> new BadRequestException("No open Secteur: the Super admin opens one first."));
+                .orElseThrow(() -> new BadRequestException("No open Secteur: open one first, as the Super admin persona."));
     }
 }

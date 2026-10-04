@@ -60,11 +60,14 @@ La connexion passe par Keycloak ; le rôle de chaque personne est lu en base (AD
 `GET /api/users/me`. Les rôles, du plus bas au plus haut : `visiteur`, `benevole`, `membre`,
 `chef_de_groupe`, `bureau`, `admin`, `super_admin` (voir `auth/roles.ts`).
 
-**Personas (développement et QA).** En profil `dev`, `lyfia.dev-personas=true` : un sélecteur « Persona (dev) »
-apparaît dans l'en-tête pour la personne connectée. Il change vraiment son rôle (et son Secteur) en base
-(`PUT /api/dev/persona`), pour essayer le site comme n'importe quel rôle sans autre compte Keycloak. Désactivé par
-défaut, donc absent en production ; le Super admin désigné par configuration retrouve son rôle au redémarrage
-(ADR 0006).
+**Développement sans Keycloak.** En profil `dev`, personne ne se connecte par Keycloak
+(`quarkus.oidc.tenant-enabled=false`) et le client d'administration Keycloak est remplacé par des doublures qui
+journalisent ce qu'il aurait fait (`DevKeycloakStandIns`). Pour essayer le site, le sélecteur « Persona (dev) » de
+l'en-tête fait de vous n'importe quel rôle, avec un Secteur pour les rôles qui en ont un : chaque persona est une
+personne en base, et un cookie fait agir chaque requête en son nom (`DevPersonaController`,
+`DevPersonaAuthentication`), sans connexion. Tout ce que le rôle peut faire devient faisable. « Visiteur » quitte le
+persona. Ce code n'existe que dans les builds dev et test (`@IfBuildProfile`) : un build de production ne le contient
+pas. Les boutons « Se connecter » et « Se déconnecter » de l'en-tête restent ceux de Keycloak et ne servent pas en dev.
 
 **Aperçu.** Le Super admin voit le site, en lecture seule, tel qu'un rôle le verrait (ADR 0009) ; rien n'y est
 faisable.

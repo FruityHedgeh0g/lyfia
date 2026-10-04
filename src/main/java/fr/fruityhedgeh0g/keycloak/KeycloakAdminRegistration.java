@@ -1,6 +1,7 @@
 package fr.fruityhedgeh0g.keycloak;
 
 import fr.fruityhedgeh0g.exceptions.KeycloakUnavailableException;
+import io.quarkus.arc.profile.UnlessBuildProfile;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -10,6 +11,7 @@ import org.keycloak.representations.idm.RealmRepresentation;
 
 /** Switches the realm's "User registration" setting through the Keycloak admin API (needs manage-realm). */
 @ApplicationScoped
+@UnlessBuildProfile("dev")
 public class KeycloakAdminRegistration implements KeycloakRegistration {
 
     @Inject

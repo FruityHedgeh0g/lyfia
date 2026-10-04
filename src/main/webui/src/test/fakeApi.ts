@@ -52,8 +52,9 @@ interface State {
   /** Le Journal, les plus récentes d'abord. */
   journal: JournalEntry[];
   featureRequests: FeatureRequest[];
-  /** L'API offre-t-elle les personas (lyfia.dev-personas) ? */
+  /** L'API offre-t-elle les personas (builds dev et test) ? */
   devPersonas: boolean;
+  persona: { role: RoleId; sectorId: string | null } | null;
 }
 
 let state: State;
@@ -82,6 +83,7 @@ export function resetFakeApi() {
     features: structuredClone(mockFeatureFlags),
     journal: [],
     devPersonas: true,
+    persona: null,
     featureRequests: structuredClone(mockFeatureRequests),
   };
   vi.stubGlobal("fetch", vi.fn(handle));
@@ -127,13 +129,18 @@ async function handle(input: RequestInfo | URL, init: RequestInit = {}): Promise
   if (parts[0] === "api" && parts[1] === "carousel") return carousel(method, parts.slice(2), body, url.searchParams);
   if (parts[0] === "api" && parts[1] === "configurations") return configurations(method, parts[2], body);
   if (parts[0] === "api" && parts[1] === "posts") return posts(method, parts.slice(2), body, url.searchParams);
-  if (parts[0] === "api" && parts[1] === "dev" && parts[2] === "persona" && method === "GET") {
-    return state.viewer.role === "visiteur" ? empty(401) : empty(state.devPersonas ? 204 : 404);
-  }
-  if (parts[0] === "api" && parts[1] === "dev" && parts[2] === "persona" && method === "PUT") {
-    if (state.viewer.role === "visiteur") return empty(401);
-    state.viewer = { ...state.viewer, role: body.role, sectorId: body.sectorId ?? null };
-    return json({ role: body.role, sectorId: body.sectorId ?? null });
+  if (parts[0] === "api" && parts[1] === "dev" && parts[2] === "persona") {
+    if (!state.devPersonas) return empty(404);
+    if (method === "GET") return state.persona ? json(state.persona) : empty(204);
+    if (method === "DELETE") {
+      state.persona = null;
+      return empty(204);
+    }
+    if (method === "PUT") {
+      state.persona = { role: body.role, sectorId: body.sectorId ?? null };
+      state.viewer = { ...state.viewer, role: body.role, sectorId: body.sectorId ?? null };
+      return json(state.persona);
+    }
   }
   if (parts[0] === "api" && parts[1] === "events") return events(method, parts.slice(2), body, url.searchParams);
   return empty(404);

@@ -1,6 +1,7 @@
 package fr.fruityhedgeh0g.keycloak;
 
 import fr.fruityhedgeh0g.enums.RoleEnum;
+import io.quarkus.arc.profile.UnlessBuildProfile;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
  * exist in the realm.
  */
 @ApplicationScoped
+@UnlessBuildProfile("dev")
 public class KeycloakAdminRoleMirror implements KeycloakRoleMirror {
 
     private static final Set<String> ROLE_GROUPS = Arrays.stream(RoleEnum.values())
