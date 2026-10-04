@@ -14,12 +14,28 @@ export class FeatureOffError extends HttpError {
   }
 }
 
+/** Pendant un Aperçu du Super admin, rien ne peut être fait : toute écriture vers l'API est refusée (ADR 0009). */
+export class ReadOnlyError extends Error {
+  constructor() {
+    super("Rien ne peut être fait depuis un Aperçu.");
+    this.name = "ReadOnlyError";
+  }
+}
+
+let readOnly = false;
+
+/** Ouvre ou ferme la lecture seule de l'Aperçu (auth/AuthContext). */
+export function setReadOnly(value: boolean) {
+  readOnly = value;
+}
+
 /**
  * Appel à l'API du site. `X-Requested-With` fait répondre 499 au lieu de rediriger vers Keycloak
  * quand la session manque (quarkus.oidc.authentication.java-script-auto-redirect=false) : une
  * redirection vers un autre domaine échouerait de toute façon dans le navigateur.
  */
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  if (readOnly && (init.method ?? "GET").toUpperCase() !== "GET") throw new ReadOnlyError();
   const headers = new Headers(init.headers);
   headers.set("X-Requested-With", "JavaScript");
   headers.set("Accept", "application/json");
