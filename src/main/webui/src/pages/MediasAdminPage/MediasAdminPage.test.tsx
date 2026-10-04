@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "../../auth/AuthContext";
 import { testUser } from "../../test/testUser";
 import MediasAdminPage from "./MediasAdminPage";
+import { setFakeFeature } from "../../test/fakeApi";
 
 const renderPage = () =>
   render(
@@ -24,6 +25,13 @@ describe("MediasAdminPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Ajouter" }));
 
     expect(await screen.findByRole("button", { name: /Le départ de la balade/ })).toHaveTextContent("depart.png");
+  });
+
+  it("says uploading is suspended while Dépôt de médias is off, and still describes images (ADR 0009)", async () => {
+    setFakeFeature("depot-medias", false);
+    renderPage();
+    expect(await screen.findByText("Le dépôt de nouvelles images est temporairement suspendu.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "+ Ajouter une image" })).not.toBeInTheDocument();
   });
 
   it("describes an image again", async () => {

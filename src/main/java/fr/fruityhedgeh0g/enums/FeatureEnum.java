@@ -10,7 +10,12 @@ public enum FeatureEnum {
     /** The online donation workflow, once it exists; never the Faire un don page. */
     DONS_EN_LIGNE("dons-en-ligne"),
     INSCRIPTION_EVENEMENTS("inscription-evenements"),
-    GALERIE_PHOTOS("galerie-photos");
+    GALERIE_PHOTOS("galerie-photos"),
+    ACTUALITES("actualites"),
+    CARROUSEL("carrousel"),
+    DEPOT_MEDIAS("depot-medias"),
+    DEMANDES_FONCTIONNALITE("demandes-fonctionnalite"),
+    EXPORT_LISTE("export-liste");
 
     private final String id;
 

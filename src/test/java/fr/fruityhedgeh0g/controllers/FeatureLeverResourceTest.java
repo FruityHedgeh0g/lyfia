@@ -173,4 +173,54 @@ class FeatureLeverResourceTest {
         turn(FeatureEnum.GALERIE_PHOTOS, false);
         given().when().get("/api/medias/gallery").then().statusCode(200);
     }
+
+    // --- Actualités, Carrousel: what the public sees ---
+
+    @Test
+    void actualitesAndCarrouselOffRefuseWhatThePublicSees() {
+        turn(FeatureEnum.ACTUALITES, false);
+        turn(FeatureEnum.CARROUSEL, false);
+        refusedAs(given().when().get("/api/posts").then(), FeatureEnum.ACTUALITES);
+        refusedAs(given().when().get("/api/posts/{id}", UUID.randomUUID()).then(), FeatureEnum.ACTUALITES);
+        refusedAs(given().when().get("/api/carousel").then(), FeatureEnum.CARROUSEL);
+    }
+
+    @Test
+    @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU))
+    void theBureauKeepsPreparingPostsAndTheCarousel() {
+        turn(FeatureEnum.ACTUALITES, false);
+        turn(FeatureEnum.CARROUSEL, false);
+        given().when().get("/api/posts").then().statusCode(200);
+        given().when().get("/api/carousel").then().statusCode(200);
+    }
+
+    // --- Dépôt de médias, Demandes de fonctionnalité, Export de la liste: what the Bureau does ---
+
+    @Test
+    @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU))
+    void depotOffRefusesUploadingAMedia() {
+        turn(FeatureEnum.DEPOT_MEDIAS, false);
+        refusedAs(given().multiPart("alt", "Test").when().post("/api/medias").then(), FeatureEnum.DEPOT_MEDIAS);
+    }
+
+    @Test
+    @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU))
+    void demandesOffRefusesAskingButNotReading() {
+        turn(FeatureEnum.DEMANDES_FONCTIONNALITE, false);
+        refusedAs(given().contentType(ContentType.JSON).body("{\"title\":\"T\",\"description\":\"D\"}")
+                .when().post("/api/feature-requests").then(), FeatureEnum.DEMANDES_FONCTIONNALITE);
+        given().when().get("/api/feature-requests").then().statusCode(200);
+    }
+
+    @Test
+    @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU))
+    void exportOffRefusesTheSpreadsheetButNotTheRoster() {
+        turn(FeatureEnum.EXPORT_LISTE, false);
+        refusedAs(given().when().get("/api/events/{id}/roster/export", event).then(), FeatureEnum.EXPORT_LISTE);
+        given().when().get("/api/events/{id}/roster", event).then().statusCode(200);
+    }
 }

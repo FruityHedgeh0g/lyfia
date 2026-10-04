@@ -23,6 +23,12 @@ export function useFeature(name: FeatureName): boolean {
   return useFeatures().isActive(name);
 }
 
+/** La Fonctionnalité est connue pour être désactivée : de quoi dire ce qui est suspendu sans le faire clignoter au chargement. */
+export function useFeatureOff(name: FeatureName): boolean {
+  const { ready, isActive } = useFeatures();
+  return ready && !isActive(name);
+}
+
 export function useSetFeatureFlagActive() {
   const queryClient = useQueryClient();
   return useMutation({

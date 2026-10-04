@@ -26,7 +26,7 @@ export interface AccessEntry {
 
 export const ACCESS = {
   about: { path: "/qui-sommes-nous", label: "Qui sommes-nous ?", minRole: "visiteur", section: "main", menu: "Association" },
-  news: { path: "/actualites", label: "Actualités", minRole: "visiteur", section: "main", menu: "Association" },
+  news: { path: "/actualites", label: "Actualités", minRole: "visiteur", section: "main", menu: "Association", feature: "actualites" },
   gallery: {
     path: "/galerie",
     label: "Galerie photos",
@@ -47,6 +47,7 @@ export const ACCESS = {
     minRole: "bureau",
     section: "main",
     menu: "Support",
+    feature: "demandes-fonctionnalite",
   },
 
   accountProfile: { path: "/mon-compte", label: "Mon profil", minRole: "benevole", section: "account", end: true },

@@ -2,13 +2,26 @@
  * Noms des Fonctionnalités : les leviers d'urgence du Super admin (ADR 0009), lus par useFeature et la carte
  * d'accès (auth/access.ts). Mêmes noms que FeatureEnum côté backend.
  */
-export type FeatureName = "dons-en-ligne" | "inscription-evenements" | "galerie-photos";
+export type FeatureName =
+  | "dons-en-ligne"
+  | "inscription-evenements"
+  | "galerie-photos"
+  | "actualites"
+  | "carrousel"
+  | "depot-medias"
+  | "demandes-fonctionnalite"
+  | "export-liste";
 
 /** Ce que chaque Fonctionnalité laisse faire, pour la page Fonctionnalités et les messages de suspension. */
 export const FEATURE_LABELS: Record<FeatureName, string> = {
   "dons-en-ligne": "Dons en ligne",
   "inscription-evenements": "Inscription aux événements",
   "galerie-photos": "Galerie photos",
+  actualites: "Actualités",
+  carrousel: "Carrousel",
+  "depot-medias": "Dépôt de médias",
+  "demandes-fonctionnalite": "Demandes de fonctionnalité",
+  "export-liste": "Export de la liste",
 };
 
 /** Reflète FeatureDto côté backend. */

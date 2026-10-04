@@ -73,6 +73,7 @@ public class MediaController {
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("bureau")
     public @JsonView(Views.Basic.class) MediaDto upload(@RestForm("file") FileUpload file, @RestForm("alt") String alt) throws IOException {
+        featureLevers.require(FeatureEnum.DEPOT_MEDIAS);
         if (file == null) throw new BadRequestException("An upload carries a file.");
         if (file.size() > MediaContentEntity.MAX_SIZE) throw new BadRequestException("An image weighs at most 8 MB.");
         return mediaFileService.upload(file.fileName(), file.contentType(), Files.readAllBytes(file.uploadedFile()), alt);

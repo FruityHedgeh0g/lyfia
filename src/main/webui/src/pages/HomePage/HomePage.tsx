@@ -9,9 +9,25 @@ import Spinner from "../../components/atoms/Spinner/Spinner";
 import { useActiveCarouselItems } from "../../features/carousel/useCarousel";
 import { useMedias } from "../../features/medias/useMedias";
 import { DEFAULT_IMAGE_SRC, mediaImage } from "../../features/medias/mediaImage";
+import FeatureNotice from "../../components/molecules/FeatureNotice/FeatureNotice";
+import { useFeature } from "../../features/featureFlags/useFeatureFlags";
+import { useAccess } from "../../auth/useAccess";
 import styles from "./HomePage.module.css";
 
+/** Le carrousel disparaît quand Carrousel est désactivé ; le Super admin le voit, marqué comme tel (ADR 0009). */
 const HeroCarousel: React.FC = () => {
+  const { ready, seesTurnedOff } = useAccess();
+  const carouselOn = useFeature("carrousel");
+  if (!ready || (!carouselOn && !seesTurnedOff)) return null;
+  return (
+    <>
+      {!carouselOn && <FeatureNotice feature="carrousel" variant="turned-off" />}
+      <HeroSlides />
+    </>
+  );
+};
+
+const HeroSlides: React.FC = () => {
   const { data: items, isLoading: itemsLoading } = useActiveCarouselItems();
   const { data: medias, isLoading: mediasLoading } = useMedias();
 

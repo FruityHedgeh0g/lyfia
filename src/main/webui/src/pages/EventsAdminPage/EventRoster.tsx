@@ -7,6 +7,8 @@ import Select from "../../components/atoms/Select/Select";
 import ButtonLink from "../../components/atoms/ButtonLink/ButtonLink";
 import FormField from "../../components/molecules/FormField/FormField";
 import Spinner from "../../components/atoms/Spinner/Spinner";
+import FeatureNotice from "../../components/molecules/FeatureNotice/FeatureNotice";
+import { useFeature, useFeatureOff } from "../../features/featureFlags/useFeatureFlags";
 import styles from "./EventRoster.module.css";
 
 interface EventRosterProps {
@@ -87,6 +89,8 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
   const { roster, moveUp, removePerson, place, setMaximum } = useRoster(eventId);
   const { decide, takeOut } = useGroupActions();
   const { data: groups } = useGroups();
+  const exportOn = useFeature("export-liste");
+  const exportOff = useFeatureOff("export-liste");
   const pending =
     moveUp.isPending || removePerson.isPending || place.isPending || setMaximum.isPending || decide.isPending || takeOut.isPending;
 
@@ -146,7 +150,11 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
 
   return (
     <section className={styles.roster} aria-label="Inscrits">
-      <ButtonLink to={rosterExportUrl(eventId)} label="Télécharger la liste (.xlsx)" variant="outline" className={styles.export} download />
+      {exportOn ? (
+        <ButtonLink to={rosterExportUrl(eventId)} label="Télécharger la liste (.xlsx)" variant="outline" className={styles.export} download />
+      ) : (
+        exportOff && <FeatureNotice feature="export-liste" message="Le téléchargement de la liste est temporairement suspendu." />
+      )}
       <h3 className={styles.title}>
         Participants ({participants.length}
         {maxParticipants !== null ? ` / ${maxParticipants}` : ""})

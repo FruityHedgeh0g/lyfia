@@ -1,6 +1,8 @@
 package fr.fruityhedgeh0g.controllers;
 
 import fr.fruityhedgeh0g.dtos.featureDtos.FeatureRequestDto;
+import fr.fruityhedgeh0g.enums.FeatureEnum;
+import fr.fruityhedgeh0g.services.FeatureLevers;
 import fr.fruityhedgeh0g.services.FeatureRequestService;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -20,6 +22,7 @@ public class FeatureRequestController {
 
     @Inject FeatureRequestService requestService;
     @Inject JsonWebToken token;
+    @Inject FeatureLevers featureLevers;
 
     @GET
     public List<FeatureRequestDto> list(){
@@ -29,6 +32,7 @@ public class FeatureRequestController {
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     public FeatureRequestDto create(@NotNull FeatureRequestDto.Input input){
+        featureLevers.require(FeatureEnum.DEMANDES_FONCTIONNALITE);
         return requestService.create(UUID.fromString(token.getSubject()), input);
     }
 }

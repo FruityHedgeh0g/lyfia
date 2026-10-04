@@ -5,6 +5,8 @@ import { Media } from "../../features/medias/types";
 import AdminCrudList from "../../components/organisms/AdminCrudList/AdminCrudList";
 import FormField from "../../components/molecules/FormField/FormField";
 import Spinner from "../../components/atoms/Spinner/Spinner";
+import FeatureNotice from "../../components/molecules/FeatureNotice/FeatureNotice";
+import { useFeature, useFeatureOff } from "../../features/featureFlags/useFeatureFlags";
 import styles from "../ConfigurationPage/ConfigurationPage.module.css";
 
 interface MediaDraft {
@@ -23,10 +25,14 @@ const sizeLabel = (bytes: number) => (bytes < 1024 * 1024 ? `${Math.round(bytes 
 export const MediasAdminPage: React.FC = () => {
   const { data: medias, isLoading } = useMedias();
   const { upload, describe } = useMediaMutations();
+  const depositOn = useFeature("depot-medias");
+  const depositOff = useFeatureOff("depot-medias");
 
   if (isLoading) return <Spinner label="Chargement de la médiathèque..." />;
 
   return (
+    <>
+    {depositOff && <FeatureNotice feature="depot-medias" message="Le dépôt de nouvelles images est temporairement suspendu." />}
     <AdminCrudList<Media, MediaDraft>
       title="Médiathèque"
       hint="Images JPEG, PNG, WebP ou GIF, de 8 Mo au plus."
@@ -53,13 +59,19 @@ export const MediasAdminPage: React.FC = () => {
         </>
       )}
       onUpdate={(mediaId, draft) => describe.mutateAsync({ mediaId, alt: draft.alt })}
-      create={{
-        buttonLabel: "+ Ajouter une image",
-        submitLabel: "Ajouter",
-        emptyDraft,
-        onCreate: (draft) => (draft.file ? upload.mutateAsync({ file: draft.file, alt: draft.alt }) : Promise.reject(new Error("Choisissez une image."))),
-      }}
+      create={
+        depositOn
+          ? {
+              buttonLabel: "+ Ajouter une image",
+              submitLabel: "Ajouter",
+              emptyDraft,
+              onCreate: (draft) =>
+                draft.file ? upload.mutateAsync({ file: draft.file, alt: draft.alt }) : Promise.reject(new Error("Choisissez une image.")),
+            }
+          : undefined
+      }
     />
+    </>
   );
 };
 

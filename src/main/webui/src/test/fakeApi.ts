@@ -332,6 +332,7 @@ async function events(method: string, [eventId, ...rest]: string[], body: any, q
 function posts(method: string, [postId, action]: string[], body: any): Response {
   const isBureau = roleAtLeast(state.viewer.role, "bureau");
   const visiblePost = (p: Post) => isBureau || p.status === "publie";
+  if (method === "GET" && !isBureau && !isOn("actualites")) return featureOff("actualites");
   if (!postId) {
     if (method === "GET") return json(state.posts.filter(visiblePost));
     if (!isBureau) return empty(403);
@@ -380,6 +381,7 @@ function medias(method: string, [mediaId]: string[], body: any): Response {
     if (method === "GET") return json(state.medias.map(mediaDto));
     if (method !== "POST") return empty(405);
     if (!isBureau) return empty(403);
+    if (!isOn("depot-medias")) return featureOff("depot-medias");
     const file = (body as FormData).get("file") as File;
     const media: Media = {
       mediaId: `media-new-${state.medias.length + 1}`,
@@ -404,6 +406,7 @@ function medias(method: string, [mediaId]: string[], body: any): Response {
 function carousel(method: string, [id, action, direction]: string[], body: any): Response {
   const isBureau = roleAtLeast(state.viewer.role, "bureau");
   const ordered = () => [...state.carousel].sort((a, b) => a.order - b.order);
+  if (method === "GET" && !isBureau && !isOn("carrousel")) return featureOff("carrousel");
   if (!id) {
     if (method === "GET") return json(ordered().filter((item) => isBureau || item.active));
     if (method !== "POST") return empty(405);
@@ -453,6 +456,7 @@ function featureRequests(method: string, body: any): Response {
   if (!roleAtLeast(state.viewer.role, "bureau")) return empty(403);
   if (method === "GET") return json(state.featureRequests);
   if (method !== "POST") return empty(405);
+  if (!isOn("demandes-fonctionnalite")) return featureOff("demandes-fonctionnalite");
   if (!body.title?.trim() || !body.description?.trim()) return empty(400);
   const request: FeatureRequest = {
     id: `fr-new-${state.featureRequests.length + 1}`,

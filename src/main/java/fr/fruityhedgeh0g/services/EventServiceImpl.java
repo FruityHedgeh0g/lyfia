@@ -351,6 +351,7 @@ public class EventServiceImpl implements EventService {
     @Override
     public RosterExportDto exportRoster(UUID eventId) {
         EventEntity event = managedEventOrThrow(eventId);
+        featureLevers.require(FeatureEnum.EXPORT_LISTE);
         return new RosterExportDto(RosterSpreadsheet.fileName(event.getName(), event.getStartDateTime().toLocalDate()),
                 RosterSpreadsheet.of(rosterOf(event)));
     }

@@ -56,7 +56,14 @@ export const router = createBrowserRouter(
         { index: true, element: <HomePage /> },
         route("about", <AboutPage />),
         route("news", <NewsPage />),
-        { path: "actualites/:postId", element: <NewsDetailPage /> },
+        {
+          path: "actualites/:postId",
+          element: (
+            <RequireAccess id="news">
+              <NewsDetailPage />
+            </RequireAccess>
+          ),
+        },
         route("gallery", <GalleryPage />),
         route("events", <EventsPage />),
         { path: "evenements/:eventId", element: <EventDetailPage /> },

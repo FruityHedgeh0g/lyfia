@@ -6,7 +6,7 @@ import { useEventRegistration, useMyRegistrations, usePilotes } from "../../feat
 import { DEMANDE_STATUS_LABELS, passagerLabel, PhoneRequiredError, Registration, RideMode } from "../../features/events/registrationsApi";
 import { useGroups } from "../../features/groups/useGroups";
 import Select from "../../components/atoms/Select/Select";
-import { useFeature } from "../../features/featureFlags/useFeatureFlags";
+import { useFeature, useFeatureOff } from "../../features/featureFlags/useFeatureFlags";
 import { useAuth } from "../../auth/AuthContext";
 import { formatDateRange } from "../../lib/formatDate";
 import { placeholderImage } from "../../lib/placeholderImage";
@@ -40,6 +40,7 @@ export const EventDetailPage: React.FC = () => {
   const [piloteId, setPiloteId] = useState("");
   const { data: pilotes } = usePilotes(mode === "passager" ? eventId : undefined);
   const registrationOpen = useFeature("inscription-evenements");
+  const registrationOff = useFeatureOff("inscription-evenements");
   const [askPhone, setAskPhone] = useState(false);
   const [phone, setPhone] = useState("");
 
@@ -153,7 +154,7 @@ export const EventDetailPage: React.FC = () => {
                     Demande pour {registration.demande.group.name} : {DEMANDE_STATUS_LABELS[registration.demande.status]}
                   </p>
                 )}
-                {canAskGroup && !registrationOpen && (
+                {canAskGroup && registrationOff && (
                   <FeatureNotice feature="inscription-evenements" message="Les demandes de groupe sont temporairement suspendues." />
                 )}
                 {canAskGroup && registrationOpen && (
@@ -178,10 +179,11 @@ export const EventDetailPage: React.FC = () => {
               </div>
             ) : reservedToItsSecteur ? (
               <p>Réservé aux membres de {sectors?.find((s) => s.sectorId === event.sectorId)?.name ?? "son secteur"} et aux bénévoles.</p>
-            ) : signUpsOpen && !registrationOpen ? (
+            ) : signUpsOpen && registrationOff ? (
               <FeatureNotice feature="inscription-evenements" message="Les inscriptions en ligne sont temporairement suspendues." />
             ) : (
-              signUpsOpen && (
+              signUpsOpen &&
+              registrationOpen && (
                 <div className={styles.actions}>
                   {!isAuthenticated ? (
                     <ButtonLink to="/connexion" label="Se connecter pour m'inscrire" />

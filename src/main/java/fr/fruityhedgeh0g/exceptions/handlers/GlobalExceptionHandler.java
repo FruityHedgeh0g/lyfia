@@ -9,6 +9,7 @@ import fr.fruityhedgeh0g.exceptions.NotImplementedYetException;
 import fr.fruityhedgeh0g.exceptions.PhoneRequiredException;
 import fr.fruityhedgeh0g.exceptions.UnknownResourceException;
 import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.jboss.resteasy.reactive.RestResponse;
 
@@ -59,7 +60,9 @@ public class GlobalExceptionHandler {
     /** The front end reads {@code feature} to say what is suspended (ADR 0009). */
     @ServerExceptionMapper
     public RestResponse<Map<String, String>> mapFeatureOffException(FeatureOffException x) {
+        // JSON even from an endpoint that produces something else (the roster's spreadsheet)
         return RestResponse.ResponseBuilder.<Map<String, String>>create(Response.Status.SERVICE_UNAVAILABLE)
+                .type(MediaType.APPLICATION_JSON_TYPE)
                 .entity(Map.of("error", "feature-off", "feature", x.getFeature().id())).build();
     }
 
