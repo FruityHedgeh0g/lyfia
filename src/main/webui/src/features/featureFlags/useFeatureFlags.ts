@@ -7,12 +7,15 @@ export function useFeatureFlags() {
   return useQuery({ queryKey: queryKeys.featureFlags.all, queryFn: fetchFeatureFlags });
 }
 
-/** État des fonctionnalités ; `isActive` renvoie false tant que les flags ne sont pas chargés. */
+/**
+ * État des fonctionnalités ; `isActive` renvoie false tant que les flags ne sont pas chargés, puis true pour une
+ * Fonctionnalité que l'API ne connaît pas : un levier jamais tiré (comme FeatureLevers côté backend).
+ */
 export function useFeatures() {
   const { data, isSuccess } = useFeatureFlags();
   return {
     ready: isSuccess,
-    isActive: (name: FeatureName) => data?.find((f) => f.name === name)?.isActive ?? false,
+    isActive: (name: FeatureName) => (data ? (data.find((f) => f.name === name)?.isActive ?? true) : false),
   };
 }
 
@@ -24,6 +27,7 @@ export function useSetFeatureFlagActive() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { name: FeatureName; isActive: boolean }) => setFeatureFlagActive(input.name, input.isActive),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.all }),
+    // Le site suit aussitôt : ce que la Fonctionnalité couvre peut avoir changé
+    onSuccess: () => queryClient.invalidateQueries(),
   });
 }

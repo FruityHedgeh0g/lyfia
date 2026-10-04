@@ -18,6 +18,7 @@ import FormField from "../../components/molecules/FormField/FormField";
 import ButtonLink from "../../components/atoms/ButtonLink/ButtonLink";
 import { useSectors } from "../../features/sectors/useSector";
 import Icon from "../../components/atoms/Icon/Icon";
+import FeatureNotice from "../../components/molecules/FeatureNotice/FeatureNotice";
 import styles from "./EventDetailPage.module.css";
 
 /** Ce que la personne est à cet Événement : pilote, ou passager de son pilote. */
@@ -152,7 +153,10 @@ export const EventDetailPage: React.FC = () => {
                     Demande pour {registration.demande.group.name} : {DEMANDE_STATUS_LABELS[registration.demande.status]}
                   </p>
                 )}
-                {canAskGroup && (
+                {canAskGroup && !registrationOpen && (
+                  <FeatureNotice feature="inscription-evenements" message="Les demandes de groupe sont temporairement suspendues." />
+                )}
+                {canAskGroup && registrationOpen && (
                   <>
                     {groupSelect}
                     <Button
@@ -174,9 +178,10 @@ export const EventDetailPage: React.FC = () => {
               </div>
             ) : reservedToItsSecteur ? (
               <p>Réservé aux membres de {sectors?.find((s) => s.sectorId === event.sectorId)?.name ?? "son secteur"} et aux bénévoles.</p>
+            ) : signUpsOpen && !registrationOpen ? (
+              <FeatureNotice feature="inscription-evenements" message="Les inscriptions en ligne sont temporairement suspendues." />
             ) : (
-              signUpsOpen &&
-              registrationOpen && (
+              signUpsOpen && (
                 <div className={styles.actions}>
                   {!isAuthenticated ? (
                     <ButtonLink to="/connexion" label="Se connecter pour m'inscrire" />

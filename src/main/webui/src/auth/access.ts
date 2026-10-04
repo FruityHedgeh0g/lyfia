@@ -62,7 +62,7 @@ export const ACCESS = {
   adminCarousel: { path: "/administration/carrousel", label: "Carrousel", minRole: "bureau", section: "admin" },
   adminMedias: { path: "/administration/medias", label: "Médiathèque", minRole: "bureau", section: "admin" },
   adminConfiguration: { path: "/administration/configuration", label: "Configuration", minRole: "super_admin", section: "admin" },
-  adminFeatureFlags: { path: "/administration/fonctionnalites", label: "Fonctionnalités", minRole: "admin", section: "admin" },
+  adminFeatureFlags: { path: "/administration/fonctionnalites", label: "Fonctionnalités", minRole: "super_admin", section: "admin" },
 } satisfies Record<string, AccessEntry>;
 
 export type AccessId = keyof typeof ACCESS;
@@ -70,15 +70,27 @@ export type AccessId = keyof typeof ACCESS;
 export interface AccessContext {
   role: RoleId;
   isFeatureActive: (feature: FeatureName) => boolean;
+  /** Le Super admin voit aussi ce qui est désactivé, marqué comme tel, pour le vérifier avant de le réactiver (ADR 0009). */
+  seesTurnedOff?: boolean;
 }
 
 export function entry(id: AccessId): AccessEntry {
   return ACCESS[id];
 }
 
+/** Le rôle suffit pour l'entrée, que sa Fonctionnalité soit active ou non. */
+export function roleOpens(id: AccessId, ctx: AccessContext): boolean {
+  return roleAtLeast(ctx.role, entry(id).minRole);
+}
+
+/** La Fonctionnalité dont dépend l'entrée est désactivée. */
+export function isTurnedOff(id: AccessId, ctx: AccessContext): boolean {
+  const feature = entry(id).feature;
+  return feature !== undefined && !ctx.isFeatureActive(feature);
+}
+
 export function canAccess(id: AccessId, ctx: AccessContext): boolean {
-  const e = entry(id);
-  return roleAtLeast(ctx.role, e.minRole) && (!e.feature || ctx.isFeatureActive(e.feature));
+  return roleOpens(id, ctx) && (!isTurnedOff(id, ctx) || Boolean(ctx.seesTurnedOff));
 }
 
 /** Entrées visibles d'une section, dans l'ordre de déclaration. */

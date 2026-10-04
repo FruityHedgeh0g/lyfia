@@ -35,6 +35,11 @@ export async function fetchMedias(): Promise<Media[]> {
   return (await apiFetch<MediaDto[]>("/api/medias")).map(toMedia);
 }
 
+/** La galerie publique : les mêmes images, refusées tant que Galerie photos est désactivée (sauf au Bureau). */
+export async function fetchGallery(): Promise<Media[]> {
+  return (await apiFetch<MediaDto[]>("/api/medias/gallery")).map(toMedia);
+}
+
 export async function uploadMedia(file: File, alt: string): Promise<Media> {
   if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) throw new Error("Seules les images JPEG, PNG, WebP et GIF sont acceptées.");
   if (file.size > MAX_IMAGE_SIZE) throw new Error("Une image pèse 8 Mo au plus.");

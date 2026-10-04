@@ -1,6 +1,7 @@
 package fr.fruityhedgeh0g.exceptions.handlers;
 
 import fr.fruityhedgeh0g.exceptions.DuplicateResourceException;
+import fr.fruityhedgeh0g.exceptions.FeatureOffException;
 import fr.fruityhedgeh0g.exceptions.ForbiddenActionException;
 import fr.fruityhedgeh0g.exceptions.ForbiddenRoleChangeException;
 import fr.fruityhedgeh0g.exceptions.InvalidResourceException;
@@ -53,6 +54,13 @@ public class GlobalExceptionHandler {
     @ServerExceptionMapper
     public RestResponse<Map<String, String>> mapPhoneRequiredException(PhoneRequiredException x) {
         return RestResponse.ResponseBuilder.<Map<String, String>>create(422).entity(Map.of("error", "phone-required")).build();
+    }
+
+    /** The front end reads {@code feature} to say what is suspended (ADR 0009). */
+    @ServerExceptionMapper
+    public RestResponse<Map<String, String>> mapFeatureOffException(FeatureOffException x) {
+        return RestResponse.ResponseBuilder.<Map<String, String>>create(Response.Status.SERVICE_UNAVAILABLE)
+                .entity(Map.of("error", "feature-off", "feature", x.getFeature().id())).build();
     }
 
     @ServerExceptionMapper

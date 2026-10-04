@@ -45,10 +45,18 @@ describe("RequireAccess", () => {
     expect(screen.getByText("Contenu protégé")).toBeInTheDocument();
   });
 
-  it("redirects once the entry's feature is known to be inactive", async () => {
+  it("shows the unavailable page once the entry's feature is known to be inactive", async () => {
     setFakeFeature("galerie-photos", false);
     renderProtected("gallery");
-    expect(await screen.findByText("Accueil")).toBeInTheDocument();
+    expect(await screen.findByText("Fonctionnalité temporairement indisponible")).toBeInTheDocument();
+    expect(screen.queryByText("Contenu protégé")).not.toBeInTheDocument();
+  });
+
+  it("shows the Super admin a turned-off page, marked as such (ADR 0009)", async () => {
+    setFakeFeature("galerie-photos", false);
+    renderProtected("gallery", "super_admin");
+    expect(await screen.findByText("Contenu protégé")).toBeInTheDocument();
+    expect(screen.getByText("Galerie photos — désactivée.")).toBeInTheDocument();
   });
 
   it("renders a feature-gated entry once its feature is known to be active", async () => {

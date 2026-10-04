@@ -6,6 +6,14 @@ export class HttpError extends Error {
   }
 }
 
+/** Ce qui a été demandé relève d'une Fonctionnalité désactivée (503, ADR 0009). */
+export class FeatureOffError extends HttpError {
+  constructor(readonly feature: string, message: string) {
+    super(503, message);
+    this.name = "FeatureOffError";
+  }
+}
+
 /**
  * Appel à l'API du site. `X-Requested-With` fait répondre 499 au lieu de rediriger vers Keycloak
  * quand la session manque (quarkus.oidc.authentication.java-script-auto-redirect=false) : une
@@ -19,6 +27,10 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   if (init.body !== undefined && !(init.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
 
   const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
+  if (response.status === 503) {
+    const body = await response.json().catch(() => null);
+    if (body?.error === "feature-off") throw new FeatureOffError(body.feature, "Cette fonctionnalité est temporairement suspendue.");
+  }
   if (!response.ok) throw new HttpError(response.status, `${init.method ?? "GET"} ${path} : ${response.status}`);
   if (response.status === 204) return undefined as T;
   if (!response.headers.get("Content-Type")?.includes("json")) {

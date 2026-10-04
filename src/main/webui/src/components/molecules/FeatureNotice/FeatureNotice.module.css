@@ -1,0 +1,28 @@
+.notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--color-accent);
+  border-radius: var(--radius);
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.turnedOff {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  max-width: 1200px;
+  margin: var(--space-4) auto;
+  color: var(--color-accent-emphasis);
+}
+
+.turnedOff p {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.turnedOff a {
+  color: var(--color-primary);
+  font-weight: 600;
+}

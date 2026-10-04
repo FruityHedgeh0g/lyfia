@@ -1,9 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { describeMedia, fetchMedias, uploadMedia } from "./mediasApi";
+import { describeMedia, fetchGallery, fetchMedias, uploadMedia } from "./mediasApi";
 import { queryKeys } from "../queryKeys";
 
 export function useMedias() {
   return useQuery({ queryKey: queryKeys.medias.all, queryFn: fetchMedias });
+}
+
+export function useGallery() {
+  return useQuery({ queryKey: queryKeys.medias.gallery, queryFn: fetchGallery });
 }
 
 /** Ajouter une image à la médiathèque, ou décrire ce qu'elle montre : réservé au Bureau. */

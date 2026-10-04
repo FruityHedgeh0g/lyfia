@@ -22,7 +22,7 @@ export const queryKeys = {
     admin: ["posts", "admin"] as const,
     detail: (postId: string | undefined) => ["posts", "detail", postId] as const,
   },
-  medias: { all: ["medias"] as const },
+  medias: { all: ["medias"] as const, gallery: ["medias", "gallery"] as const },
   carousel: { all: ["carousel-items"] as const, active: ["carousel-items", "active"] as const },
   configurations: { all: ["configurations"] as const },
   featureFlags: { all: ["feature-flags"] as const },

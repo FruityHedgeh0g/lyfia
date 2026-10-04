@@ -18,6 +18,7 @@ import fr.fruityhedgeh0g.entities.GroupEntity;
 import fr.fruityhedgeh0g.entities.UserEntity;
 import fr.fruityhedgeh0g.entities.SectorEntity;
 import fr.fruityhedgeh0g.enums.EventStatusEnum;
+import fr.fruityhedgeh0g.enums.FeatureEnum;
 import fr.fruityhedgeh0g.exceptions.ForbiddenActionException;
 import fr.fruityhedgeh0g.exceptions.InvalidResourceException;
 import fr.fruityhedgeh0g.exceptions.PhoneRequiredException;
@@ -72,6 +73,9 @@ public class EventServiceImpl implements EventService {
 
     @Inject
     Viewer viewer;
+
+    @Inject
+    FeatureLevers featureLevers;
 
     @Override
     public List<EventDto> listAll(boolean seesPlanification) {
@@ -144,6 +148,7 @@ public class EventServiceImpl implements EventService {
 
         Optional<EventRegistrationEntity> existing = registrationRepository.findByEventAndPerson(eventId, personId);
         if (existing.isPresent()) return toDto(existing.get());
+        featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS);
         requireSignUpOpenTo(event, person);
 
         EventRegistrationEntity registration = event.currentStatus() == EventStatusEnum.OUVERT && placeLeft(event, 1)
@@ -167,6 +172,7 @@ public class EventServiceImpl implements EventService {
                 throw new InvalidResourceException(personId + " is already signed up for " + eventId + " otherwise.");
             return toDto(existing.get());
         }
+        featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS);
         requireSignUpOpenTo(event, person);
 
         EventRegistrationEntity pilote = registrationRepository.findByEventAndPerson(eventId, pilotePersonId)
@@ -195,6 +201,7 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public RegistrationDto requestGroup(UUID eventId, UUID personId, UUID groupId) {
+        featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS);
         refuseOnArchived(eventOrThrow(eventId));
         EventRegistrationEntity registration = registrationOrThrow(eventId, personId);
         registration.requestGroup(groupOrThrow(groupId));

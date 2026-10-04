@@ -5,6 +5,8 @@ import fr.fruityhedgeh0g.dtos.Views;
 import fr.fruityhedgeh0g.dtos.mediaDtos.MediaAltDto;
 import fr.fruityhedgeh0g.dtos.mediaDtos.MediaDto;
 import fr.fruityhedgeh0g.entities.medias.MediaContentEntity;
+import fr.fruityhedgeh0g.enums.FeatureEnum;
+import fr.fruityhedgeh0g.services.FeatureLevers;
 import fr.fruityhedgeh0g.services.MediaFileService;
 import fr.fruityhedgeh0g.services.interfaces.MediaService;
 import fr.fruityhedgeh0g.services.interfaces.publics.PublicMediaService;
@@ -36,9 +38,21 @@ public class MediaController {
     @Inject
     MediaFileService mediaFileService;
 
+    @Inject
+    FeatureLevers featureLevers;
+
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     public @JsonView(Views.Basic.class) List<MediaDto> getAllMedias(){
+        return mediaService.listAll();
+    }
+
+    /** The public gallery: the same medias, refused while Galerie photos is off, except to the Bureau who prepares them. */
+    @GET
+    @Path("/gallery")
+    @Produces(MediaType.APPLICATION_JSON)
+    public @JsonView(Views.Basic.class) List<MediaDto> getGallery(){
+        featureLevers.requireForPublic(FeatureEnum.GALERIE_PHOTOS);
         return mediaService.listAll();
     }
 

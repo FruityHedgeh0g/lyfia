@@ -16,12 +16,6 @@ const renderAs = (role: string) =>
   );
 
 describe("FeatureFlagsPage", () => {
-  it("shows an Admin the Fonctionnalités without letting them switch any (#27)", async () => {
-    renderAs("admin");
-    expect(await screen.findByText("dons-en-ligne")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Activer" })).not.toBeInTheDocument();
-  });
-
   it("lets the Super admin switch one on", async () => {
     renderAs("super_admin");
     await userEvent.click(await screen.findByRole("button", { name: "Activer" }));

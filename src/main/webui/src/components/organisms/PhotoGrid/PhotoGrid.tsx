@@ -1,10 +1,10 @@
 import React from "react";
-import { useMedias } from "../../../features/medias/useMedias";
+import { useGallery } from "../../../features/medias/useMedias";
 import Spinner from "../../atoms/Spinner/Spinner";
 import styles from "./PhotoGrid.module.css";
 
 export const PhotoGrid: React.FC = () => {
-  const { data: medias, isLoading, isError } = useMedias();
+  const { data: medias, isLoading, isError } = useGallery();
 
   if (isLoading) return <Spinner label="Chargement de la galerie..." />;
   if (isError) return <p className={styles.error}>Impossible de charger la galerie pour le moment.</p>;

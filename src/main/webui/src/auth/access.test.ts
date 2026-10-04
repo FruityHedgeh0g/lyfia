@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AccessContext, AccessId, canAccess, mainNav, navFor, relativePath } from "./access";
+import { AccessContext, AccessId, canAccess, isTurnedOff, mainNav, navFor, relativePath } from "./access";
 import { RoleId } from "./roles";
 import { FeatureName } from "../features/featureFlags/types";
 
@@ -35,6 +35,8 @@ describe("access map", () => {
     ["adminConfiguration", "super_admin", true],
     ["featureRequests", "bureau", true],
     ["featureRequests", "admin", true],
+    ["adminFeatureFlags", "admin", false],
+    ["adminFeatureFlags", "super_admin", true],
   ])("%s for %s → %s", (id, role, expected) => {
     expect(canAccess(id, ctx(role))).toBe(expected);
   });
@@ -42,6 +44,11 @@ describe("access map", () => {
   it("hides entries whose feature is inactive, whatever the role", () => {
     expect(canAccess("gallery", ctx("admin", ["galerie-photos"]))).toBe(false);
     expect(canAccess("gallery", ctx("visiteur"))).toBe(true);
+  });
+
+  it("lets the Super admin see what is turned off (ADR 0009)", () => {
+    expect(canAccess("gallery", { ...ctx("super_admin", ["galerie-photos"]), seesTurnedOff: true })).toBe(true);
+    expect(isTurnedOff("gallery", ctx("super_admin", ["galerie-photos"]))).toBe(true);
   });
 
   it("shows the Support menu to every role that may open its page", () => {
@@ -72,7 +79,6 @@ describe("access map", () => {
       "adminPosts",
       "adminCarousel",
       "adminMedias",
-      "adminFeatureFlags",
     ]);
   });
 

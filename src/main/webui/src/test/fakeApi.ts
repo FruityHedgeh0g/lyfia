@@ -90,6 +90,10 @@ const json = (body: unknown, status = 200) =>
 const empty = (status: number) => new Response(null, { status });
 
 const isSuperAdmin = () => state.viewer.role === "super_admin";
+/** Une Fonctionnalité que l'API ne connaît pas est active, comme FeatureLevers côté backend. */
+const isOn = (name: FeatureFlag["name"]) => state.features.find((f) => f.name === name)?.isActive ?? true;
+/** 503 `feature-off`, la réponse de l'API à ce qu'une Fonctionnalité désactivée couvre (ADR 0009). */
+const featureOff = (feature: FeatureFlag["name"]) => json({ error: "feature-off", feature }, 503);
 const visibleSector = (s: Sector) => !s.closed || isSuperAdmin();
 
 async function handle(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
@@ -303,6 +307,8 @@ async function events(method: string, [eventId, ...rest]: string[], body: any, q
   if (!event) return empty(404);
   if (!path && method === "GET") return json(event);
   if (path === "status" && method === "PUT") return answer(() => ev.changeStatus(eventId, body.status));
+  const signsUp = (path === "registration" || path === "registration/demande") && method === "PUT";
+  if (signsUp && !isOn("inscription-evenements")) return featureOff("inscription-evenements");
   if (path === "registration" && method === "PUT") {
     const groupId = query.get("groupId") ?? undefined;
     const piloteId = query.get("piloteId") ?? undefined;
@@ -366,6 +372,10 @@ const mediaDto = ({ url: _url, contentType, ...m }: Media) => ({ ...m, mimeType:
 
 function medias(method: string, [mediaId]: string[], body: any): Response {
   const isBureau = roleAtLeast(state.viewer.role, "bureau");
+  if (mediaId === "gallery" && method === "GET") {
+    if (!isOn("galerie-photos") && !isBureau) return featureOff("galerie-photos");
+    return json(state.medias.map(mediaDto));
+  }
   if (!mediaId) {
     if (method === "GET") return json(state.medias.map(mediaDto));
     if (method !== "POST") return empty(405);

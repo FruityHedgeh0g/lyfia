@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "../../auth/AuthContext";
-import { createEventsApi, createRegistrationsApi } from "../../test/fakeApi";
+import { createEventsApi, createRegistrationsApi, setFakeFeature } from "../../test/fakeApi";
 import EventDetailPage from "./EventDetailPage";
 import { testUser } from "../../test/testUser";
 
@@ -71,6 +71,24 @@ describe("EventDetailPage sign-up", () => {
 
     expect(await screen.findByText("Vous êtes inscrit comme passager de Marc Weber")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Demander ce groupe" })).not.toBeInTheDocument();
+  });
+
+  it("says sign-ups are suspended while Inscription aux événements is off (ADR 0009)", async () => {
+    setFakeFeature("inscription-evenements", false);
+    renderPage();
+
+    expect(await screen.findByText("Les inscriptions en ligne sont temporairement suspendues.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "M'inscrire comme pilote" })).not.toBeInTheDocument();
+  });
+
+  it("still lets a Participant withdraw while Inscription aux événements is off", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "M'inscrire comme pilote" }));
+    expect(await screen.findByText("Vous êtes inscrit comme pilote")).toBeInTheDocument();
+    setFakeFeature("inscription-evenements", false);
+
+    await userEvent.click(screen.getByRole("button", { name: "Me désinscrire" }));
+    expect(await screen.findByRole("button", { name: "M'inscrire comme pilote" })).toBeInTheDocument();
   });
 
   it("reserves another Secteur's Event to its Membres and to Bénévoles", async () => {
