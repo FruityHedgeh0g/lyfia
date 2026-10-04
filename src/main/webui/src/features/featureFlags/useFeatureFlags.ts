@@ -11,13 +11,15 @@ export function useFeatureFlags() {
  * État des fonctionnalités ; `isActive` renvoie false tant que les flags ne sont pas chargés, puis true pour une
  * Fonctionnalité que l'API ne connaît pas : un levier jamais tiré (comme FeatureLevers côté backend). Avec un
  * Secteur, elle n'est active que si son levier pour tout le site et celui du Secteur le sont (ADR 0009).
+ * Si les flags ne peuvent pas être lus, tout est montré : c'est l'API qui refuse ce qui est désactivé, et un échec
+ * de lecture ne doit pas cacher la moitié du site.
  */
 export function useFeatures() {
-  const { data, isSuccess } = useFeatureFlags();
+  const { data, isSuccess, isError } = useFeatureFlags();
   return {
-    ready: isSuccess,
+    ready: isSuccess || isError,
     isActive: (name: FeatureName, sectorId?: string | null) => {
-      if (!data) return false;
+      if (!data) return isError;
       const flag = data.find((f) => f.name === name);
       if (!flag) return true;
       return flag.isActive && !(sectorId && flag.offSectors?.includes(sectorId));

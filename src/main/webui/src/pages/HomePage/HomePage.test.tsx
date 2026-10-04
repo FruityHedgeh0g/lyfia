@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -7,9 +7,9 @@ import { testUser } from "../../test/testUser";
 import { setFakeFeature } from "../../test/fakeApi";
 import HomePage from "./HomePage";
 
-const renderAs = (role: string) =>
+const renderAs = (role: string, client = new QueryClient()) =>
   render(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={client}>
       <MemoryRouter>
         <AuthProvider user={testUser(role)}>
           <HomePage />
@@ -53,5 +53,14 @@ describe("HomePage registration", () => {
     await waitFor(() => expect(screen.getByText("Faire un don", { selector: "h3" })).toBeInTheDocument());
     await waitFor(() => expect(screen.queryByText("Devenir bénévole")).not.toBeInTheDocument());
     expect(screen.queryByRole("link", { name: "Je m'engage" })).not.toBeInTheDocument();
+  });
+
+  it("still offers Je m'engage when the Fonctionnalités cannot be read", async () => {
+    const realFetch = fetch;
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).startsWith("/api/features") ? Promise.resolve(new Response(null, { status: 500 })) : realFetch(input, init)
+    ));
+    renderAs("visiteur", new QueryClient({ defaultOptions: { queries: { retry: false } } }));
+    expect(await screen.findByText("Devenir bénévole")).toBeInTheDocument();
   });
 });
