@@ -13,6 +13,7 @@ import FeatureNotice from "../../components/molecules/FeatureNotice/FeatureNotic
 import { useFeature } from "../../features/featureFlags/useFeatureFlags";
 import { useAccess } from "../../auth/useAccess";
 import { AccessId, entry } from "../../auth/access";
+import { inSecteurChoice, useSecteurChoice } from "../../features/sectors/secteurChoice";
 import styles from "./HomePage.module.css";
 
 /** Le carrousel disparaît quand Carrousel est désactivé ; le Super admin le voit, marqué comme tel (ADR 0009). */
@@ -29,7 +30,9 @@ const HeroCarousel: React.FC = () => {
 };
 
 const HeroSlides: React.FC = () => {
-  const { data: items, isLoading: itemsLoading } = useActiveCarouselItems();
+  const { data: activeItems, isLoading: itemsLoading } = useActiveCarouselItems();
+  const { sectorId: choice } = useSecteurChoice();
+  const items = activeItems?.filter((item) => inSecteurChoice(choice, item.sectorId));
   const { data: medias, isLoading: mediasLoading } = useMedias();
 
   if (itemsLoading || mediasLoading) {

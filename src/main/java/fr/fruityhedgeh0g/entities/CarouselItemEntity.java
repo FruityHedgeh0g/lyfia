@@ -42,4 +42,13 @@ public class CarouselItemEntity extends AuditTemplate {
 
     @Column(name = "position", nullable = false)
     private int position;
+
+    /** The Secteur whose Bureau manages the slide; none for the whole site, managed by the Super admin. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "sector_id")
+    private SectorEntity sector;
+
+    public boolean isInClosedSector() {
+        return sector != null && sector.isClosed();
+    }
 }

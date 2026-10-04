@@ -25,9 +25,9 @@ public class PostLogDecorator implements PostService {
     PostService postService;
 
     @Override
-    public List<PostDto> listAll(boolean seesDrafts) {
+    public List<PostDto> listAll(boolean seesDrafts, boolean managed) {
         Log.debugf("Retrieving all posts...");
-        return Try.of(() -> postService.listAll(seesDrafts))
+        return Try.of(() -> postService.listAll(seesDrafts, managed))
                 .onSuccess(posts -> Log.debugf("%d posts retrieved.",posts.size()))
                 .onFailure(t -> Log.errorf(t,"An error occurred while retrieving posts."))
                 .get();

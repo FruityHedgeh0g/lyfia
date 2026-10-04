@@ -19,6 +19,7 @@ export const mockPosts: Post[] = [
   {
     postId: "post-1",
     status: "publie",
+    sectorId: "sector-1",
     author: BUREAU,
     title: "Retour sur la collecte 2025",
     content:
@@ -28,6 +29,7 @@ export const mockPosts: Post[] = [
   {
     postId: "post-2",
     status: "publie",
+    sectorId: "sector-1",
     author: BUREAU,
     title: "Une Rose Un Espoir remet un chèque à l'hôpital d'Algrange",
     content:
@@ -37,6 +39,7 @@ export const mockPosts: Post[] = [
   {
     postId: "post-3",
     status: "publie",
+    sectorId: "sector-1",
     author: BUREAU,
     title: "Appel aux bénévoles pour l'édition 2026",
     content:

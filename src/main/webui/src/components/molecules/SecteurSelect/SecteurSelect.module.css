@@ -1,0 +1,14 @@
+.field select {
+  padding: 2px 6px;
+  border: 1px solid var(--band-border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-xs);
+}
+
+.field option {
+  color: var(--color-text);
+  background: var(--color-surface);
+}

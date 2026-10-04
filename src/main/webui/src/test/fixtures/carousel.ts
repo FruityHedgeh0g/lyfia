@@ -8,6 +8,7 @@ export const mockCarouselItems: CarouselItem[] = [
     mediaId: null,
     linkTo: null,
     active: true,
+    sectorId: "sector-1",
     order: 1,
   },
   {
@@ -17,6 +18,7 @@ export const mockCarouselItems: CarouselItem[] = [
     mediaId: "media-3",
     linkTo: "/#benevolat",
     active: true,
+    sectorId: "sector-1",
     order: 2,
   },
   {
@@ -26,6 +28,7 @@ export const mockCarouselItems: CarouselItem[] = [
     mediaId: "media-1",
     linkTo: "/evenements",
     active: true,
+    sectorId: "sector-1",
     order: 3,
   },
 ];

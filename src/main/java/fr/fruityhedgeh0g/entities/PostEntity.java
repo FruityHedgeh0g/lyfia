@@ -50,6 +50,18 @@ public class PostEntity extends AuditTemplate {
     @JoinColumn(name = "author_id")
     private UserEntity author;
 
+    /**
+     * The Secteur the Post belongs to: its author's (ADR 0004). None for a Post of the whole site, written by the
+     * Super admin, or older than Secteurs.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "sector_id")
+    private SectorEntity sector;
+
+    public boolean isInClosedSector() {
+        return sector != null && sector.isClosed();
+    }
+
     public boolean isPublished() {
         return status == PostStatusEnum.PUBLIE;
     }

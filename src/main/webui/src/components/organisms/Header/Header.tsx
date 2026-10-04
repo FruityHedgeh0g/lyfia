@@ -5,6 +5,7 @@ import Icon from "../../atoms/Icon/Icon";
 import ButtonLink from "../../atoms/ButtonLink/ButtonLink";
 import DropdownMenu from "../../molecules/DropdownMenu/DropdownMenu";
 import ThemeToggle from "../../molecules/ThemeToggle/ThemeToggle";
+import SecteurSelect from "../../molecules/SecteurSelect/SecteurSelect";
 import { useAuth } from "../../../auth/AuthContext";
 import { useAccess } from "../../../auth/useAccess";
 import { entry } from "../../../auth/access";
@@ -59,6 +60,7 @@ export const Header: React.FC = () => {
             Tous unis contre le cancer
           </p>
           <div className={styles.utils}>
+            <SecteurSelect />
             <button
               type="button"
               className={styles.loginBtn}

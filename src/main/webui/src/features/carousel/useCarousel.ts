@@ -3,16 +3,16 @@ import {
   createCarouselItem,
   deleteCarouselItem,
   fetchActiveCarouselItems,
-  fetchCarouselItems,
+  fetchManagedCarouselItems,
   moveCarouselItem,
   updateCarouselItem,
 } from "./carouselApi";
 import { CarouselItemInput } from "./types";
 import { queryKeys } from "../queryKeys";
 
-/** Tous les éléments (actifs et inactifs), pour l'écran d'administration. */
+/** Les éléments (actifs et inactifs) des Secteurs que gère la personne, pour l'écran d'administration. */
 export function useCarouselItems() {
-  return useQuery({ queryKey: queryKeys.carousel.all, queryFn: fetchCarouselItems });
+  return useQuery({ queryKey: queryKeys.carousel.all, queryFn: fetchManagedCarouselItems });
 }
 
 /** Éléments actifs uniquement, pour le carrousel public de l'accueil. */

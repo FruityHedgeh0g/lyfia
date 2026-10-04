@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { changePostStatus, createPost, fetchPostById, fetchPosts, PostInput, updatePost } from "./postsApi";
+import { changePostStatus, createPost, fetchManagedPosts, fetchPostById, fetchPosts, PostInput, updatePost } from "./postsApi";
 import { Post, PostStatus } from "./types";
 import { queryKeys } from "../queryKeys";
 
@@ -21,9 +21,9 @@ export function usePost(postId: string | undefined) {
   });
 }
 
-/** Tous les Posts, Brouillons compris, pour le Bureau. */
+/** Les Posts des Secteurs que gère la personne, Brouillons compris, pour l'écran Actualités. */
 export function useAllPosts() {
-  return useQuery({ queryKey: queryKeys.posts.admin, queryFn: fetchPosts });
+  return useQuery({ queryKey: queryKeys.posts.admin, queryFn: fetchManagedPosts });
 }
 
 /** Écrire, modifier, publier et dépublier : réservé au Bureau. */

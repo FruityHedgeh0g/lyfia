@@ -23,6 +23,8 @@ export interface Post {
   status: PostStatus;
   /** Inconnu pour les Posts antérieurs aux auteurs. */
   author: PostAuthor | null;
+  /** Le Secteur de son auteur ; null : tout le site (ADR 0004). */
+  sectorId?: string | null;
   banner?: Media;
   attachments?: Media[];
 }

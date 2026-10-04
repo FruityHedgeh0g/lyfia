@@ -1,10 +1,12 @@
 package fr.fruityhedgeh0g.controllers;
 
 import fr.fruityhedgeh0g.entities.PostEntity;
+import fr.fruityhedgeh0g.entities.SectorEntity;
 import fr.fruityhedgeh0g.entities.UserEntity;
 import fr.fruityhedgeh0g.enums.PostStatusEnum;
 import fr.fruityhedgeh0g.enums.RoleEnum;
 import fr.fruityhedgeh0g.repositories.PostRepository;
+import fr.fruityhedgeh0g.repositories.SectorRepository;
 import fr.fruityhedgeh0g.repositories.UserRepository;
 import fr.fruityhedgeh0g.security.DatabaseRoleAugmentor;
 import io.quarkus.narayana.jta.QuarkusTransaction;
@@ -44,6 +46,10 @@ public class PostResourceTest {
     @Inject
     PostRepository postRepository;
 
+    @Inject
+    SectorRepository sectorRepository;
+
+    private UUID sector;
     private UUID draft;
     private UUID published;
 
@@ -52,15 +58,23 @@ public class PostResourceTest {
         persistPerson(BUREAU_ID, RoleEnum.BUREAU, "Bureau");
         persistPerson(CHEF_ID, RoleEnum.CHEF_DE_GROUPE, "Chef");
         persistPerson(MEMBRE_ID, RoleEnum.MEMBRE, "Membre");
+        sector = QuarkusTransaction.requiringNew().call(() -> {
+            SectorEntity s = SectorEntity.builder().name("Test Secteur " + UUID.randomUUID()).build();
+            sectorRepository.persist(s);
+            return s.getSectorId();
+        });
+        SecteurFixtures.attachToSecteur(userRepository, sectorRepository, sector);
         draft = persistPost("Test brouillon", PostStatusEnum.BROUILLON);
         published = persistPost("Test publié", PostStatusEnum.PUBLIE);
     }
 
     @AfterEach
     void cleanUp() {
+        SecteurFixtures.detachFromSecteur(userRepository, sectorRepository, sector);
         QuarkusTransaction.requiringNew().run(() -> {
             postRepository.delete("title like ?1", "Test %");
             List.of(BUREAU_ID, CHEF_ID, MEMBRE_ID).forEach(id -> userRepository.deleteById(UUID.fromString(id)));
+            sectorRepository.deleteById(sector);
         });
     }
 
@@ -76,6 +90,7 @@ public class PostResourceTest {
             post.setContent("Contenu de " + title);
             post.setStatus(status);
             post.setAuthor(userRepository.findById(UUID.fromString(BUREAU_ID)));
+            post.setSector(sectorRepository.findById(sector));
             postRepository.persist(post);
             return post.getPostId();
         });
@@ -131,7 +146,8 @@ public class PostResourceTest {
         create("Test nouveau").statusCode(200)
                 .body("title", equalTo("Test nouveau"))
                 .body("status", equalTo("brouillon"))
-                .body("author.userId", equalTo(BUREAU_ID));
+                .body("author.userId", equalTo(BUREAU_ID))
+                .body("sectorId", equalTo(sector.toString()));
     }
 
     @Test

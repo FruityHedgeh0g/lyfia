@@ -6,17 +6,27 @@ import AdminCrudList from "../../components/organisms/AdminCrudList/AdminCrudLis
 import FormField from "../../components/molecules/FormField/FormField";
 import Button from "../../components/atoms/Button/Button";
 import Spinner from "../../components/atoms/Spinner/Spinner";
+import Select from "../../components/atoms/Select/Select";
+import { useIsSuperAdmin, useSectors } from "../../features/sectors/useSector";
 
-const emptyDraft: PostInput = { title: "", content: "" };
+const emptyDraft: PostInput = { title: "", content: "", sectorId: "" };
 
 /**
- * Actualités (Bureau) : chaque Post avec son statut et son auteur. Un nouveau
- * Post est un Brouillon signé par la personne connectée ; « Publier » le rend
- * visible de tous, « Repasser en brouillon » le retire.
+ * Actualités (Bureau) : les Posts de son Secteur (tous pour le Super admin), avec leur statut et leur auteur. Un
+ * nouveau Post est un Brouillon signé par la personne connectée, pour son Secteur ; le Super admin choisit le
+ * Secteur, ou tout le site. « Publier » le rend visible de tous, « Repasser en brouillon » le retire.
  */
 export const PostsAdminPage: React.FC = () => {
   const { data: posts, isLoading } = useAllPosts();
   const { create, update, changeStatus } = usePostMutations();
+  const superAdmin = useIsSuperAdmin();
+  const { data: sectors } = useSectors();
+  const sectorName = (sectorId?: string | null) =>
+    sectorId ? (sectors?.find((s) => s.sectorId === sectorId)?.name ?? "Secteur") : "Tout le site";
+  const sectorOptions = [
+    { value: "", label: "Tout le site" },
+    ...(sectors ?? []).filter((s) => !s.closed).map((s) => ({ value: s.sectorId, label: s.name })),
+  ];
 
   if (isLoading) return <Spinner label="Chargement des actualités..." />;
 
@@ -28,11 +38,20 @@ export const PostsAdminPage: React.FC = () => {
       idOf={(p) => p.postId}
       display={(p) => ({
         title: p.title,
-        subtitle: [POST_STATUS_LABELS[p.status], p.author && `${p.author.firstName} ${p.author.lastName}`].filter(Boolean).join(" · "),
+        subtitle: [
+          POST_STATUS_LABELS[p.status],
+          p.author && `${p.author.firstName} ${p.author.lastName}`,
+          superAdmin && sectorName(p.sectorId),
+        ]
+          .filter(Boolean)
+          .join(" · "),
       })}
       toDraft={(p): PostInput => ({ title: p.title, content: p.content })}
       renderFields={(draft, setDraft, post) => (
         <>
+          {superAdmin && !post && (
+            <Select label="Secteur" value={draft.sectorId ?? ""} onChange={(sectorId) => setDraft({ ...draft, sectorId })} options={sectorOptions} />
+          )}
           <FormField label="Titre" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} required />
           <FormField
             label="Contenu"
@@ -62,7 +81,7 @@ export const PostsAdminPage: React.FC = () => {
         buttonLabel: "+ Nouvelle actualité",
         submitLabel: "Créer le brouillon",
         emptyDraft,
-        onCreate: (draft) => create.mutateAsync(draft),
+        onCreate: (draft) => create.mutateAsync({ ...draft, sectorId: draft.sectorId || null }),
       }}
     />
   );

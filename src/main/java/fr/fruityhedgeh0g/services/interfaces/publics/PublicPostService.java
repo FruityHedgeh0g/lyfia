@@ -12,7 +12,11 @@ import java.util.UUID;
 public interface PublicPostService {
 
     /** @param seesDrafts true for the Bureau and above; everyone else sees only Publié Posts */
-    List<PostDto> listAll(boolean seesDrafts);
+    /**
+     * Publié Posts, plus the Brouillons of the Secteurs this person manages when they see drafts; {@code managed}:
+     * only the Posts of the Secteurs this person manages (the Actualités admin screen).
+     */
+    List<PostDto> listAll(boolean seesDrafts, boolean managed);
     PostDto getById(@NotNull UUID postId, boolean seesDrafts);
     /** A new Post is Brouillon, with its creator as author. */
     PostDto create(@NotNull @Valid PostDto postDto, @NotNull UUID authorId);

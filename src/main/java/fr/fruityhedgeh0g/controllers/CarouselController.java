@@ -26,10 +26,12 @@ public class CarouselController {
     @Inject SecurityIdentity identity;
     @Inject FeatureLevers featureLevers;
 
+    /** {@code ?managed=true}: the slides of the Secteurs the Bureau manages, for the Carrousel admin screen. */
     @GET
-    public List<CarouselItemDto> list(){
+    public List<CarouselItemDto> list(@QueryParam("managed") boolean managed){
         featureLevers.requireForPublic(FeatureEnum.CARROUSEL);
-        return carouselService.list(identity.hasRole("bureau"));
+        boolean preparer = identity.hasRole("bureau");
+        return carouselService.list(preparer, managed && preparer);
     }
 
     @POST

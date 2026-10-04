@@ -4,12 +4,13 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { queryClient } from "./queryClient";
 import { ThemeProvider } from "../theme/ThemeContext";
 import { AuthProvider } from "../auth/AuthContext";
+import { SecteurChoiceProvider } from "../features/sectors/secteurChoice";
 
 export const AppProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <AuthProvider>
-        {children}
+        <SecteurChoiceProvider>{children}</SecteurChoiceProvider>
         {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
       </AuthProvider>
     </ThemeProvider>

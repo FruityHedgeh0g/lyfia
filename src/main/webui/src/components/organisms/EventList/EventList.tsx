@@ -8,6 +8,7 @@ import Badge from "../../atoms/Badge/Badge";
 import Spinner from "../../atoms/Spinner/Spinner";
 import { placeholderImage } from "../../../lib/placeholderImage";
 import { formatDateRange } from "../../../lib/formatDate";
+import { inSecteurChoice, useSecteurChoice } from "../../../features/sectors/secteurChoice";
 import styles from "./EventList.module.css";
 
 export interface EventListProps {
@@ -39,11 +40,12 @@ export const EventList: React.FC<EventListProps> = ({
   emptyMessage = "Aucun événement planifié pour le moment. Revenez bientôt !",
 }) => {
   const { data: events, isLoading, isError } = useEvents();
+  const { sectorId: choice } = useSecteurChoice();
 
   if (isLoading) return <Spinner label="Chargement des événements..." />;
   if (isError) return <p className={styles.error}>Impossible de charger les événements pour le moment.</p>;
 
-  const all = events ?? [];
+  const all = (events ?? []).filter((e) => inSecteurChoice(choice, e.sectorId));
 
   if (scope === "upcoming") {
     let upcoming = all.filter((e) => isUpcoming(e)).sort((a, b) => a.startDateTime.localeCompare(b.startDateTime));

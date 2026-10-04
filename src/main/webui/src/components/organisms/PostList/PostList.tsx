@@ -3,6 +3,7 @@ import { usePosts } from "../../../features/posts/usePosts";
 import MediaCard from "../../molecules/MediaCard/MediaCard";
 import Spinner from "../../atoms/Spinner/Spinner";
 import { placeholderImage } from "../../../lib/placeholderImage";
+import { inSecteurChoice, useSecteurChoice } from "../../../features/sectors/secteurChoice";
 import styles from "./PostList.module.css";
 
 function excerpt(content: string, max = 140): string {
@@ -10,7 +11,9 @@ function excerpt(content: string, max = 140): string {
 }
 
 export const PostList: React.FC = () => {
-  const { data: posts, isLoading, isError } = usePosts();
+  const { data, isLoading, isError } = usePosts();
+  const { sectorId: choice } = useSecteurChoice();
+  const posts = data?.filter((post) => inSecteurChoice(choice, post.sectorId));
 
   if (isLoading) return <Spinner label="Chargement des actualités..." />;
   if (isError) return <p className={styles.error}>Impossible de charger les actualités pour le moment.</p>;

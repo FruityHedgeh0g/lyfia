@@ -50,9 +50,10 @@ public class PostController {
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     // Detailed: the list shows an excerpt of each Post's content
-    public @JsonView(Views.Detailed.class) List<PostDto> getAllPosts(){
+    public @JsonView(Views.Detailed.class) List<PostDto> getAllPosts(@QueryParam("managed") boolean managed){
         featureLevers.requireForPublic(FeatureEnum.ACTUALITES);
-        return postService.listAll(seesDrafts());
+        // ?managed=true: the Posts of the Secteurs the Bureau manages, for the Actualités admin screen
+        return postService.listAll(seesDrafts(), managed && seesDrafts());
     }
 
     @GET

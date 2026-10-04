@@ -9,6 +9,9 @@ const base = (id: string) => `/api/carousel/${encodeURIComponent(id)}`;
  */
 export const fetchCarouselItems = () => apiFetch<CarouselItem[]>("/api/carousel");
 
+/** Les slides des Secteurs que gère la personne (tous pour le Super admin) : l'écran Carrousel. */
+export const fetchManagedCarouselItems = () => apiFetch<CarouselItem[]>("/api/carousel?managed=true");
+
 /** Les slides affichés : même le Bureau ne voit pas sur l'accueil ceux mis de côté. */
 export const fetchActiveCarouselItems = async () => (await fetchCarouselItems()).filter((item) => item.active);
 

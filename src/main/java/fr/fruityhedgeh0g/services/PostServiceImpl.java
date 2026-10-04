@@ -1,5 +1,11 @@
 package fr.fruityhedgeh0g.services;
 
+import fr.fruityhedgeh0g.entities.SectorEntity;
+import fr.fruityhedgeh0g.entities.UserEntity;
+import fr.fruityhedgeh0g.exceptions.ForbiddenActionException;
+import fr.fruityhedgeh0g.security.SecteurScope;
+import fr.fruityhedgeh0g.security.Viewer;
+import fr.fruityhedgeh0g.services.interfaces.internals.InternalSectorService;
 import fr.fruityhedgeh0g.utilities.logging.Logged;
 
 import fr.fruityhedgeh0g.dtos.postDtos.PostDto;
@@ -36,28 +42,46 @@ public class PostServiceImpl implements PostService {
     @Inject
     InternalUserService internalUserService;
 
+    @Inject
+    InternalSectorService internalSectorService;
+
+    @Inject
+    Viewer viewer;
+
     @Override
-    public List<PostDto> listAll(boolean seesDrafts) {
-        List<PostEntity> posts = seesDrafts ? postRepository.listAll() : postRepository.list("status", PostStatusEnum.PUBLIE);
-        return posts.stream().map(postMapper::toDto).toList();
+    public List<PostDto> listAll(boolean seesDrafts, boolean managed) {
+        SecteurScope scope = viewer.scope();
+        return postRepository.listAll().stream()
+                .filter(this::visible)
+                .filter(post -> managed ? scope.covers(post.getSector()) : readable(post, seesDrafts, scope))
+                .map(postMapper::toDto)
+                .toList();
     }
 
     @Override
     public PostDto getById(UUID postId, boolean seesDrafts) {
+        SecteurScope scope = viewer.scope();
         return postMapper.toDto(
                 postRepository.findByIdOptional(postId)
-                        .filter(post -> seesDrafts || post.isPublished())
+                        .filter(this::visible)
+                        .filter(post -> readable(post, seesDrafts, scope))
                         .orElseThrow(() -> new UnknownResourceException("Post not found: "+postId))
         );
     }
 
+    /**
+     * A Post is written for its author's Secteur (ADR 0004); the Super admin, above the Secteurs, chooses one, or
+     * none for the whole site.
+     */
     @Override
     @Transactional
     public PostDto create(PostDto postDto, UUID authorId) {
         PostEntity post = postMapper.toEntity(postDto);
         post.setStatus(PostStatusEnum.BROUILLON);
-        post.setAuthor(internalUserService.doGetEntityById(authorId)
-                .orElseThrow(() -> new UnknownResourceException("User not found: " + authorId)));
+        UserEntity author = internalUserService.doGetEntityById(authorId)
+                .orElseThrow(() -> new UnknownResourceException("User not found: " + authorId));
+        post.setAuthor(author);
+        post.setSector(sectorFor(author, postDto.getSectorId()));
         validate(post);
         postRepository.persist(post);
         return postMapper.toDto(post);
@@ -67,7 +91,7 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public PostDto update(PostDto postDto) {
         if (postDto.getPostId() == null) throw new InvalidResourceException("Missing post id.");
-        PostEntity post = postOrThrow(postDto.getPostId());
+        PostEntity post = managedPostOrThrow(postDto.getPostId());
         postMapper.partialDtoToEntity(post, postDto);
         validate(post);
         return postMapper.toDto(post);
@@ -76,14 +100,42 @@ public class PostServiceImpl implements PostService {
     @Override
     @Transactional
     public PostDto changeStatus(UUID postId, PostStatusEnum status) {
-        PostEntity post = postOrThrow(postId);
+        PostEntity post = managedPostOrThrow(postId);
         post.setStatus(status);
         return postMapper.toDto(post);
     }
 
-    private PostEntity postOrThrow(UUID postId) {
-        return postRepository.findByIdOptional(postId)
+    private SectorEntity sectorFor(UserEntity author, UUID chosen) {
+        if (!viewer.scope().everySecteur()) {
+            if (author.getSector() == null) throw new ForbiddenActionException("A Post is written for its author's Secteur.");
+            return author.getSector();
+        }
+        if (chosen == null) return null;
+        SectorEntity sector = internalSectorService.doGetEntityById(chosen)
+                .orElseThrow(() -> new UnknownResourceException("Sector not found: " + chosen));
+        if (sector.isClosed()) throw new InvalidResourceException("A Secteur fermé gets no new Post.");
+        return sector;
+    }
+
+    /** Everyone reads Publié Posts; Brouillons, only the Bureau of their Secteur (the Super admin: all). */
+    private static boolean readable(PostEntity post, boolean seesDrafts, SecteurScope scope) {
+        return post.isPublished() || (seesDrafts && scope.covers(post.getSector()));
+    }
+
+    /** Only the Super admin sees what belongs to a Secteur fermé (ADR 0003). */
+    private boolean visible(PostEntity post) {
+        return !post.isInClosedSector() || viewer.seesClosedSecteurs();
+    }
+
+    /** Only the Bureau of the Post's Secteur edits, publishes and unpublishes it; the Super admin, any Post. */
+    private PostEntity managedPostOrThrow(UUID postId) {
+        PostEntity post = postRepository.findByIdOptional(postId)
+                .filter(this::visible)
                 .orElseThrow(() -> new UnknownResourceException("Post not found: " + postId));
+        if (!viewer.scope().covers(post.getSector()))
+            throw new ForbiddenActionException("A Post is managed by its own Secteur's Bureau.");
+        if (post.isInClosedSector()) throw new InvalidResourceException("A Secteur fermé is read-only.");
+        return post;
     }
 
     /** A Post has a title and a content. */

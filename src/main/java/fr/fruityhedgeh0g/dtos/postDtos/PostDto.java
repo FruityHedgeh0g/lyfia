@@ -23,6 +23,10 @@ public class PostDto {
     @JsonView(Views.Basic.class)
     PostStatusEnum status;
 
+    /** Its Secteur; none for the whole site. Chosen by the Super admin only, others write for their own Secteur. */
+    @JsonView({Views.Basic.class, Views.Creation.class})
+    UUID sectorId;
+
     /** Read only: the Bureau member who created the Post. */
     @JsonView(Views.Basic.class)
     NestedUserDto author;

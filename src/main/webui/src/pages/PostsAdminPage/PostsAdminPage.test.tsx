@@ -6,8 +6,8 @@ import { AuthProvider } from "../../auth/AuthContext";
 import { testUser } from "../../test/testUser";
 import PostsAdminPage from "./PostsAdminPage";
 
-const renderPage = () => {
-  const user = testUser("bureau");
+const renderPage = (role = "bureau") => {
+  const user = testUser(role);
   render(
     <QueryClientProvider client={new QueryClient()}>
       <AuthProvider user={user}>
@@ -43,5 +43,22 @@ describe("PostsAdminPage", () => {
     // The Post stays open after publishing: its action flips
     await userEvent.click(await screen.findByRole("button", { name: "Repasser en brouillon" }));
     await waitFor(() => expect(screen.getByRole("button", { name: /Test sortie de printemps/ })).toHaveTextContent("Brouillon"));
+  });
+
+  it("lists only the Bureau's own Secteur's Posts (ADR 0004)", async () => {
+    renderPage();
+    expect(await screen.findByRole("button", { name: /Retour sur la collecte 2025/ })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Secteur")).not.toBeInTheDocument();
+  });
+
+  it("lets the Super admin write for a chosen Secteur", async () => {
+    renderPage("super_admin");
+    await userEvent.click(await screen.findByRole("button", { name: "+ Nouvelle actualité" }));
+    await userEvent.selectOptions(await screen.findByLabelText("Secteur"), "sector-2");
+    await userEvent.type(screen.getByLabelText("Titre"), "Balade à Thionville");
+    await userEvent.type(screen.getByLabelText("Contenu"), "Rendez-vous dimanche.");
+    await userEvent.click(screen.getByRole("button", { name: "Créer le brouillon" }));
+
+    expect(await screen.findByRole("button", { name: /Balade à Thionville/ })).toHaveTextContent("Secteur Thionville");
   });
 });

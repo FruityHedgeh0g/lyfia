@@ -1,10 +1,11 @@
 import { Post, PostStatus } from "./types";
 import { apiFetch, HttpError } from "../../lib/http";
 
-/** Ce que le Bureau écrit ; statut et auteur sont fixés par l'API. */
+/** Ce que le Bureau écrit ; statut, auteur et Secteur sont fixés par l'API (le Super admin choisit le Secteur). */
 export interface PostInput {
   title: string;
   content: string;
+  sectorId?: string | null;
 }
 
 type PostDto = Omit<Post, "content" | "author"> & { content?: string | null; author?: Post["author"] };
@@ -22,6 +23,11 @@ export async function fetchPosts(): Promise<Post[]> {
   return (await apiFetch<PostDto[]>("/api/posts")).map(toPost);
 }
 
+/** Les Posts des Secteurs que gère la personne (tous pour le Super admin), Brouillons compris : l'écran Actualités. */
+export async function fetchManagedPosts(): Promise<Post[]> {
+  return (await apiFetch<PostDto[]>("/api/posts?managed=true")).map(toPost);
+}
+
 /** undefined pour un Post inconnu, ou un Brouillon quand on n'est pas du Bureau. */
 export async function fetchPostById(postId: string): Promise<Post | undefined> {
   try {
@@ -37,7 +43,8 @@ export async function createPost(input: PostInput): Promise<Post> {
 }
 
 export async function updatePost(postId: string, patch: PostInput): Promise<Post> {
-  return toPost(await apiFetch<PostDto>("/api/posts", { method: "PATCH", body: JSON.stringify({ postId, ...patch }) }));
+  const { title, content } = patch;
+  return toPost(await apiFetch<PostDto>("/api/posts", { method: "PATCH", body: JSON.stringify({ postId, title, content }) }));
 }
 
 export async function changePostStatus(postId: string, status: PostStatus): Promise<Post> {

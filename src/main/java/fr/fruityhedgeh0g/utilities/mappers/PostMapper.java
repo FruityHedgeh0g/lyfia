@@ -12,8 +12,10 @@ public interface PostMapper {
     @Mapping(target = "banner", ignore = true)
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "author", ignore = true)
+    @Mapping(target = "sector", ignore = true)
     PostEntity toEntity(PostDto dto);
 
+    @Mapping(target = "sectorId", source = "sector.sectorId")
     PostDto toDto(PostEntity entity);
 
     NestedPostDto toNestedDto(PostEntity entity);
@@ -23,6 +25,7 @@ public interface PostMapper {
     @Mapping(target = "banner", ignore = true)
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "author", ignore = true)
+    @Mapping(target = "sector", ignore = true)
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     PostEntity partialDtoToEntity(@MappingTarget PostEntity postEntity, PostDto postDto);
 }

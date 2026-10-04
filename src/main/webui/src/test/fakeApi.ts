@@ -93,6 +93,8 @@ const json = (body: unknown, status = 200) =>
 const empty = (status: number) => new Response(null, { status });
 
 const isSuperAdmin = () => state.viewer.role === "super_admin";
+/** Ce que gère la personne : son Secteur ; tout pour le Super admin (ADR 0004). */
+const manages = (sectorId: string | null | undefined) => isSuperAdmin() || (Boolean(sectorId) && sectorId === state.viewer.sectorId);
 /** Une Fonctionnalité que l'API ne connaît pas est active, comme FeatureLevers côté backend. */
 const isOn = (name: FeatureFlag["name"], sectorId?: string) => {
   const flag = state.features.find((f) => f.name === name);
@@ -114,9 +116,9 @@ async function handle(input: RequestInfo | URL, init: RequestInit = {}): Promise
   if (parts[0] === "api" && parts[1] === "features") return features(method, parts.slice(2), body, url.searchParams);
   if (parts[0] === "api" && parts[1] === "feature-requests") return featureRequests(method, body);
   if (parts[0] === "api" && parts[1] === "medias") return medias(method, parts.slice(2), body);
-  if (parts[0] === "api" && parts[1] === "carousel") return carousel(method, parts.slice(2), body);
+  if (parts[0] === "api" && parts[1] === "carousel") return carousel(method, parts.slice(2), body, url.searchParams);
   if (parts[0] === "api" && parts[1] === "configurations") return configurations(method, parts[2], body);
-  if (parts[0] === "api" && parts[1] === "posts") return posts(method, parts.slice(2), body);
+  if (parts[0] === "api" && parts[1] === "posts") return posts(method, parts.slice(2), body, url.searchParams);
   if (parts[0] === "api" && parts[1] === "events") return events(method, parts.slice(2), body, url.searchParams);
   return empty(404);
 }
@@ -335,22 +337,27 @@ async function events(method: string, [eventId, ...rest]: string[], body: any, q
   return empty(405);
 }
 
-function posts(method: string, [postId, action]: string[], body: any): Response {
+function posts(method: string, [postId, action]: string[], body: any, query: URLSearchParams): Response {
   const isBureau = roleAtLeast(state.viewer.role, "bureau");
-  const visiblePost = (p: Post) => isBureau || p.status === "publie";
+  const visiblePost = (p: Post) => p.status === "publie" || (isBureau && manages(p.sectorId));
   if (method === "GET" && !isBureau && !isOn("actualites")) return featureOff("actualites");
   if (!postId) {
-    if (method === "GET") return json(state.posts.filter(visiblePost));
+    if (method === "GET") {
+      const managed = query.get("managed") === "true" && isBureau;
+      return json(state.posts.filter((p) => (managed ? manages(p.sectorId) : visiblePost(p))));
+    }
     if (!isBureau) return empty(403);
     if (!body.title?.trim() || !body.content?.trim()) return empty(400);
     if (method === "POST") {
       const { userId, firstName, lastName } = state.viewer;
-      const post: Post = { postId: `post-new-${state.posts.length + 1}`, title: body.title, content: body.content, status: "brouillon", author: { userId, firstName, lastName } };
+      const sectorId = isSuperAdmin() ? (body.sectorId ?? null) : state.viewer.sectorId;
+      const post: Post = { postId: `post-new-${state.posts.length + 1}`, title: body.title, content: body.content, status: "brouillon", author: { userId, firstName, lastName }, sectorId };
       state.posts.unshift(post);
       return json(post);
     }
     const post = state.posts.find((p) => p.postId === body.postId);
     if (method !== "PATCH" || !post) return empty(method === "PATCH" ? 404 : 405);
+    if (!manages(post.sectorId)) return empty(403);
     Object.assign(post, { title: body.title, content: body.content });
     return json(post);
   }
@@ -358,6 +365,7 @@ function posts(method: string, [postId, action]: string[], body: any): Response 
   if (!post) return empty(404);
   if (method === "GET" && !action) return json(post);
   if (method === "PUT" && action === "status" && isBureau) {
+    if (!manages(post.sectorId)) return empty(403);
     post.status = body.status;
     return json(post);
   }
@@ -409,23 +417,28 @@ function medias(method: string, [mediaId]: string[], body: any): Response {
   return json(mediaDto(media));
 }
 
-function carousel(method: string, [id, action, direction]: string[], body: any): Response {
+function carousel(method: string, [id, action, direction]: string[], body: any, query: URLSearchParams): Response {
   const isBureau = roleAtLeast(state.viewer.role, "bureau");
   const ordered = () => [...state.carousel].sort((a, b) => a.order - b.order);
   if (method === "GET" && !isBureau && !isOn("carrousel")) return featureOff("carrousel");
   if (!id) {
-    if (method === "GET") return json(ordered().filter((item) => isBureau || item.active));
+    if (method === "GET") {
+      const managed = query.get("managed") === "true" && isBureau;
+      return json(ordered().filter((item) => (managed ? manages(item.sectorId) : item.active || (isBureau && manages(item.sectorId)))));
+    }
     if (method !== "POST") return empty(405);
     if (!isBureau) return empty(403);
-    const item: CarouselItem = { id: `carousel-new-${state.carousel.length + 1}`, order: Math.max(0, ...state.carousel.map((i) => i.order)) + 1, ...body };
+    const sectorId = isSuperAdmin() ? (body.sectorId ?? null) : state.viewer.sectorId;
+    const item: CarouselItem = { id: `carousel-new-${state.carousel.length + 1}`, order: Math.max(0, ...state.carousel.map((i) => i.order)) + 1, ...body, sectorId };
     state.carousel.push(item);
     return json(item);
   }
   if (!isBureau) return empty(403);
   const item = state.carousel.find((i) => i.id === id);
   if (!item) return empty(404);
+  if (!manages(item.sectorId)) return empty(403);
   if (method === "PUT" && !action) {
-    Object.assign(item, body);
+    Object.assign(item, { ...body, sectorId: item.sectorId });
     return json(item);
   }
   if (method === "DELETE" && !action) {
@@ -433,11 +446,11 @@ function carousel(method: string, [id, action, direction]: string[], body: any):
     return empty(204);
   }
   if (method === "POST" && action === "move") {
-    const items = ordered();
+    const items = ordered().filter((i) => (i.sectorId ?? null) === (item.sectorId ?? null));
     const index = items.indexOf(item);
     const other = items[direction === "up" ? index - 1 : index + 1];
     if (other) [item.order, other.order] = [other.order, item.order];
-    return json(ordered());
+    return json(ordered().filter((i) => manages(i.sectorId)));
   }
   return empty(405);
 }
