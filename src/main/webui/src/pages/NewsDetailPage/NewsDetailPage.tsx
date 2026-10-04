@@ -4,17 +4,22 @@ import { usePost } from "../../features/posts/usePosts";
 import PageHero from "../../components/organisms/PageHero/PageHero";
 import Spinner from "../../components/atoms/Spinner/Spinner";
 import Icon from "../../components/atoms/Icon/Icon";
+import { FeatureOffError } from "../../lib/http";
+import FeatureUnavailablePage from "../FeatureUnavailablePage/FeatureUnavailablePage";
 import styles from "./NewsDetailPage.module.css";
 
 export const NewsDetailPage: React.FC = () => {
   const { postId } = useParams<{ postId: string }>();
-  const { data: post, isLoading, isError } = usePost(postId);
+  const { data: post, isLoading, isError, error } = usePost(postId);
 
   const back = (
     <Link className={styles.back} to="/actualites">
       <Icon name="arrowLeft" size={16} strokeWidth={2.5} /> Retour aux actualités
     </Link>
   );
+
+  // Actualités désactivées pour le Secteur de ce Post (ADR 0009)
+  if (error instanceof FeatureOffError) return <FeatureUnavailablePage />;
 
   if (!post) {
     return (

@@ -2,6 +2,7 @@ package fr.fruityhedgeh0g.services;
 
 import fr.fruityhedgeh0g.entities.SectorEntity;
 import fr.fruityhedgeh0g.entities.UserEntity;
+import fr.fruityhedgeh0g.enums.FeatureEnum;
 import fr.fruityhedgeh0g.exceptions.ForbiddenActionException;
 import fr.fruityhedgeh0g.security.SecteurScope;
 import fr.fruityhedgeh0g.security.Viewer;
@@ -26,6 +27,7 @@ import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @AllArgsConstructor
@@ -48,11 +50,17 @@ public class PostServiceImpl implements PostService {
     @Inject
     Viewer viewer;
 
+    @Inject
+    FeatureLevers featureLevers;
+
     @Override
     public List<PostDto> listAll(boolean seesDrafts, boolean managed) {
         SecteurScope scope = viewer.scope();
+        // A Secteur whose Actualités are off keeps its Posts away from the public (ADR 0009)
+        Set<UUID> hidden = featureLevers.hiddenFromPublic(FeatureEnum.ACTUALITES);
         return postRepository.listAll().stream()
                 .filter(this::visible)
+                .filter(post -> post.getSector() == null || !hidden.contains(post.getSector().getSectorId()))
                 .filter(post -> managed ? scope.covers(post.getSector()) : readable(post, seesDrafts, scope))
                 .map(postMapper::toDto)
                 .toList();
@@ -61,12 +69,12 @@ public class PostServiceImpl implements PostService {
     @Override
     public PostDto getById(UUID postId, boolean seesDrafts) {
         SecteurScope scope = viewer.scope();
-        return postMapper.toDto(
-                postRepository.findByIdOptional(postId)
-                        .filter(this::visible)
-                        .filter(post -> readable(post, seesDrafts, scope))
-                        .orElseThrow(() -> new UnknownResourceException("Post not found: "+postId))
-        );
+        PostEntity post = postRepository.findByIdOptional(postId)
+                .filter(this::visible)
+                .filter(p -> readable(p, seesDrafts, scope))
+                .orElseThrow(() -> new UnknownResourceException("Post not found: "+postId));
+        featureLevers.requireForPublic(FeatureEnum.ACTUALITES, post.getSector());
+        return postMapper.toDto(post);
     }
 
     /**

@@ -47,7 +47,7 @@ public class FeatureController {
         return featureService.switchLever(name, change.isActive(), change.reason(), me());
     }
 
-    /** A Feature's lever for one Secteur (Inscription aux événements, Export de la liste), independent of the site-wide one. */
+    /** A Feature's lever for one Secteur (Actualités, Inscription aux événements, Export de la liste), independent of the site-wide one. */
     @PUT
     @Path("/{name}/sectors/{sectorId}")
     @Consumes(MediaType.APPLICATION_JSON)

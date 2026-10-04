@@ -1,18 +1,21 @@
 package fr.fruityhedgeh0g.controllers;
 
 import fr.fruityhedgeh0g.entities.EventEntity;
+import fr.fruityhedgeh0g.entities.PostEntity;
 import fr.fruityhedgeh0g.entities.SectorEntity;
 import fr.fruityhedgeh0g.entities.UserEntity;
 import fr.fruityhedgeh0g.entities.configurations.FeatureEntity;
 import fr.fruityhedgeh0g.entities.configurations.FeatureSectorLeverEntity;
 import fr.fruityhedgeh0g.enums.EventStatusEnum;
 import fr.fruityhedgeh0g.enums.FeatureEnum;
+import fr.fruityhedgeh0g.enums.PostStatusEnum;
 import fr.fruityhedgeh0g.enums.RoleEnum;
 import fr.fruityhedgeh0g.repositories.EventRegistrationRepository;
 import fr.fruityhedgeh0g.repositories.EventRepository;
 import fr.fruityhedgeh0g.repositories.FeatureRepository;
 import fr.fruityhedgeh0g.repositories.FeatureSectorLeverRepository;
 import fr.fruityhedgeh0g.repositories.FeatureSwitchRepository;
+import fr.fruityhedgeh0g.repositories.PostRepository;
 import fr.fruityhedgeh0g.repositories.SectorRepository;
 import fr.fruityhedgeh0g.repositories.UserRepository;
 import fr.fruityhedgeh0g.security.DatabaseRoleAugmentor;
@@ -37,6 +40,8 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 /**
  * A Feature about what belongs to a Secteur also has a lever per Secteur, independent of the site-wide one: it works
@@ -57,17 +62,20 @@ class SectorLeverResourceTest {
     @Inject SectorRepository sectorRepository;
     @Inject EventRepository eventRepository;
     @Inject EventRegistrationRepository registrationRepository;
+    @Inject PostRepository postRepository;
 
     private UUID algrange;
     private UUID thionville;
     private UUID closed;
     private UUID algrangeEvent;
     private UUID thionvilleEvent;
+    private UUID algrangePost;
+    private UUID thionvillePost;
 
     @BeforeEach
     void seed() {
         QuarkusTransaction.requiringNew().run(() -> {
-            for (FeatureEnum feature : List.of(INSCRIPTION, FeatureEnum.EXPORT_LISTE, FeatureEnum.GALERIE_PHOTOS))
+            for (FeatureEnum feature : List.of(INSCRIPTION, FeatureEnum.EXPORT_LISTE, FeatureEnum.GALERIE_PHOTOS, FeatureEnum.ACTUALITES))
                 featureRepository.persist(FeatureEntity.builder().name(feature.id()).description("Test").isActive(true).build());
             SectorEntity a = sector("Algrange", false);
             SectorEntity t = sector("Thionville", false);
@@ -79,6 +87,8 @@ class SectorLeverResourceTest {
             userRepository.persist(person(SUPER_ADMIN, RoleEnum.SUPER_ADMIN, null));
             algrangeEvent = event(a);
             thionvilleEvent = event(t);
+            algrangePost = post(a);
+            thionvillePost = post(t);
         });
     }
 
@@ -86,6 +96,7 @@ class SectorLeverResourceTest {
     void cleanUp() {
         QuarkusTransaction.requiringNew().run(() -> {
             switchRepository.deleteAll();
+            postRepository.delete("postId in ?1", List.of(algrangePost, thionvillePost));
             sectorLeverRepository.deleteAll();
             featureRepository.delete("name in ?1", Arrays.stream(FeatureEnum.values()).map(FeatureEnum::id).toList());
             registrationRepository.delete("event.eventId in ?1", List.of(algrangeEvent, thionvilleEvent));
@@ -116,6 +127,16 @@ class SectorLeverResourceTest {
         e.setSector(sector);
         eventRepository.persist(e);
         return e.getEventId();
+    }
+
+    private UUID post(SectorEntity sector) {
+        PostEntity post = new PostEntity();
+        post.setTitle("Lever actualité");
+        post.setContent("Contenu");
+        post.setStatus(PostStatusEnum.PUBLIE);
+        post.setSector(sector);
+        postRepository.persist(post);
+        return post.getPostId();
     }
 
     private void turnOffIn(FeatureEnum feature, UUID sectorId) {
@@ -182,6 +203,7 @@ class SectorLeverResourceTest {
     @OidcSecurity(claims = @Claim(key = "sub", value = SUPER_ADMIN))
     void onlyFeaturesAboutASecteurHaveSecteurLevers() {
         switchIn(FeatureEnum.GALERIE_PHOTOS, algrange, false).statusCode(400);
+        switchIn(FeatureEnum.ACTUALITES, algrange, false).statusCode(200);
         switchIn(INSCRIPTION, closed, false).statusCode(400);
         switchIn(INSCRIPTION, UUID.randomUUID(), false).statusCode(404);
     }
@@ -190,5 +212,25 @@ class SectorLeverResourceTest {
     @TestSecurity(user = "admin", roles = {"benevole", "membre", "chef_de_groupe", "bureau", "admin"})
     void onlyTheSuperAdminSwitchesThem() {
         switchIn(INSCRIPTION, algrange, false).statusCode(403);
+    }
+
+    @Test
+    void actualitesOffForOneSecteurKeepsOnlyItsPostsAwayFromThePublic() {
+        turnOffIn(FeatureEnum.ACTUALITES, algrange);
+        given().when().get("/api/posts").then().statusCode(200)
+                .body("postId", hasItem(thionvillePost.toString()))
+                .body("postId", not(hasItem(algrangePost.toString())));
+        given().when().get("/api/posts/{id}", algrangePost).then()
+                .statusCode(503).body("feature", equalTo(FeatureEnum.ACTUALITES.id()));
+        given().when().get("/api/posts/{id}", thionvillePost).then().statusCode(200);
+    }
+
+    @Test
+    @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU))
+    void theBureauStillReadsThePostsItPrepares() {
+        turnOffIn(FeatureEnum.ACTUALITES, algrange);
+        given().when().get("/api/posts").then().statusCode(200).body("postId", hasItem(algrangePost.toString()));
+        given().when().get("/api/posts/{id}", algrangePost).then().statusCode(200);
     }
 }

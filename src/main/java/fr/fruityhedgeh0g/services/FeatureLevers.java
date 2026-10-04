@@ -13,6 +13,9 @@ import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.util.Set;
+import java.util.UUID;
+
 /**
  * Where the back end refuses what a Feature that is off covers, for everyone, the Super admin included (ADR 0009).
  * A Feature the database does not know is a lever never pulled: on.
@@ -63,6 +66,20 @@ public class FeatureLevers {
      */
     public void requireForPublic(FeatureEnum feature) {
         if (!viewer.preparesContent()) require(feature);
+    }
+
+    /** The same for a Secteur's content: refused while it is off there or for the whole site. */
+    public void requireForPublic(FeatureEnum feature, SectorEntity sector) {
+        if (!viewer.preparesContent()) require(feature, sector);
+    }
+
+    /**
+     * The Secteurs whose content the public no longer sees because the Feature is off there; none for the Bureau,
+     * who prepares it.
+     */
+    public Set<UUID> hiddenFromPublic(FeatureEnum feature) {
+        if (viewer.preparesContent() || !feature.perSecteur()) return Set.of();
+        return Set.copyOf(QuarkusTransaction.joiningExisting().call(() -> sectorLeverRepository.offSecteurs(feature.id())));
     }
 
     /** Counted for the Journal in a transaction of its own: the refused request's rolls back. */

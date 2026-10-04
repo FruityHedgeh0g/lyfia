@@ -14,8 +14,7 @@ public enum FeatureEnum {
     DONS_EN_LIGNE("dons-en-ligne", false),
     INSCRIPTION_EVENEMENTS("inscription-evenements", true),
     GALERIE_PHOTOS("galerie-photos", false),
-    /** Site-wide only until Posts belong to a Secteur (#26). */
-    ACTUALITES("actualites", false),
+    ACTUALITES("actualites", true),
     CARROUSEL("carrousel", false),
     DEPOT_MEDIAS("depot-medias", false),
     DEMANDES_FONCTIONNALITE("demandes-fonctionnalite", false),

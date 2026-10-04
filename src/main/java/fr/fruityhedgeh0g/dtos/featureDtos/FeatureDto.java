@@ -22,7 +22,7 @@ public class FeatureDto {
     @JsonView({Views.Basic.class, Views.UpdateResponse.class})
     Boolean isActive;
 
-    /** It also has a lever per Secteur (Inscription aux événements, Export de la liste). */
+    /** It also has a lever per Secteur (Actualités, Inscription aux événements, Export de la liste). */
     @JsonView({Views.Basic.class, Views.UpdateResponse.class})
     Boolean perSecteur;
 

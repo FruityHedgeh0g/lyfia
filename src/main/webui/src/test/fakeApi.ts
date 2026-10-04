@@ -339,7 +339,8 @@ async function events(method: string, [eventId, ...rest]: string[], body: any, q
 
 function posts(method: string, [postId, action]: string[], body: any, query: URLSearchParams): Response {
   const isBureau = roleAtLeast(state.viewer.role, "bureau");
-  const visiblePost = (p: Post) => p.status === "publie" || (isBureau && manages(p.sectorId));
+  const offFor = (p: Post) => !isBureau && !isOn("actualites", p.sectorId ?? undefined);
+  const visiblePost = (p: Post) => (p.status === "publie" && !offFor(p)) || (isBureau && manages(p.sectorId));
   if (method === "GET" && !isBureau && !isOn("actualites")) return featureOff("actualites");
   if (!postId) {
     if (method === "GET") {
@@ -361,6 +362,8 @@ function posts(method: string, [postId, action]: string[], body: any, query: URL
     Object.assign(post, { title: body.title, content: body.content });
     return json(post);
   }
+  const offPost = state.posts.find((p) => p.postId === postId && p.status === "publie" && offFor(p));
+  if (offPost && method === "GET") return featureOff("actualites");
   const post = state.posts.find((p) => p.postId === postId && visiblePost(p));
   if (!post) return empty(404);
   if (method === "GET" && !action) return json(post);
