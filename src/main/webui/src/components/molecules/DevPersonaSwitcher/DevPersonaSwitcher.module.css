@@ -1,0 +1,28 @@
+.switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 6px;
+  border: 1px dashed var(--band-border);
+  border-radius: var(--radius);
+  font-size: var(--text-xs);
+}
+
+.label {
+  margin-right: 4px;
+  opacity: .8;
+}
+
+.switcher select {
+  padding: 1px 4px;
+  border: 1px solid var(--band-border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.switcher option {
+  color: var(--color-text);
+  background: var(--color-surface);
+}

@@ -52,6 +52,8 @@ interface State {
   /** Le Journal, les plus récentes d'abord. */
   journal: JournalEntry[];
   featureRequests: FeatureRequest[];
+  /** L'API offre-t-elle les personas (lyfia.dev-personas) ? */
+  devPersonas: boolean;
 }
 
 let state: State;
@@ -59,6 +61,11 @@ let state: State;
 /** Qui l'API croit connecté, et son Secteur ; test/testUser le règle. */
 export function setFakeViewer(role: RoleId, sectorId: string | null = null, person: Partial<Viewer> = {}) {
   state.viewer = { ...state.viewer, ...person, role, sectorId };
+}
+
+/** L'API n'offre pas les personas, comme hors développement. */
+export function withoutDevPersonas() {
+  state.devPersonas = false;
 }
 
 export function resetFakeApi() {
@@ -74,6 +81,7 @@ export function resetFakeApi() {
     carousel: structuredClone(mockCarouselItems),
     features: structuredClone(mockFeatureFlags),
     journal: [],
+    devPersonas: true,
     featureRequests: structuredClone(mockFeatureRequests),
   };
   vi.stubGlobal("fetch", vi.fn(handle));
@@ -119,6 +127,14 @@ async function handle(input: RequestInfo | URL, init: RequestInit = {}): Promise
   if (parts[0] === "api" && parts[1] === "carousel") return carousel(method, parts.slice(2), body, url.searchParams);
   if (parts[0] === "api" && parts[1] === "configurations") return configurations(method, parts[2], body);
   if (parts[0] === "api" && parts[1] === "posts") return posts(method, parts.slice(2), body, url.searchParams);
+  if (parts[0] === "api" && parts[1] === "dev" && parts[2] === "persona" && method === "GET") {
+    return state.viewer.role === "visiteur" ? empty(401) : empty(state.devPersonas ? 204 : 404);
+  }
+  if (parts[0] === "api" && parts[1] === "dev" && parts[2] === "persona" && method === "PUT") {
+    if (state.viewer.role === "visiteur") return empty(401);
+    state.viewer = { ...state.viewer, role: body.role, sectorId: body.sectorId ?? null };
+    return json({ role: body.role, sectorId: body.sectorId ?? null });
+  }
   if (parts[0] === "api" && parts[1] === "events") return events(method, parts.slice(2), body, url.searchParams);
   return empty(404);
 }

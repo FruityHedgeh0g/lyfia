@@ -56,15 +56,18 @@ les endpoints correspondants existent.
 
 ## Rôles & authentification
 
-L'authentification réelle (OIDC) n'est pas encore activée côté backend. En
-attendant, `auth/AuthContext` simule une session avec un rôle courant parmi :
-`visiteur`, `membre`, `benevole`, `chef_de_groupe`, `bureau`, `admin`
-(hiérarchie croissante, voir `auth/roles.ts`). Les formulaires de connexion et
-d'inscription authentifient localement avec le rôle `membre`.
+La connexion passe par Keycloak ; le rôle de chaque personne est lu en base (ADR 0002) et renvoyé par
+`GET /api/users/me`. Les rôles, du plus bas au plus haut : `visiteur`, `benevole`, `membre`,
+`chef_de_groupe`, `bureau`, `admin`, `super_admin` (voir `auth/roles.ts`).
 
-En développement (`import.meta.env.DEV`), un sélecteur de rôle apparaît dans
-l'en-tête pour prévisualiser chaque espace sans repasser par un vrai formulaire.
-Il est absent du build de production.
+**Personas (développement et QA).** En profil `dev`, `lyfia.dev-personas=true` : un sélecteur « Persona (dev) »
+apparaît dans l'en-tête pour la personne connectée. Il change vraiment son rôle (et son Secteur) en base
+(`PUT /api/dev/persona`), pour essayer le site comme n'importe quel rôle sans autre compte Keycloak. Désactivé par
+défaut, donc absent en production ; le Super admin désigné par configuration retrouve son rôle au redémarrage
+(ADR 0006).
+
+**Aperçu.** Le Super admin voit le site, en lecture seule, tel qu'un rôle le verrait (ADR 0009) ; rien n'y est
+faisable.
 
 Chaque page protégée est déclarée une fois dans `auth/access.ts` (rôle minimal,
 fonctionnalité éventuelle). Le routeur l'enveloppe dans `<RequireAccess id="...">`,
