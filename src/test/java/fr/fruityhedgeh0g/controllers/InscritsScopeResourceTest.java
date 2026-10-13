@@ -146,6 +146,11 @@ public class InscritsScopeResourceTest {
                 .when().put("/{id}/role", personId).then().statusCode(expectedStatus);
     }
 
+    private void makePresident(String personId, int expectedStatus) {
+        given().contentType(ContentType.JSON).body(Map.of("function", "president"))
+                .when().put("/{id}/bureau-function", personId).then().statusCode(expectedStatus);
+    }
+
     private boolean isPresident(String personId) {
         return QuarkusTransaction.requiringNew().call(() -> userRepository.findById(UUID.fromString(personId)).isPresident());
     }
@@ -188,23 +193,23 @@ public class InscritsScopeResourceTest {
     @Test
     @TestSecurity(user = "admin", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = ADMIN_ID))
-    void anAdminFlagsThePresidentOfTheirOwnSecteurOnly() {
-        given().when().put("/{id}/president", OTHER_BUREAU_ID).then().statusCode(403);
-        given().when().put("/{id}/president", BUREAU_ID).then().statusCode(200);
+    void anAdminMakesThePresidentOfTheirOwnSecteurOnly() {
+        makePresident(OTHER_BUREAU_ID, 403);
+        makePresident(BUREAU_ID, 200);
     }
 
     @Test
     @TestSecurity(user = "super-admin", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = SUPER_ADMIN_ID))
     void eachSecteurHasItsOwnPresident() {
-        given().when().put("/{id}/president", BUREAU_ID).then().statusCode(200);
-        given().when().put("/{id}/president", OTHER_BUREAU_ID).then().statusCode(200);
+        makePresident(BUREAU_ID, 200);
+        makePresident(OTHER_BUREAU_ID, 200);
         assertTrue(isPresident(BUREAU_ID));
         assertTrue(isPresident(OTHER_BUREAU_ID));
 
-        // Flagging someone else of the same Secteur clears only that Secteur's Président
+        // Another Président of the same Secteur replaces only that Secteur's Président
         persistPerson("00000000-0000-0000-0016-000000000010", RoleEnum.BUREAU, algrange);
-        given().when().put("/{id}/president", "00000000-0000-0000-0016-000000000010").then().statusCode(200);
+        makePresident("00000000-0000-0000-0016-000000000010", 200);
         assertFalse(isPresident(BUREAU_ID));
         assertTrue(isPresident(OTHER_BUREAU_ID));
     }

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonView;
 import fr.fruityhedgeh0g.dtos.Views;
 import fr.fruityhedgeh0g.dtos.sectorDtos.NestedSectorDto;
+import fr.fruityhedgeh0g.enums.BureauFunctionEnum;
 import fr.fruityhedgeh0g.enums.RoleEnum;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -37,8 +38,9 @@ public class UserDto {
     @JsonView(Views.Basic.class)
     RoleEnum role;
 
+    /** Read only: Membre du Bureau or Président while sitting on the Bureau, none otherwise (ADR 0001). */
     @JsonView(Views.Basic.class)
-    Boolean president;
+    BureauFunctionEnum bureauFunction;
 
     /** Read only: the Secteur a person from Membre up belongs to, set by their promotion (ADR 0004). */
     @JsonView(Views.Basic.class)

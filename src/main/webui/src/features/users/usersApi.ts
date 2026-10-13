@@ -1,4 +1,4 @@
-import { Member } from "./types";
+import { BureauFunction, Member } from "./types";
 import { RoleId } from "../../auth/roles";
 import { apiFetch } from "../../lib/http";
 
@@ -14,7 +14,7 @@ interface UserDto {
   firstName: string;
   lastName: string;
   role: RoleId;
-  president?: boolean | null;
+  bureauFunction?: BureauFunction | null;
   sector?: { sectorId: string; name: string } | null;
 }
 
@@ -24,7 +24,7 @@ const toMember = (dto: UserDto): Member => ({
   lastName: dto.lastName,
   role: dto.role,
   sectorId: dto.sector?.sectorId ?? null,
-  president: Boolean(dto.president),
+  bureauFunction: dto.bureauFunction ?? null,
 });
 
 const path = (userId: string) => `/api/users/${encodeURIComponent(userId)}`;
@@ -48,7 +48,10 @@ export async function changeRole(userId: string, role: RoleId, sectorId?: string
   return toMember(await apiFetch<UserDto>(`${path(userId)}/role`, { method: "PUT", body: JSON.stringify({ role, sectorId: sectorId ?? null }) }));
 }
 
-/** Le Président précédent perd le titre. */
-export async function appointPresident(userId: string): Promise<Member> {
-  return toMember(await apiFetch<UserDto>(`${path(userId)}/president`, { method: "PUT" }));
+/**
+ * Admin et Super admin, jamais sur soi : la Fonction au Bureau d'un Bureau ou d'un Admin de son Secteur. null retire
+ * un Admin du Bureau ; un nouveau Président laisse le précédent Membre du Bureau.
+ */
+export async function setBureauFunction(userId: string, fn: BureauFunction | null): Promise<Member> {
+  return toMember(await apiFetch<UserDto>(`${path(userId)}/bureau-function`, { method: "PUT", body: JSON.stringify({ function: fn }) }));
 }

@@ -2,6 +2,13 @@ import { Member } from "../../features/users/types";
 
 export const mockMembers: Member[] = [
   {
+    userId: "user-10",
+    sectorId: "sector-1",
+    firstName: "Paul",
+    lastName: "Muller",
+    role: "admin",
+  },
+  {
     userId: "user-1",
     sectorId: "sector-1",
     firstName: "Marc",
@@ -74,7 +81,7 @@ export const mockMembers: Member[] = [
     firstName: "Claire",
     lastName: "Hoffmann",
     role: "bureau",
-    president: true,
+    bureauFunction: "president",
     email: "claire.hoffmann@urue-algrange.fr",
     phone: "06 89 01 23 45",
     memberSince: "2018-04-12",

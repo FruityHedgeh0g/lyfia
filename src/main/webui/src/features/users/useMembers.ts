@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { appointPresident, changeRole, fetchAllMembers, MemberInput, updateMember } from "./usersApi";
+import { changeRole, fetchAllMembers, MemberInput, setBureauFunction, updateMember } from "./usersApi";
+import { BureauFunction } from "./types";
 import { RoleId } from "../../auth/roles";
 import { queryKeys } from "../queryKeys";
 
@@ -23,10 +24,10 @@ export function useChangeRole() {
   });
 }
 
-export function useAppointPresident() {
+export function useSetBureauFunction() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (userId: string) => appointPresident(userId),
+    mutationFn: (input: { userId: string; bureauFunction: BureauFunction | null }) => setBureauFunction(input.userId, input.bureauFunction),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.members.all }),
   });
 }

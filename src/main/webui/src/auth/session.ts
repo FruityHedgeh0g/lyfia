@@ -1,5 +1,6 @@
 import { apiFetch, isUnauthenticated } from "../lib/http";
 import { RoleId } from "./roles";
+import { BureauFunction } from "../features/users/types";
 
 /** Reflète NestedSectorDto : le Secteur d'une personne à partir de Membre (ADR 0004). */
 export interface UserSector {
@@ -17,6 +18,8 @@ export interface CurrentUser {
   sector: UserSector | null;
   /** Nécessaire pour s'inscrire à un Événement. */
   phone?: string;
+  /** Sa Fonction au Bureau, s'il y siège (ADR 0001). */
+  bureauFunction?: BureauFunction | null;
 }
 
 /** Ce qu'une personne modifie d'elle-même dans Mon espace (PATCH /api/users/me) : son téléphone ; ses noms, seul un Admin les corrige (ADR 0007). */
@@ -31,6 +34,7 @@ interface UserDto {
   role: RoleId;
   phone?: string | null;
   sector?: UserSector | null;
+  bureauFunction?: BureauFunction | null;
 }
 
 const toCurrentUser = (dto: UserDto): CurrentUser => ({
@@ -40,6 +44,7 @@ const toCurrentUser = (dto: UserDto): CurrentUser => ({
   role: dto.role,
   sector: dto.sector ?? null,
   phone: dto.phone ?? undefined,
+  bureauFunction: dto.bureauFunction ?? null,
 });
 
 /** La personne connectée, ou null pour un Visiteur (sans session). */
