@@ -6,6 +6,7 @@ import styles from "./SecteurSelect.module.css";
 /**
  * Le choix de Secteur du site public : il filtre les Événements, les Actualités et le Carrousel. Un Secteur fermé
  * n'est jamais proposé ; un choix qui ne correspond plus à un Secteur ouvert revient à « Tous les secteurs ».
+ * Avec un seul Secteur ouvert, il n'y a rien à choisir : le choix n'est pas affiché.
  */
 export const SecteurSelect: React.FC = () => {
   const { data: sectors, isSuccess } = useSectors();
@@ -16,7 +17,7 @@ export const SecteurSelect: React.FC = () => {
     if (isSuccess && sectorId && !open.some((s) => s.sectorId === sectorId)) setSectorId("");
   }, [isSuccess, sectorId, open, setSectorId]);
 
-  if (open.length === 0) return null;
+  if (open.length <= 1) return null;
 
   return (
     <label className={styles.field}>
