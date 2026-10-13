@@ -119,6 +119,14 @@ describe("MembersAdminPage", () => {
     expect(screen.getByLabelText("Bureau")).toHaveValue("membre_du_bureau");
   });
 
+  it("lets an Admin promote a Membre to the Bureau", async () => {
+    renderAs("admin");
+    await userEvent.click(await screen.findByRole("button", { name: /Camille Muller/ }));
+    await userEvent.selectOptions(screen.getByLabelText("Rôle"), "bureau");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Camille Muller/ })).toHaveTextContent("Bureau"));
+  });
+
   it("offers the Fonction au Bureau only to an Admin, and never on themselves", async () => {
     renderAs("bureau");
     await userEvent.click(await screen.findByRole("button", { name: /Luc Schmitt/ }));

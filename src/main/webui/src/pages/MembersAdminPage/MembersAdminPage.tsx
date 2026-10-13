@@ -55,7 +55,9 @@ export const MembersAdminPage: React.FC = () => {
     const renamed = names.firstName !== currentMember?.firstName || names.lastName !== currentMember?.lastName;
     if (renamed && renames(userId)) await updateMember.mutateAsync({ userId, ...names });
     let saved: Member | undefined = currentMember;
-    if (role !== currentMember?.role) saved = await changeRole.mutateAsync({ userId, role, sectorId: sectorId || undefined });
+    // Seul le Super admin nomme un Secteur : le Secteur actuel n'est jamais renvoyé avec le Rôle
+    const namedSector = currentMember && namesSector(currentMember, { role, bureauFunction, sectorId, ...names }) ? sectorId : "";
+    if (role !== currentMember?.role) saved = await changeRole.mutateAsync({ userId, role, sectorId: namedSector || undefined });
     // Le changement de Rôle a déjà réglé la Fonction qu'il laisse ; seul ce qui en diffère est demandé
     if (setsBureauFunction(userId, role) && (bureauFunction || null) !== (saved?.bureauFunction ?? null))
       await setBureauFunction.mutateAsync({ userId, bureauFunction: bureauFunction || null });
