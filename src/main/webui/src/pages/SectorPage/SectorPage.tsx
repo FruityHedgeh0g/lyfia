@@ -1,26 +1,21 @@
 import React, { useEffect, useState } from "react";
-import { useIsSuperAdmin, useSector, useSectorMutations, useSectors } from "../../features/sectors/useSector";
+import { useSector, useSectorMutations } from "../../features/sectors/useSector";
 import { useAuth } from "../../auth/AuthContext";
 import { useGroups } from "../../features/groups/useGroups";
 import FormField from "../../components/molecules/FormField/FormField";
-import Select from "../../components/atoms/Select/Select";
 import Button from "../../components/atoms/Button/Button";
 import Spinner from "../../components/atoms/Spinner/Spinner";
 import styles from "./SectorPage.module.css";
 
 /**
- * Mon secteur (Bureau) : le Secteur de la personne — au choix pour le Super
- * admin, au-dessus des Secteurs (ADR 0004) —, sa description, que le Bureau
- * tient à jour (seul le Super admin le renomme), et ses Groupes, avec leur Chef
- * de groupe et la partie du Secteur qu'ils couvrent.
+ * Mon secteur (Bureau) : le Secteur de la personne, sa description, que le
+ * Bureau tient à jour (seul le Super admin le renomme, depuis Administration →
+ * Secteurs), et ses Groupes, avec leur Chef de groupe et la partie du Secteur
+ * qu'ils couvrent. Le compte Super admin, sans Secteur, n'a pas cette page.
  */
 export const SectorPage: React.FC = () => {
   const { user } = useAuth();
-  const isSuperAdmin = useIsSuperAdmin();
-  const { data: sectors, isLoading: sectorsLoading } = useSectors();
-  const [chosenId, setChosenId] = useState<string>();
-  // Le Bureau et les Admins voient leur Secteur ; le Super admin choisit (ADR 0004)
-  const sectorId = isSuperAdmin ? chosenId ?? sectors?.[0]?.sectorId : user?.sector?.sectorId;
+  const sectorId = user?.sector?.sectorId;
   const { data: sector, isLoading, isError } = useSector(sectorId);
   const { data: groups, isLoading: groupsLoading } = useGroups();
   const { update: updateSector } = useSectorMutations();
@@ -41,7 +36,7 @@ export const SectorPage: React.FC = () => {
     updateSector.mutate({ sectorId, name: sector?.name ?? "", description }, { onSuccess: () => setSaved(true) });
   };
 
-  if (sectorsLoading || isLoading) return <Spinner label="Chargement du secteur..." />;
+  if (isLoading) return <Spinner label="Chargement du secteur..." />;
   if (!sectorId) return <p className={styles.empty}>Aucun secteur pour le moment.</p>;
   if (isError || !sector) return <p className={styles.error}>Impossible de charger le secteur.</p>;
 
@@ -51,14 +46,6 @@ export const SectorPage: React.FC = () => {
     <div className={styles.wrapper}>
       <section className={styles.panel}>
         <h2>{sector.name}</h2>
-        {isSuperAdmin && (sectors?.length ?? 0) > 1 && (
-          <Select
-            label="Secteur"
-            value={sector.sectorId}
-            onChange={setChosenId}
-            options={(sectors ?? []).map((s) => ({ value: s.sectorId, label: s.name }))}
-          />
-        )}
         <form className={styles.form} onSubmit={handleSubmit} noValidate>
           <FormField
             label="Description"

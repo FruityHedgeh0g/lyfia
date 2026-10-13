@@ -47,7 +47,7 @@ _Avoid_: titre, poste, case Bureau
 
 **Admin**: a person who manages the site for one Secteur and promotes its Bureau members. Appointed by the Super admin from all registered people, for a Secteur the Super admin chooses.
 
-**Super admin**: the account above every Admin, which appoints Admins and is the only one to open, rename, close (Fermé) or reopen a Secteur. An account dedicated to administering the site, kept apart from the personal account of whoever holds it: that person rides, leads a Groupe or sits on the Bureau through their own account, in their Secteur.
+**Super admin**: the account above every Admin, which appoints Admins and is the only one to open, rename, close (Fermé) or reopen a Secteur. An account dedicated to administering the site, kept apart from the personal account of whoever holds it: that person rides, leads a Groupe or sits on the Bureau through their own account, in their Secteur. The Super admin account itself rides at no Event.
 
 ### Organisation
 

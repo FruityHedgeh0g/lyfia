@@ -10,7 +10,7 @@ Every Membre, Chef de groupe, Bureau member and Admin belongs to exactly one Sec
 
 ## Consequences
 
-- A Membre rides only at their own Secteur's Events; a Bénévole, and the Super admin, at any.
+- A Membre rides only at their own Secteur's Events; a Bénévole at any. ~~And the Super admin at any.~~ Superseded by ADR 0006: the Super admin is a dedicated account, which rides at no Event and has no space of a Secteur (Mes événements, Mon groupe, Mon secteur); its holder rides through their own account.
 - The public site offers one Secteur choice, which filters Events, Actualités and the Carrousel.
 - Existing Membres and above are attached to Algrange, the only Secteur so far, when this is deployed.
 - Supersedes the last consequence of ADR 0001; the rest of ADR 0001 stands.

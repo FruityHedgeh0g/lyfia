@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "../../auth/AuthContext";
 import { testUser } from "../../test/testUser";
@@ -37,13 +36,5 @@ describe("SectorPage (Mon secteur)", () => {
     renderPage();
     expect(await screen.findByRole("heading", { name: "Secteur Algrange" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Secteur")).not.toBeInTheDocument();
-  });
-
-  it("lets the Super admin switch between Secteurs", async () => {
-    renderPage("super_admin");
-    await userEvent.selectOptions(await screen.findByLabelText("Secteur"), "sector-2");
-
-    expect(await screen.findByRole("heading", { name: "Secteur Thionville" })).toBeInTheDocument();
-    expect(within(screen.getByRole("list", { name: "Groupes du secteur" })).getByText("Groupe Thionville")).toBeInTheDocument();
   });
 });

@@ -15,6 +15,8 @@ export interface AccessEntry {
   path: string;
   label: string;
   minRole: RoleId;
+  /** Rôle le plus haut qui y a accès : le compte Super admin, sans Secteur, n'a pas d'espace de Secteur (ADR 0006). */
+  maxRole?: RoleId;
   section: AccessSection;
   /** Menu déroulant du Header qui regroupe l'entrée (section "main"). */
   menu?: string;
@@ -61,9 +63,9 @@ export const ACCESS = {
   },
 
   accountProfile: { path: "/mon-compte", label: "Mon profil", minRole: "benevole", section: "account", end: true },
-  accountEvents: { path: "/mon-compte/evenements", label: "Mes événements", minRole: "benevole", section: "account" },
-  accountGroup: { path: "/mon-compte/groupe", label: "Mon groupe", minRole: "chef_de_groupe", section: "account" },
-  accountSector: { path: "/mon-compte/secteur", label: "Mon secteur", minRole: "bureau", section: "account" },
+  accountEvents: { path: "/mon-compte/evenements", label: "Mes événements", minRole: "benevole", maxRole: "admin", section: "account" },
+  accountGroup: { path: "/mon-compte/groupe", label: "Mon groupe", minRole: "chef_de_groupe", maxRole: "admin", section: "account" },
+  accountSector: { path: "/mon-compte/secteur", label: "Mon secteur", minRole: "bureau", maxRole: "admin", section: "account" },
 
   adminMembers: { path: "/administration/membres", label: "Inscrits", minRole: "bureau", section: "admin" },
   adminSectors: { path: "/administration/secteurs", label: "Secteurs", minRole: "super_admin", section: "admin" },
@@ -92,7 +94,8 @@ export function entry(id: AccessId): AccessEntry {
 
 /** Le rôle suffit pour l'entrée, que sa Fonctionnalité soit active ou non. */
 export function roleOpens(id: AccessId, ctx: AccessContext): boolean {
-  return roleAtLeast(ctx.role, entry(id).minRole);
+  const { minRole, maxRole } = entry(id);
+  return roleAtLeast(ctx.role, minRole) && (maxRole === undefined || roleAtLeast(maxRole, ctx.role));
 }
 
 /** La Fonctionnalité dont dépend l'entrée est désactivée. */

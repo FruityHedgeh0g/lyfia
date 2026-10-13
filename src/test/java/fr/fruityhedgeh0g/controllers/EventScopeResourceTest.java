@@ -36,7 +36,7 @@ import static io.restassured.RestAssured.given;
 
 /**
  * The Bureau and Admin manage only their own Secteur's Events; Membres ride only at their own Secteur's
- * Events, Bénévoles and the Super admin at any (ADR 0004).
+ * Events, Bénévoles at any (ADR 0004); the Super admin account rides at none, its holder rides through their own (ADR 0006).
  */
 @QuarkusTest
 @TestHTTPEndpoint(EventController.class)
@@ -214,7 +214,8 @@ public class EventScopeResourceTest {
     @Test
     @TestSecurity(user = "super-admin", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = SUPER_ADMIN_ID))
-    void theSuperAdminRidesAtAnySecteursEvents() {
-        signUp(theirEvent).statusCode(200);
+    void theSuperAdminAccountRidesAtNoEvent() {
+        signUp(theirEvent).statusCode(400);
+        signUp(ourEvent).statusCode(400);
     }
 }

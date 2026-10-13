@@ -81,6 +81,10 @@ describe("access map", () => {
     expect(ids(navFor("account", ctx("chef_de_groupe")))).toEqual(["accountProfile", "accountEvents", "accountGroup"]);
     // Un Chef de groupe qui est aussi au Bureau voit Mon groupe et Mon secteur
     expect(ids(navFor("account", ctx("bureau")))).toEqual(["accountProfile", "accountEvents", "accountGroup", "accountSector"]);
+    expect(ids(navFor("account", ctx("admin")))).toEqual(["accountProfile", "accountEvents", "accountGroup", "accountSector"]);
+    // The Super admin account belongs to no Secteur and rides at no Event (ADR 0006)
+    expect(ids(navFor("account", ctx("super_admin")))).toEqual(["accountProfile"]);
+    expect(canAccess("accountSector", ctx("super_admin"))).toBe(false);
     expect(ids(navFor("admin", ctx("bureau")))).not.toContain("adminConfiguration");
     expect(ids(navFor("admin", ctx("admin")))).toEqual([
       "adminMembers",

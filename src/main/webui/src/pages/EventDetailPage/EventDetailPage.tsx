@@ -177,6 +177,8 @@ export const EventDetailPage: React.FC = () => {
                   />
                 )}
               </div>
+            ) : user?.role === "super_admin" ? (
+              <p>Le compte Super admin ne s'inscrit pas aux événements : on y roule avec son compte personnel.</p>
             ) : reservedToItsSecteur ? (
               <p>Réservé aux membres de {sectors?.find((s) => s.sectorId === event.sectorId)?.name ?? "son secteur"} et aux bénévoles.</p>
             ) : signUpsOpen && registrationOff ? (

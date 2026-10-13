@@ -19,6 +19,7 @@ import fr.fruityhedgeh0g.entities.UserEntity;
 import fr.fruityhedgeh0g.entities.SectorEntity;
 import fr.fruityhedgeh0g.enums.EventStatusEnum;
 import fr.fruityhedgeh0g.enums.FeatureEnum;
+import fr.fruityhedgeh0g.enums.RoleEnum;
 import fr.fruityhedgeh0g.exceptions.ForbiddenActionException;
 import fr.fruityhedgeh0g.exceptions.InvalidResourceException;
 import fr.fruityhedgeh0g.exceptions.PhoneRequiredException;
@@ -419,6 +420,9 @@ public class EventServiceImpl implements EventService {
     /** Sign-up is open while Ouvert or Complet, to someone with a phone number. */
     private static void requireSignUpOpenTo(EventEntity event, UserEntity person) {
         refuseInClosedSector(event);
+        // The Super admin is a dedicated account: its holder rides through their own (ADR 0006)
+        if (person.getRole() == RoleEnum.SUPER_ADMIN)
+            throw new InvalidResourceException("The Super admin account signs up for no Event.");
         // From Membre up, a person rides only at their own Secteur's Events (ADR 0004)
         if (person.getSector() != null && !person.belongsTo(event.getSector()))
             throw new InvalidResourceException("This Event is reserved to its Secteur's Membres and to Bénévoles.");
