@@ -46,10 +46,32 @@ describe("public Secteur choice", () => {
 
   it("never offers a Secteur fermé, even to the Super admin", async () => {
     testUser("super_admin");
+    await fetch("/api/sectors", { method: "POST", body: JSON.stringify({ name: "Secteur Hayange" }) });
     await fetch("/api/sectors/sector-2/close", { method: "POST" });
     renderNews("super_admin");
     await screen.findByText("Retour sur la collecte 2025");
     const offered = Array.from((screen.getByLabelText("Secteur") as HTMLSelectElement).options).map((o) => o.textContent);
-    expect(offered).toEqual(["Tous les secteurs", "Secteur Algrange"]);
+    expect(offered).toEqual(["Tous les secteurs", "Secteur Algrange", "Secteur Hayange"]);
+  });
+
+  it("offers no choice while only one Secteur is open", async () => {
+    testUser("super_admin");
+    await fetch("/api/sectors/sector-2/close", { method: "POST" });
+    renderNews();
+    expect(await screen.findByText("Retour sur la collecte 2025")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Secteur")).not.toBeInTheDocument();
+  });
+
+  it("forgets a choice made while several Secteurs were open once only one is left", async () => {
+    const { unmount } = renderNews();
+    await screen.findByText("Retour sur la collecte 2025");
+    await userEvent.selectOptions(screen.getByLabelText("Secteur"), "sector-2");
+    unmount();
+
+    testUser("super_admin");
+    await fetch("/api/sectors/sector-2/close", { method: "POST" });
+    renderNews();
+    // Back to every Secteur: the news of the one left show again
+    expect(await screen.findByText("Retour sur la collecte 2025")).toBeInTheDocument();
   });
 });
