@@ -6,10 +6,14 @@ Front du site de l'association, servi par Quarkus/Quinoa (Vite + React + TypeScr
 
 ```bash
 npm install
-npm run dev      # serveur de dev, sur /quinoa
+npm run dev      # serveur de dev Vite, sur http://localhost:5173
 npm run build    # build de prod
 npm test         # tests unitaires (Vitest)
 ```
+
+En développement, Quinoa est désactivé (`application-dev.properties`) : Quarkus ne sert que l'API. Lancer
+`./mvnw quarkus:dev` à la racine du projet, puis `npm run dev` ici, et ouvrir `http://localhost:5173`. Le serveur Vite
+relaie `/api` vers Quarkus sur `localhost:8080` (`vite.config.ts`).
 
 ## Architecture
 
@@ -63,7 +67,7 @@ La connexion passe par Keycloak ; le rôle de chaque personne est lu en base (AD
 **Développement sans Keycloak.** En profil `dev`, personne ne se connecte par Keycloak
 (`quarkus.oidc.tenant-enabled=false`) et le client d'administration Keycloak est remplacé par des doublures qui
 journalisent ce qu'il aurait fait (`DevKeycloakStandIns`). Pour essayer le site, le sélecteur « Persona (dev) » de
-l'en-tête fait de vous n'importe quel rôle, avec un Secteur pour les rôles qui en ont un : chaque persona est une
+l'en-tête (affiché sous `npm run dev` uniquement) fait de vous n'importe quel rôle, avec un Secteur pour les rôles qui en ont un : chaque persona est une
 personne en base, et un cookie fait agir chaque requête en son nom (`DevPersonaController`,
 `DevPersonaAuthentication`), sans connexion. Tout ce que le rôle peut faire devient faisable. « Visiteur » quitte le
 persona. Ce code n'existe que dans les builds dev et test (`@IfBuildProfile`) : un build de production ne le contient

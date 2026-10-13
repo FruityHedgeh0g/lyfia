@@ -61,7 +61,7 @@ export const Header: React.FC = () => {
             Tous unis contre le cancer
           </p>
           <div className={styles.utils}>
-            <DevPersonaSwitcher />
+            {import.meta.env.DEV && <DevPersonaSwitcher />}
             <SecteurSelect />
             <button
               type="button"

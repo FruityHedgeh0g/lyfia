@@ -18,7 +18,8 @@ const hasSecteur = (role: RoleId) => roleAtLeast(role, "membre") && role !== "su
 
 /**
  * Le choix de persona du développement, sans Keycloak : l'API ne l'offre que dans les builds dev et test
- * (DevPersonaController ; 404 en production, et rien ne s'affiche). Chaque persona est une personne en base, avec
+ * (DevPersonaController ; 404 en production, et rien ne s'affiche), et le Header ne l'inclut que sous le serveur Vite de dev
+ * (`import.meta.env.DEV`) : il est absent du bundle de production. Chaque persona est une personne en base, avec
  * son Rôle et son Secteur : tout ce que ce Rôle peut faire devient faisable, sans se connecter.
  */
 export const DevPersonaSwitcher: React.FC = () => {
