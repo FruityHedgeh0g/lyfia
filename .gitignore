@@ -61,3 +61,6 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
+# Base H2 locale de développement
+/data/
