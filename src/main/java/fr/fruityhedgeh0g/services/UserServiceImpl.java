@@ -7,6 +7,7 @@ import fr.fruityhedgeh0g.dtos.userDtos.ProfileDto;
 import fr.fruityhedgeh0g.dtos.userDtos.UserDto;
 import fr.fruityhedgeh0g.entities.SectorEntity;
 import fr.fruityhedgeh0g.entities.UserEntity;
+import fr.fruityhedgeh0g.enums.BureauFunctionEnum;
 import fr.fruityhedgeh0g.enums.RoleEnum;
 import fr.fruityhedgeh0g.exceptions.DuplicateResourceException;
 import fr.fruityhedgeh0g.exceptions.ForbiddenActionException;
@@ -115,6 +116,9 @@ public class UserServiceImpl implements UserService {
 
             person.changeRole(role);
             person.setSector(sector);
+            // Sitting on a Bureau is within one Secteur: an Admin appointed to another one leaves it
+            if (changesSector && role == RoleEnum.ADMIN)
+                person.setBureauFunction(null);
             // A Chef's Affectation ends with the title, or when they leave their Groupe's Secteur
             if (!role.canLeadGroupe() || changesSector)
                 internalGroupService.doEndAffectationOf(personId);
@@ -206,17 +210,24 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserDto appointPresident(UUID personId) {
+    public UserDto setBureauFunction(UUID actorId, UUID personId, BureauFunctionEnum function) {
+        if (actorId.equals(personId))
+            throw new ForbiddenActionException("Nobody sets their own Fonction au Bureau.");
         UserEntity person = userRepository.findByIdOptional(personId)
                 .orElseThrow(() -> new UnknownResourceException("User not found: " + personId));
-        if (person.getRole() != RoleEnum.BUREAU)
-            throw new InvalidResourceException("Only a Bureau member can be Président: " + personId);
-
+        if (person.getRole() != RoleEnum.BUREAU && person.getRole() != RoleEnum.ADMIN)
+            throw new InvalidResourceException("Only the Bureau and the Admins sit on a Bureau: " + personId);
+        if (function == null && person.getRole() == RoleEnum.BUREAU)
+            throw new InvalidResourceException("The Bureau Role sits on the Bureau: " + personId);
         if (!viewer.scope().covers(person.getSector()))
-            throw new fr.fruityhedgeh0g.exceptions.ForbiddenActionException(personId + " is not of your Secteur.");
-        // One Président per Secteur (ADR 0004)
-        userRepository.findPresidentsOf(person.getSector().getSectorId()).forEach(previous -> previous.setPresident(false));
-        person.setPresident(true);
+            throw new ForbiddenActionException(personId + " is not of your Secteur.");
+
+        // One Président per Secteur (ADR 0004): the previous one stays on the Bureau
+        if (function == BureauFunctionEnum.PRESIDENT)
+            userRepository.findPresidentsOf(person.getSector().getSectorId()).stream()
+                    .filter(previous -> !previous.getUserId().equals(personId))
+                    .forEach(previous -> previous.setBureauFunction(BureauFunctionEnum.MEMBRE_DU_BUREAU));
+        person.setBureauFunction(function);
         return userMapper.toDto(person);
     }
 

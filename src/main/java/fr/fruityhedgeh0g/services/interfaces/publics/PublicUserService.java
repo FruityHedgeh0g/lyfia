@@ -3,6 +3,7 @@ package fr.fruityhedgeh0g.services.interfaces.publics;
 import fr.fruityhedgeh0g.dtos.userDtos.NamesDto;
 import fr.fruityhedgeh0g.dtos.userDtos.ProfileDto;
 import fr.fruityhedgeh0g.dtos.userDtos.UserDto;
+import fr.fruityhedgeh0g.enums.BureauFunctionEnum;
 import fr.fruityhedgeh0g.enums.RoleEnum;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -38,8 +39,12 @@ public interface PublicUserService {
      */
     UserDto rename(@NotNull UUID actorId, @NotNull UUID personId, @NotNull NamesDto names);
 
-    /** Flags a Bureau member as Président, clearing the previous one. */
-    UserDto appointPresident(@NotNull UUID personId);
+    /**
+     * Sets the Fonction au Bureau of a Bureau member or an Admin of the actor's Secteur (ADR 0001): a Président
+     * makes the previous one Membre du Bureau; none takes an Admin off the Bureau, never someone with the Bureau
+     * Role. Nobody sets their own.
+     */
+    UserDto setBureauFunction(@NotNull UUID actorId, @NotNull UUID personId, BureauFunctionEnum function);
 
 
 

@@ -36,8 +36,8 @@ describe("GroupsAdminPage", () => {
   it("offers as Chef only people with Role at least chef_de_groupe", async () => {
     renderPage();
     await userEvent.click(await screen.findByRole("button", { name: /Groupe Algrange Centre/ }));
-    // Only the Groupe's own Secteur's people lead it (ADR 0004)
-    expect(chefOptions()).toEqual(["Aucun chef", "Marc Weber", "Luc Schmitt"]);
+    // Only the Groupe's own Secteur's people lead it (ADR 0004), an Admin of that Secteur included
+    expect(chefOptions()).toEqual(["Aucun chef", "Paul Muller", "Marc Weber", "Luc Schmitt"]);
   });
 
   it("moves a Chef who already leads another Groupe of the Secteur", async () => {

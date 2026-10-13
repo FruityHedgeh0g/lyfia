@@ -1,5 +1,13 @@
 import { RoleId } from "../../auth/roles";
 
+/** Fonction au Bureau (ADR 0001) : celle de toute personne au Rôle Bureau, et d'un Admin appelé au Bureau. */
+export type BureauFunction = "membre_du_bureau" | "president";
+
+export const BUREAU_FUNCTION_LABELS: Record<BureauFunction, string> = {
+  membre_du_bureau: "Membre du Bureau",
+  president: "Président",
+};
+
 /** Une personne de la liste des Inscrits : reflète UserDto côté backend (vue Basic). */
 export interface Member {
   userId: string;
@@ -8,6 +16,6 @@ export interface Member {
   role: RoleId;
   /** Secteur de la personne à partir de Membre (ADR 0004) ; aucun pour un Bénévole ou le Super admin. */
   sectorId?: string | null;
-  /** Le membre du Bureau qui préside l'association (un seul à la fois). */
-  president?: boolean;
+  /** Sa Fonction au Bureau, s'il y siège ; un seul Président par Secteur. */
+  bureauFunction?: BureauFunction | null;
 }

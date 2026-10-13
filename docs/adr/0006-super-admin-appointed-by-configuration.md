@@ -11,3 +11,4 @@ Only the Super admin appoints Admins and opens Secteurs, and nobody can appoint 
 
 - Changing `LYFIA_SUPER_ADMIN` appoints another person but does not demote the previous one: that is done from the site.
 - A person appointed this way who later registers through Keycloak already has a row; the "user created" event for them is rejected as a duplicate, which is harmless.
+- The Super admin is a dedicated account, kept apart from the personal account of whoever holds it: that person rides, leads a Groupe or sits on the Bureau through their own account, as an Admin of their Secteur at most, so the Super admin stays above every Secteur (ADR 0004). Moving `LYFIA_SUPER_ADMIN` from a personal account to a dedicated one leaves the personal account Super admin until it is set back to Admin from the site.

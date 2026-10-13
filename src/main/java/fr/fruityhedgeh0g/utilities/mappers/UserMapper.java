@@ -12,7 +12,7 @@ import org.mapstruct.*;
 public interface UserMapper {
     static final ObjectWriter OBJECT_WRITER = new ObjectMapper().writer();
 
-    @Mapping(target = "president", ignore = true)
+    @Mapping(target = "bureauFunction", ignore = true)
     @Mapping(target = "sector", ignore = true)
     UserEntity toEntity(UserDto dto);
 
@@ -21,7 +21,7 @@ public interface UserMapper {
     NestedUserDto toNestedDto(UserEntity entity);
 
     @Mapping(target = "role",ignore = true)
-    @Mapping(target = "president",ignore = true)
+    @Mapping(target = "bureauFunction",ignore = true)
     @Mapping(target = "sector",ignore = true)
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     UserEntity partialDtoToEntity(@MappingTarget UserEntity userEntity, UserDto userDto);

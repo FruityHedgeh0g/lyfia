@@ -4,6 +4,7 @@ import fr.fruityhedgeh0g.dtos.userDtos.NamesDto;
 import fr.fruityhedgeh0g.dtos.userDtos.ProfileDto;
 import fr.fruityhedgeh0g.dtos.userDtos.UserDto;
 import fr.fruityhedgeh0g.entities.UserEntity;
+import fr.fruityhedgeh0g.enums.BureauFunctionEnum;
 import fr.fruityhedgeh0g.enums.RoleEnum;
 import fr.fruityhedgeh0g.exceptions.DuplicateResourceException;
 import fr.fruityhedgeh0g.exceptions.ForbiddenRoleChangeException;
@@ -109,15 +110,16 @@ public class UserLogDecorator implements UserService{
     }
 
     @Override
-    public UserDto appointPresident(UUID personId) {
-        Log.debugf("Flagging %s as Président...", personId);
-        return Try.of(() -> userService.appointPresident(personId))
-                .onSuccess(user -> Log.infof("%s is now Président.", personId))
+    public UserDto setBureauFunction(UUID actorId, UUID personId, BureauFunctionEnum function) {
+        Log.debugf("%s sets the Fonction au Bureau of %s to %s...", actorId, personId, function);
+        return Try.of(() -> userService.setBureauFunction(actorId, personId, function))
+                .onSuccess(user -> Log.infof("%s's Fonction au Bureau is now %s.", personId, function))
                 .onFailure(t -> {
                     switch(t){
-                        case InvalidResourceException ex -> Log.warnf("Président refused: %s", ex.getMessage());
+                        case ForbiddenActionException ex -> Log.warnf("Fonction au Bureau refused: %s", ex.getMessage());
+                        case InvalidResourceException ex -> Log.warnf("Fonction au Bureau refused: %s", ex.getMessage());
                         case UnknownResourceException ex -> Log.errorf(ex,"User %s not found.", personId);
-                        default -> Log.errorf(t,"An error occurred while flagging the Président.");
+                        default -> Log.errorf(t,"An error occurred while setting a Fonction au Bureau.");
                     }
                 })
                 .get();

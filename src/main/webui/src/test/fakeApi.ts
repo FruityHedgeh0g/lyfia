@@ -228,7 +228,7 @@ const userDto = (m: Member) => ({
   firstName: m.firstName,
   lastName: m.lastName,
   role: m.role,
-  president: Boolean(m.president),
+  bureauFunction: m.role === "bureau" ? m.bureauFunction ?? "membre_du_bureau" : m.bureauFunction ?? null,
   sector: m.sectorId ? { sectorId: m.sectorId, name: sectorOf(m.sectorId)?.name ?? "" } : null,
 });
 
@@ -267,16 +267,25 @@ function users(method: string, [userId, action]: string[], body: any): Response 
     const sectorId = sectorAfter(member, role, body.sectorId ?? null);
     if (sectorId instanceof Response) return sectorId;
     const changesSector = Boolean(member.sectorId) && member.sectorId !== sectorId;
-    Object.assign(member, { role, sectorId, president: role === "bureau" ? member.president : false });
+    // La Fonction au Bureau : gardée entre Bureau et Admin, perdue en dessous et en changeant de Secteur (ADR 0001)
+    const kept = role === "bureau" || role === "admin" ? member.bureauFunction ?? null : null;
+    const bureauFunction = role === "admin" && changesSector ? null : role === "bureau" ? kept ?? "membre_du_bureau" : kept;
+    Object.assign(member, { role, sectorId, bureauFunction });
     // Perdre le titre de Chef de groupe, ou quitter son Secteur, met fin à l'Affectation
     if (!canLeadGroupe(role) || changesSector) state.groups.filter((g) => g.chef?.userId === userId).forEach((g) => (g.chef = null));
     return json(userDto(member));
   }
-  if (method === "PUT" && action === "president") {
-    if (!roleAtLeast(state.viewer.role, "admin")) return empty(403);
-    if (member.role !== "bureau") return empty(400);
-    state.members.forEach((m) => (m.president = false));
-    member.president = true;
+  if (method === "PUT" && action === "bureau-function") {
+    if (!roleAtLeast(state.viewer.role, "admin") || userId === state.viewer.userId) return empty(403);
+    if (member.role !== "bureau" && member.role !== "admin") return empty(400);
+    const fn = body.function ?? null;
+    if (!fn && member.role === "bureau") return empty(400);
+    if (!manages(member.sectorId)) return empty(403);
+    if (fn === "president")
+      state.members
+        .filter((m) => m.sectorId === member.sectorId && m.bureauFunction === "president")
+        .forEach((m) => (m.bureauFunction = "membre_du_bureau"));
+    member.bureauFunction = fn;
     return json(userDto(member));
   }
   return empty(405);

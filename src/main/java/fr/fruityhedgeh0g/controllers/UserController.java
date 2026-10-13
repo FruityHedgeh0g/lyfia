@@ -2,6 +2,7 @@ package fr.fruityhedgeh0g.controllers;
 
 import com.fasterxml.jackson.annotation.JsonView;
 
+import fr.fruityhedgeh0g.dtos.userDtos.BureauFunctionDto;
 import fr.fruityhedgeh0g.dtos.userDtos.NamesDto;
 import fr.fruityhedgeh0g.dtos.userDtos.ProfileDto;
 import fr.fruityhedgeh0g.dtos.userDtos.RoleChangeDto;
@@ -77,11 +78,12 @@ public class UserController {
     }
 
     @PUT
-    @Path("/{userId}/president")
+    @Path("/{userId}/bureau-function")
+    @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("admin")
-    public @JsonView(Views.Detailed.class) UserDto appointPresident(@PathParam("userId") UUID userId){
-        return userService.appointPresident(userId);
+    public @JsonView(Views.Detailed.class) UserDto setBureauFunction(@PathParam("userId") UUID userId, @NotNull BureauFunctionDto change){
+        return userService.setBureauFunction(UUID.fromString(token.getSubject()), userId, change.function());
     }
 //
 //    @POST

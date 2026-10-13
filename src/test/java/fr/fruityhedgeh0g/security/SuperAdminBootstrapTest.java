@@ -2,6 +2,7 @@ package fr.fruityhedgeh0g.security;
 
 import fr.fruityhedgeh0g.entities.SectorEntity;
 import fr.fruityhedgeh0g.entities.UserEntity;
+import fr.fruityhedgeh0g.enums.BureauFunctionEnum;
 import fr.fruityhedgeh0g.enums.RoleEnum;
 import fr.fruityhedgeh0g.keycloak.FakeKeycloakDirectory;
 import fr.fruityhedgeh0g.keycloak.FakeKeycloakRoleMirror;
@@ -76,7 +77,7 @@ class SuperAdminBootstrapTest {
             sectorRepository.persist(sector);
             sectorId = sector.getSectorId();
             userRepository.persist(UserEntity.builder().userId(personId).firstName("Julien").lastName("Peynot")
-                    .role(RoleEnum.BUREAU).president(true).sector(sector).build());
+                    .role(RoleEnum.BUREAU).bureauFunction(BureauFunctionEnum.PRESIDENT).sector(sector).build());
         });
         directory.register("julien", new KeycloakPerson(personId, "Julien", "Peynot"));
 

@@ -38,13 +38,16 @@ _Avoid_: group leader, responsable
 **Affectation**: the Bureau's decision that a given Chef de groupe leads a given Groupe. A Groupe has at most one Chef de groupe at a time; a Chef de groupe leads at most one Groupe. Handing a Groupe to a new Chef de groupe is a single Affectation.
 _Avoid_: assignment, nomination
 
-**Bureau**: the Membres elected to run the association: an organizational function, ranked above Chef de groupe. Promotes Membres and Chefs de groupe. Promoted by an Admin.
+**Bureau**: the Membres elected to run the association: an organizational function, ranked above Chef de groupe. Promotes Membres and Chefs de groupe. Promoted by an Admin. Sitting on the Bureau is not only a Role: everyone with the Bureau Role sits on it, and an Admin may sit on it too, in their own Secteur, as recorded by the Super admin or another Admin of that Secteur (never by themselves). An Admin who sits on the Bureau keeps the Admin Role.
 
-**Président**: the one Bureau member who presides over the association. The only Bureau function the site records; grants no extra access yet.
+**Fonction au Bureau**: what a person sitting on a Secteur's Bureau is there: Membre du Bureau or Président. Held by everyone with the Bureau Role, and by an Admin called to the Bureau; lost when the Role drops below Bureau. Grants no extra access.
+_Avoid_: titre, poste, case Bureau
+
+**Président**: the Fonction au Bureau of the one member who presides over a Secteur's Bureau (an Admin sitting on it included). Grants no extra access yet.
 
 **Admin**: a person who manages the site for one Secteur and promotes its Bureau members. Appointed by the Super admin from all registered people, for a Secteur the Super admin chooses.
 
-**Super admin**: the person above every Admin, who appoints Admins and is the only one to open, rename, close (Fermé) or reopen a Secteur.
+**Super admin**: the account above every Admin, which appoints Admins and is the only one to open, rename, close (Fermé) or reopen a Secteur. An account dedicated to administering the site, kept apart from the personal account of whoever holds it: that person rides, leads a Groupe or sits on the Bureau through their own account, in their Secteur.
 
 ### Organisation
 

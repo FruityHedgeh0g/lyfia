@@ -17,6 +17,9 @@ const renderAs = (role: string) => {
   );
 };
 
+const bureauOptions = () =>
+  within(screen.getByLabelText("Bureau")).getAllByRole("option").map((o) => o.textContent);
+
 const roleOptions = () =>
   within(screen.getByLabelText("Rôle")).getAllByRole("option").map((o) => o.textContent);
 
@@ -83,19 +86,43 @@ describe("MembersAdminPage", () => {
     expect(screen.getByRole("button", { name: /Luc Schmitt/ })).not.toHaveTextContent("Président");
   });
 
-  it("lets an Admin hand the Président flag to another Bureau member", async () => {
+  it("lets an Admin make another Bureau member Président", async () => {
     renderAs("admin");
     await userEvent.click(await screen.findByRole("button", { name: /Luc Schmitt/ }));
-    await userEvent.click(screen.getByLabelText("Président"));
+    await userEvent.selectOptions(screen.getByLabelText("Bureau"), "president");
     await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
     await waitFor(() => expect(screen.getByRole("button", { name: /Luc Schmitt/ })).toHaveTextContent("Président"));
-    expect(screen.getByRole("button", { name: /Claire Hoffmann/ })).not.toHaveTextContent("Président");
   });
 
-  it("offers the Président flag only to an Admin, only on Bureau members", async () => {
+  it("keeps a Bureau member on the Bureau: no choice to leave it", async () => {
+    renderAs("admin");
+    await userEvent.click(await screen.findByRole("button", { name: /Luc Schmitt/ }));
+    expect(bureauOptions()).toEqual(["Membre du Bureau", "Président"]);
+  });
+
+  it("lets an Admin call another Admin to the Bureau", async () => {
+    renderAs("admin");
+    const paul = await screen.findByRole("button", { name: /Paul Muller/ });
+    expect(paul).not.toHaveTextContent("Bureau");
+    await userEvent.click(paul);
+    expect(bureauOptions()).toEqual(["—", "Membre du Bureau", "Président"]);
+    await userEvent.selectOptions(screen.getByLabelText("Bureau"), "membre_du_bureau");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Paul Muller/ })).toHaveTextContent("Admin · Bureau"));
+  });
+
+  it("makes someone promoted to the Bureau Role a Membre du Bureau", async () => {
+    renderAs("admin");
+    await userEvent.click(await screen.findByRole("button", { name: /Sophie Kremer/ }));
+    expect(screen.queryByLabelText("Bureau")).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText("Rôle"), "bureau");
+    expect(screen.getByLabelText("Bureau")).toHaveValue("membre_du_bureau");
+  });
+
+  it("offers the Fonction au Bureau only to an Admin, and never on themselves", async () => {
     renderAs("bureau");
     await userEvent.click(await screen.findByRole("button", { name: /Luc Schmitt/ }));
-    expect(screen.queryByLabelText("Président")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Bureau")).not.toBeInTheDocument();
   });
 
   it("lets only an Admin correct someone's names", async () => {

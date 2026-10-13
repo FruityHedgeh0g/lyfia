@@ -1,14 +1,22 @@
 import React, { useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
-import { ROLE_LABELS } from "../../auth/roles";
+import { ROLE_LABELS, roleAtLeast } from "../../auth/roles";
+import { BUREAU_FUNCTION_LABELS } from "../../features/users/types";
+import { useMonGroupe } from "../../features/events/useRoster";
 import FormField from "../../components/molecules/FormField/FormField";
 import Button from "../../components/atoms/Button/Button";
 import Badge from "../../components/atoms/Badge/Badge";
 import Icon from "../../components/atoms/Icon/Icon";
 import styles from "./ProfilePage.module.css";
 
+/** Le Groupe que la personne mène (Affectation), s'il y en a un. */
+const ChefBadge: React.FC = () => {
+  const { data } = useMonGroupe();
+  return data?.group ? <Badge label={`Chef de groupe — ${data.group.name}`} tone="accent" /> : null;
+};
+
 export const ProfilePage: React.FC = () => {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, preview } = useAuth();
   const [phone, setPhone] = useState(user?.phone ?? "");
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState(false);
@@ -38,6 +46,8 @@ export const ProfilePage: React.FC = () => {
         <div className={styles.badges}>
           <Badge label={ROLE_LABELS[user.role]} />
           {user.sector && <Badge label={user.sector.name} tone="muted" />}
+          {user.bureauFunction && <Badge label={BUREAU_FUNCTION_LABELS[user.bureauFunction]} tone="accent" />}
+          {!preview && user.sector && roleAtLeast(user.role, "chef_de_groupe") && <ChefBadge />}
         </div>
       </aside>
 
