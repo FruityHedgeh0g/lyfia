@@ -1,6 +1,7 @@
-import React, { useEffect, useId, useRef } from "react";
+import React, { useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import Icon from "../../atoms/Icon/Icon";
+import { useDialog } from "./useDialog";
 import styles from "./Modal.module.css";
 
 export interface ModalProps {
@@ -14,26 +15,7 @@ export interface ModalProps {
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
-  const previouslyFocused = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    previouslyFocused.current = document.activeElement as HTMLElement | null;
-    dialogRef.current?.focus();
-    document.body.style.overflow = "hidden";
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
-      previouslyFocused.current?.focus();
-    };
-  }, [isOpen, onClose]);
+  useDialog(isOpen, onClose, dialogRef);
 
   if (!isOpen) return null;
 
