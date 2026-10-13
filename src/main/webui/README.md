@@ -72,6 +72,8 @@ personne en base, et un cookie fait agir chaque requête en son nom (`DevPersona
 `DevPersonaAuthentication`), sans connexion. Tout ce que le rôle peut faire devient faisable. « Visiteur » quitte le
 persona. Ce code n'existe que dans les builds dev et test (`@IfBuildProfile`) : un build de production ne le contient
 pas. Les boutons « Se connecter » et « Se déconnecter » de l'en-tête restent ceux de Keycloak et ne servent pas en dev.
+RabbitMQ n'est pas contacté non plus (`rabbitmq.enabled=false`) : la synchronisation des utilisateurs ne tourne pas en
+dev.
 
 **Aperçu.** Le Super admin voit le site, en lecture seule, tel qu'un rôle le verrait (ADR 0009) ; rien n'y est
 faisable.
