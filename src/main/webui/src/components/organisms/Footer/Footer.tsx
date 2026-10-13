@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import Logo from "../../atoms/Logo/Logo";
 import Icon from "../../atoms/Icon/Icon";
+import DevelopersSheet from "../../molecules/DevelopersSheet/DevelopersSheet";
 import { useAccess } from "../../../auth/useAccess";
 import styles from "./Footer.module.css";
 
@@ -12,6 +13,7 @@ export const Footer: React.FC = () => {
   const groups = mainNav();
   const menus = groups.filter((g) => g.kind === "menu");
   const quickLinks = groups.flatMap((g) => (g.kind === "link" ? [g.entry] : []));
+  const [developersOpen, setDevelopersOpen] = useState(false);
 
   return (
     <footer className={styles.footer}>
@@ -73,8 +75,13 @@ export const Footer: React.FC = () => {
 
       <div className={styles.bottom}>
         <p>© {new Date().getFullYear()} Une Rose Un Espoir - Algrange · Association loi 1901</p>
+        <button type="button" className={styles.developers} onClick={() => setDevelopersOpen(true)}>
+          Voir les développeurs
+        </button>
         <p className={styles.united}>Tous unis contre le cancer</p>
       </div>
+
+      {developersOpen && <DevelopersSheet onClose={() => setDevelopersOpen(false)} />}
     </footer>
   );
 };

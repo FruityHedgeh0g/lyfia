@@ -1,0 +1,122 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  background: rgba(2, 20, 40, .74);
+  backdrop-filter: blur(6px);
+  animation: fadeIn .25s var(--ease-out);
+}
+
+.sheet {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 24px 16px calc(28px + env(safe-area-inset-bottom));
+  outline: none;
+  animation: slideUp .38s var(--ease-out);
+}
+
+.closing {
+  animation: fadeOut .22s ease-in forwards;
+}
+
+.closing .sheet {
+  animation: slideDown .22s ease-in forwards;
+}
+
+/* Les deux avatars, côte à côte sur tous les écrans */
+.avatars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: clamp(12px, 4vw, 40px);
+}
+
+.avatar {
+  display: block;
+  transition: transform var(--duration) var(--ease-out), filter var(--duration) var(--ease-out);
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .35));
+}
+
+/* Même hauteur pour les deux avatars (largeurs d'image différentes) ; les deux tiennent côte à côte sur mobile */
+.avatar img {
+  display: block;
+  width: auto;
+  max-width: none;
+  height: min(420px, 52vh, calc((100vw - 80px) / 1.6));
+}
+
+/* Pas de contour : le soulèvement sert aussi d'indicateur de focus clavier */
+.avatar:hover,
+.avatar:focus-visible {
+  transform: translateY(-6px) scale(1.03);
+  filter: drop-shadow(0 18px 26px rgba(0, 0, 0, .45));
+}
+
+.avatar:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.back {
+  appearance: none;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.backIcon {
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .7);
+  transition: background var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out),
+    transform var(--duration) var(--ease-out);
+}
+
+.back:hover .backIcon {
+  background: var(--brand-red);
+  border-color: var(--brand-red);
+  transform: translateY(3px);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+}
+
+@keyframes fadeOut {
+  to { opacity: 0; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+}
+
+@keyframes slideDown {
+  to { transform: translateY(100%); }
+}

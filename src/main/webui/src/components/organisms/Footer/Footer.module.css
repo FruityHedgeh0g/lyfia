@@ -128,9 +128,9 @@
   max-width: 1320px;
   margin: 0 auto;
   padding: 20px 24px 28px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: baseline;
   gap: 8px 24px;
   border-top: 1px solid var(--band-border);
   font-size: 12px;
@@ -140,7 +140,25 @@
   margin: 0;
 }
 
+.developers {
+  appearance: none;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--band-muted);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color var(--duration) var(--ease-out);
+}
+
+.developers:hover {
+  color: var(--band-text);
+}
+
 .united {
+  justify-self: end;
   font-weight: 800;
   letter-spacing: .18em;
   text-transform: uppercase;
@@ -151,5 +169,15 @@
   .inner {
     grid-template-columns: 1fr;
     gap: 40px;
+  }
+
+  .bottom {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .united {
+    justify-self: center;
   }
 }
