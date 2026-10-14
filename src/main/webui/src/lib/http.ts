@@ -1,6 +1,6 @@
-/** Une réponse de l'API en erreur, avec son statut HTTP. */
+/** Une réponse de l'API en erreur, avec son statut HTTP et, le cas échéant, le code d'erreur de son corps (`error`). */
 export class HttpError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(readonly status: number, message: string, readonly code?: string) {
     super(message);
     this.name = "HttpError";
   }
@@ -47,7 +47,10 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     const body = await response.json().catch(() => null);
     if (body?.error === "feature-off") throw new FeatureOffError(body.feature, "Cette fonctionnalité est temporairement suspendue.");
   }
-  if (!response.ok) throw new HttpError(response.status, `${init.method ?? "GET"} ${path} : ${response.status}`);
+  if (!response.ok) {
+    const body = response.headers.get("Content-Type")?.includes("json") ? await response.json().catch(() => null) : null;
+    throw new HttpError(response.status, `${init.method ?? "GET"} ${path} : ${response.status}`, body?.error);
+  }
   if (response.status === 204) return undefined as T;
   if (!response.headers.get("Content-Type")?.includes("json")) {
     // Sans backend (serveur Vite seul), le site répond index.html à tout chemin

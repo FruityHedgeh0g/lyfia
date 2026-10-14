@@ -85,11 +85,25 @@ describe("EventDetailPage sign-up", () => {
     await userEvent.selectOptions(await screen.findByLabelText("Poste"), "passager");
     // Sans conducteur, le passager peut demander son propre Groupe ; avec un conducteur, il prend le sien
     expect(screen.getByLabelText("Groupe (facultatif)")).toBeInTheDocument();
-    await userEvent.selectOptions(await screen.findByLabelText("Conducteur"), "p-1");
+    // Le nom se tape : la liste des conducteurs inscrits n'est jamais montrée
+    expect(screen.queryByRole("combobox", { name: /conducteur/i })).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Prénom et nom de votre conducteur (facultatif)"), "weber marc");
     expect(screen.queryByLabelText("Groupe (facultatif)")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "M'inscrire comme passager" }));
 
     expect(await screen.findByText("Vous êtes inscrit comme passager de Marc Weber")).toBeInTheDocument();
+  });
+
+  it("says when no conducteur signed up matches the name typed", async () => {
+    await createRegistrationsApi().signUp(eventId, { userId: "p-1", firstName: "Marc", lastName: "Weber", phone: "06 00 00 00 00" });
+    renderPage();
+
+    await userEvent.selectOptions(await screen.findByLabelText("Poste"), "passager");
+    await userEvent.type(screen.getByLabelText("Prénom et nom de votre conducteur (facultatif)"), "Paul Martin");
+    await userEvent.click(screen.getByRole("button", { name: "M'inscrire comme passager" }));
+
+    expect(await screen.findByText(/Aucun conducteur inscrit ces journées-là ne correspond à ce nom/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "M'inscrire comme passager" })).toBeInTheDocument();
   });
 
   it("signs up as passager without a conducteur for now", async () => {

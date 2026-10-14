@@ -151,10 +151,7 @@ export interface MonGroupe {
   }[];
 }
 
-/** Reflète ConducteurDto : un conducteur inscrit, et les Journées où il n'a pas encore de passager. */
-export interface Conducteur extends PersonRef {
-  freeJournees: Journee[];
-}
+
 
 /** Qui agit : un Chef n'agit que sur le Groupe qu'il mène (Affectation), le Bureau sur tous. */
 export interface Actor {
@@ -201,15 +198,34 @@ export class PhoneRequiredError extends Error {
   }
 }
 
+/**
+ * Réponse 422 `conducteur-introuvable` ou `conducteur-ambigu` : le nom tapé ne désigne clairement aucun conducteur
+ * inscrit, libre l'une des journées choisies. La liste des inscrits n'est jamais montrée.
+ */
+export class ConducteurNotFoundError extends Error {
+  constructor(readonly ambiguous: boolean) {
+    super(
+      ambiguous
+        ? "Plusieurs conducteurs inscrits ressemblent à ce nom : précisez son prénom et son nom."
+        : "Aucun conducteur inscrit ces journées-là ne correspond à ce nom. Vérifiez l'orthographe, ou inscrivez-vous sans conducteur pour l'instant."
+    );
+    this.name = "ConducteurNotFoundError";
+  }
+}
+
 const base = (eventId: string) => `/api/events/${encodeURIComponent(eventId)}`;
 const id = encodeURIComponent;
 
-/** Sans téléphone au profil, l'API répond 422 `phone-required`. */
+/** Sans téléphone au profil, l'API répond 422 `phone-required` ; sans conducteur reconnu, `conducteur-…`. */
 async function phoneRequired<T>(call: Promise<T>): Promise<T> {
   try {
     return await call;
   } catch (error) {
-    if (error instanceof HttpError && error.status === 422) throw new PhoneRequiredError();
+    if (error instanceof HttpError && error.status === 422) {
+      if (error.code === "conducteur-introuvable" || error.code === "conducteur-ambigu")
+        throw new ConducteurNotFoundError(error.code === "conducteur-ambigu");
+      throw new PhoneRequiredError();
+    }
     throw error;
   }
 }
@@ -230,15 +246,16 @@ const query = (params: URLSearchParams) => (params.size ? `?${params}` : "");
 
 /**
  * S'inscrire aux Journées choisies (aucune : tout l'Événement), à un Poste ; `groupId` demande ce Groupe ;
- * `conducteurId` inscrit un passager derrière ce conducteur (« je viens avec »). S'inscrire de nouveau ajoute des Journées.
+ * `conducteur` : le prénom et le nom du conducteur avec qui vient un passager (« je viens avec »), rapproché par l'API
+ * parmi les inscrits. S'inscrire de nouveau ajoute des Journées.
  */
 export function signUp(
   eventId: string,
-  options: { poste?: Poste; groupId?: string; conducteurId?: string; journees?: Journee[] } = {}
+  options: { poste?: Poste; groupId?: string; conducteur?: string; journees?: Journee[] } = {}
 ): Promise<Registration> {
   const params = withJournees(new URLSearchParams(), options.journees);
   if (options.poste) params.set("poste", options.poste);
-  if (options.conducteurId) params.set("conducteurId", options.conducteurId);
+  if (options.conducteur) params.set("conducteur", options.conducteur);
   else if (options.groupId) params.set("groupId", options.groupId);
   const query = params.size ? `?${params}` : "";
   return phoneRequired(apiFetch<Registration>(`${base(eventId)}/registration${query}`, { method: "PUT" }));
@@ -250,8 +267,6 @@ export const withdraw = (eventId: string, options: { journees?: Journee[]; withP
   params.set("withPassager", String(options.withPassager ?? true));
   return apiFetch<void>(`${base(eventId)}/registration${query(params)}`, { method: "DELETE" });
 };
-
-export const fetchConducteurs = (eventId: string) => apiFetch<Conducteur[]>(`${base(eventId)}/conducteurs`);
 
 export const requestGroup = (eventId: string, groupId: string) =>
   apiFetch<Registration>(`${base(eventId)}/registration/demande`, { method: "PUT", body: JSON.stringify({ groupId }) });

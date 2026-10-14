@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useEvent } from "../../features/events/useEvents";
 import { acceptsSignUps, EVENT_STATUS_LABELS, statusTone } from "../../features/events/status";
-import { useEventRegistration, useMyRegistrations, useConducteurs } from "../../features/events/useMyRegistrations";
+import { useEventRegistration, useMyRegistrations } from "../../features/events/useMyRegistrations";
 import { DEMANDE_STATUS_LABELS, groupKindOf, passagerLabel, PhoneRequiredError, Poste, POSTE_LABELS, POSTES, Registration } from "../../features/events/registrationsApi";
 import { useGroups } from "../../features/groups/useGroups";
 import Select from "../../components/atoms/Select/Select";
@@ -49,12 +49,12 @@ export const EventDetailPage: React.FC = () => {
   const { data: groups } = useGroups();
   const [groupId, setGroupId] = useState("");
   const [poste, setPoste] = useState<Poste>("conducteur");
-  const [conducteurId, setConducteurId] = useState("");
+  /** Le prénom et le nom du conducteur avec qui l'on vient, tapés librement : la liste des inscrits n'est jamais montrée. */
+  const [conducteur, setConducteur] = useState("");
   /** Les Journées choisies ; null : tout l'Événement (ADR 0011). */
   const [chosen, setChosen] = useState<Journee[] | null>(null);
   /** Les Journées à ajouter à son inscription. */
   const [added, setAdded] = useState<Journee[]>([]);
-  const { data: conducteurs } = useConducteurs(poste === "passager" ? eventId : undefined);
   const registrationOpen = useFeature("inscription-evenements", event?.sectorId);
   const registrationOff = useFeatureOff("inscription-evenements", event?.sectorId);
   const [askPhone, setAskPhone] = useState(false);
@@ -69,8 +69,8 @@ export const EventDetailPage: React.FC = () => {
     if (!eventId) return;
     const journees = chosen ?? undefined;
     register.mutate(
-      poste === "passager" && conducteurId
-        ? { eventId, poste, phone: withPhone, conducteurId, journees }
+      poste === "passager" && conducteur.trim()
+        ? { eventId, poste, phone: withPhone, conducteur, journees }
         : { eventId, poste, phone: withPhone, groupId: groupKindOf(poste) ? groupId : undefined, journees },
       {
         onSuccess: () => setAskPhone(false),
@@ -152,16 +152,6 @@ export const EventDetailPage: React.FC = () => {
     !registration.group &&
     registration.demande?.status !== "en_attente" &&
     event.status !== "archive";
-  /**
-   * « Je viens avec » : un conducteur inscrit qui n'a pas encore de passager l'une des Journées choisies ; le
-   * passager prend son Groupe. Sans conducteur, le Bureau ou le Chef l'associera à un autre.
-   */
-  const conducteurOptions = [
-    { value: "", label: "Sans conducteur pour l'instant" },
-    ...(conducteurs ?? [])
-      .filter((c) => c.userId !== user?.userId && c.freeJournees.some((j) => picked.includes(j)))
-      .map((c) => ({ value: c.userId, label: `${c.firstName} ${c.lastName}` })),
-  ];
   const signUpLabel =
     event.status === "complet" ? "Rejoindre la liste d'attente" : `M'inscrire comme ${POSTE_LABELS[poste].toLowerCase()}`;
 
@@ -335,10 +325,16 @@ export const EventDetailPage: React.FC = () => {
                           ))}
                         </fieldset>
                       )}
+                      {/* « Je viens avec » : l'API rapproche le nom tapé des conducteurs inscrits ; sans nom, le Bureau ou le Chef l'associera */}
                       {poste === "passager" && (
-                        <Select label="Conducteur" value={conducteurId} onChange={setConducteurId} options={conducteurOptions} />
+                        <FormField
+                          label="Prénom et nom de votre conducteur (facultatif)"
+                          value={conducteur}
+                          autoComplete="off"
+                          onChange={(e) => setConducteur(e.target.value)}
+                        />
                       )}
-                      {groupKindOf(poste) && !(poste === "passager" && conducteurId) && groupSelect(poste)}
+                      {groupKindOf(poste) && !(poste === "passager" && conducteur.trim()) && groupSelect(poste)}
                       <Button
                         label={signUpLabel}
                         variant="accent"

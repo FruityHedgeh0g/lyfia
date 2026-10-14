@@ -4,7 +4,7 @@ import { Group } from "../../features/groups/types";
 import { acceptsSignUps, EventStatus } from "../../features/events/status";
 import {
   Actor,
-  Conducteur,
+  ConducteurNotFoundError,
   DemandeStatus,
   GroupRef,
   MonGroupe,
@@ -18,6 +18,26 @@ import {
   groupKindOf,
 } from "../../features/events/registrationsApi";
 import { eventJournees, Journee } from "../../lib/journees";
+
+/** Comme NameMatching : sans accents, majuscules ni ponctuation, prénom et nom dans un ordre ou l'autre. */
+const normalized = (name: string) =>
+  name.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const distance = (a: string, b: string) => {
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j++)
+      current.push(Math.min(previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1), previous[j] + 1, current[j - 1] + 1));
+    previous = current;
+  }
+  return previous[b.length];
+};
+const ratio = (a: string, b: string) => 1 - distance(a, b) / Math.max(a.length, b.length, 1);
+const likeness = (typed: string, firstName: string, lastName: string) => {
+  const wanted = normalized(typed);
+  if (!wanted) return 0;
+  return Math.max(ratio(wanted, normalized(`${firstName} ${lastName}`)), ratio(wanted, normalized(`${lastName} ${firstName}`)));
+};
 
 const ROSTERS_KEY = "urue-event-rosters-v2";
 const MAXIMUMS_KEY = "urue-event-group-maximums";
@@ -297,23 +317,24 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
 
     /**
      * Aux Journées choisies (aucune : toutes), à un Poste ; `groupId` fait une Demande de groupe ; un passager qui
-     * vient avec `conducteurId` roule derrière lui les Journées où ce conducteur n'a pas encore de passager, et prend
-     * son Groupe ou sa Demande. S'inscrire de nouveau au même Poste ajoute des Journées.
+     * vient avec le conducteur dont le nom ressemble à `conducteurName` (comme NameMatching) roule derrière lui les
+     * Journées où ce conducteur n'a pas encore de passager, et prend son Groupe ou sa Demande. S'inscrire de nouveau
+     * au même Poste ajoute des Journées.
      */
     signUp: async (
       eventId: string,
       person: SigningUpPerson,
       groupId?: string,
-      conducteurId?: string,
-      poste: Poste = conducteurId ? "passager" : "conducteur",
+      conducteurName?: string,
+      poste: Poste = conducteurName ? "passager" : "conducteur",
       journees?: Journee[]
     ): Promise<Registration> => {
       const event = await eventOrThrow(eventId);
       const all = eventJournees(event.startDateTime, event.endDateTime);
       const chosen = journees?.length ? [...new Set(journees)].sort() : all;
       if (chosen.some((j) => !all.includes(j))) throw new Error("Cette date n'est pas une journée de l'événement.");
-      if (conducteurId && poste !== "passager") throw new Error("Seul un passager nomme un conducteur.");
-      if (conducteurId && groupId) throw new Error("Un passager qui vient avec un conducteur prend son groupe.");
+      if (conducteurName && poste !== "passager") throw new Error("Seul un passager nomme un conducteur.");
+      if (conducteurName && groupId) throw new Error("Un passager qui vient avec un conducteur prend son groupe.");
 
       const existing = read(eventId).find((e) => e.personId === person.userId);
       if (existing && existing.poste !== poste) throw new Error("Vous êtes déjà inscrit à cet événement à un autre poste.");
@@ -326,10 +347,21 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       if (!person.phone?.trim()) throw new PhoneRequiredError();
       if (groupId && !existing) requireFits(poste, await groupOrThrow(groupId));
 
-      const conducteur = conducteurId ? read(eventId).find((e) => e.personId === conducteurId && e.poste === "conducteur") : undefined;
-      if (conducteurId && !conducteur) throw new Error("Choisissez un conducteur inscrit à cet événement.");
-      const free = (j: Journee) => (conducteur && journeeOf(conducteur, j) && !passagerOf(eventId, conducteur.personId, j) ? journeeOf(conducteur, j) : undefined);
-      if (conducteur && !added.some((j) => free(j))) throw new Error("Ce conducteur a déjà un passager ces journées-là.");
+      const freeOn = (c: StoredEntry, j: Journee) => (journeeOf(c, j) && !passagerOf(eventId, c.personId, j) ? journeeOf(c, j) : undefined);
+      // Comme EventServiceImpl.conducteurNamed : le nom tapé, rapproché des conducteurs libres l'une des Journées
+      let conducteur: StoredEntry | undefined;
+      if (conducteurName) {
+        const scored = read(eventId)
+          .filter((c) => c.poste === "conducteur" && c.personId !== person.userId && added.some((j) => freeOn(c, j)))
+          .map((c) => ({ c, score: likeness(conducteurName, c.firstName, c.lastName) }))
+          .filter(({ score }) => score >= 0.8)
+          .sort((a, b) => b.score - a.score);
+        if (scored.length === 0) throw new ConducteurNotFoundError(false);
+        const exact = scored[0].score === 1 && (scored.length === 1 || scored[1].score < 1);
+        if (!exact && scored.length > 1 && scored[0].score - scored[1].score < 0.1) throw new ConducteurNotFoundError(true);
+        conducteur = scored[0].c;
+      }
+      const free = (j: Journee) => (conducteur ? freeOn(conducteur, j) : undefined);
 
       const ouvert = event.status === "ouvert";
       const stamp = now(eventId);
@@ -374,16 +406,6 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       await refuseOnArchived(eventId);
       leave(eventId, personId, journees, withPassager);
     },
-
-    /** Les conducteurs inscrits, et les Journées où ils n'ont pas encore de passager. */
-    fetchConducteurs: async (eventId: string): Promise<Conducteur[]> =>
-      [...read(eventId)]
-        .sort((a, b) => a.signedUpAt.localeCompare(b.signedUpAt))
-        .filter((e) => e.poste === "conducteur")
-        .map((e) => ({
-          ...personRef(e),
-          freeJournees: e.journees.filter((j) => !passagerOf(eventId, e.personId, j.journee)).map((j) => j.journee),
-        })),
 
     /** Comme EventServiceImpl.changePoste : ni pour le Chef, ni pour un conducteur qui a un passager. */
     changePoste: async (eventId: string, personId: string, poste: Poste): Promise<Roster> => {

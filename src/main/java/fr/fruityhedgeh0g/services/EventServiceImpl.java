@@ -2,7 +2,6 @@ package fr.fruityhedgeh0g.services;
 
 import fr.fruityhedgeh0g.utilities.logging.Logged;
 
-import fr.fruityhedgeh0g.dtos.eventDtos.ConducteurDto;
 import fr.fruityhedgeh0g.dtos.eventDtos.EventDto;
 import fr.fruityhedgeh0g.dtos.eventDtos.DemandeDto;
 import fr.fruityhedgeh0g.dtos.eventDtos.GroupRosterDto;
@@ -24,6 +23,7 @@ import fr.fruityhedgeh0g.enums.FeatureEnum;
 import fr.fruityhedgeh0g.enums.PosteEnum;
 import fr.fruityhedgeh0g.enums.RegistrationStatusEnum;
 import fr.fruityhedgeh0g.enums.RoleEnum;
+import fr.fruityhedgeh0g.exceptions.ConducteurNotFoundException;
 import fr.fruityhedgeh0g.exceptions.ForbiddenActionException;
 import fr.fruityhedgeh0g.exceptions.InvalidResourceException;
 import fr.fruityhedgeh0g.exceptions.PhoneRequiredException;
@@ -36,6 +36,7 @@ import fr.fruityhedgeh0g.services.interfaces.EventService;
 import fr.fruityhedgeh0g.services.interfaces.internals.InternalGroupService;
 import fr.fruityhedgeh0g.services.interfaces.internals.InternalSectorService;
 import fr.fruityhedgeh0g.services.interfaces.internals.InternalUserService;
+import fr.fruityhedgeh0g.utilities.NameMatching;
 import fr.fruityhedgeh0g.utilities.export.RosterSpreadsheet;
 import fr.fruityhedgeh0g.utilities.mappers.EventMapper;
 import jakarta.enterprise.event.Observes;
@@ -245,9 +246,10 @@ public class EventServiceImpl implements EventService {
         EventEntity event = lockedEventOrThrow(eventId);
         UserEntity person = internalUserService.doGetEntityById(personId)
                 .orElseThrow(() -> new UnknownResourceException("User not found: " + personId));
-        if (signUp.conducteurPersonId() != null && signUp.poste() != PosteEnum.PASSAGER)
+        boolean comesWithSomeone = signUp.conducteurName() != null && !signUp.conducteurName().isBlank();
+        if (comesWithSomeone && signUp.poste() != PosteEnum.PASSAGER)
             throw new InvalidResourceException("Only a passager names a conducteur.");
-        if (signUp.conducteurPersonId() != null && signUp.groupId() != null)
+        if (comesWithSomeone && signUp.groupId() != null)
             throw new InvalidResourceException("A passager coming with a conducteur takes their Groupe.");
         List<LocalDate> chosen = journeesOf(event, signUp.journees());
 
@@ -259,10 +261,7 @@ public class EventServiceImpl implements EventService {
         featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS, event.getSector());
         requireSignUpOpenTo(event, person);
 
-        EventRegistrationEntity conducteur = signUp.conducteurPersonId() == null ? null
-                : conducteurOrThrow(eventId, signUp.conducteurPersonId(), personId);
-        if (conducteur != null && added.stream().noneMatch(d -> conducteur.journee(d).filter(j -> j.getPassager() == null).isPresent()))
-            throw new InvalidResourceException(signUp.conducteurPersonId() + " has no Journée left without a passager among those chosen.");
+        EventRegistrationEntity conducteur = comesWithSomeone ? conducteurNamed(eventId, signUp.conducteurName(), personId, added) : null;
         GroupEntity asked = signUp.groupId() == null || existing.isPresent() ? null : groupOrThrow(signUp.groupId());
 
         EventRegistrationEntity registration = existing.orElseGet(() -> {
@@ -325,21 +324,29 @@ public class EventServiceImpl implements EventService {
         return registration.getJournees().stream().filter(j -> !j.isWaiting()).map(JourneeRegistrationEntity::getJournee).toList();
     }
 
+    /**
+     * "Je viens avec": the conducteur whose name matches the one typed, among those with no passager yet one of the
+     * Journées; the list of who is signed up is never served.
+     */
+    private EventRegistrationEntity conducteurNamed(UUID eventId, String name, UUID passagerId, List<LocalDate> journees) {
+        List<EventRegistrationEntity> free = registrationRepository.listByEvent(eventId).stream()
+                .filter(r -> r.getPoste() == PosteEnum.CONDUCTEUR && !r.getPerson().getUserId().equals(passagerId))
+                .filter(r -> journees.stream().anyMatch(d -> r.journee(d).filter(j -> j.getPassager() == null).isPresent()))
+                .toList();
+        return switch (NameMatching.find(name, free, r -> r.getPerson().getFirstName(), r -> r.getPerson().getLastName())) {
+            case NameMatching.Outcome.Found<EventRegistrationEntity> found -> found.match();
+            case NameMatching.Outcome.Ambiguous<EventRegistrationEntity> ambiguous ->
+                    throw new ConducteurNotFoundException("Several conducteurs match '" + name + "' at " + eventId, true);
+            case NameMatching.Outcome.NotFound<EventRegistrationEntity> none ->
+                    throw new ConducteurNotFoundException("No conducteur free those Journées matches '" + name + "' at " + eventId, false);
+        };
+    }
+
     /** A conducteur signed up for the Event, other than the passager themselves. */
     private EventRegistrationEntity conducteurOrThrow(UUID eventId, UUID conducteurId, UUID passagerId) {
         return registrationRepository.findByEventAndPerson(eventId, conducteurId)
                 .filter(r -> r.getPoste() == PosteEnum.CONDUCTEUR && !r.getPerson().getUserId().equals(passagerId))
                 .orElseThrow(() -> new InvalidResourceException("No conducteur " + conducteurId + " signed up for " + eventId));
-    }
-
-    @Override
-    public List<ConducteurDto> conducteursOf(UUID eventId) {
-        eventOrThrow(eventId);
-        return registrationRepository.listByEvent(eventId).stream()
-                .filter(r -> r.getPoste() == PosteEnum.CONDUCTEUR)
-                .map(r -> new ConducteurDto(r.getPerson().getUserId(), r.getPerson().getFirstName(), r.getPerson().getLastName(),
-                        r.getJournees().stream().filter(j -> j.getPassager() == null).map(JourneeRegistrationEntity::getJournee).toList()))
-                .toList();
     }
 
     @Override
