@@ -89,6 +89,9 @@ _Avoid_: pilote
 
 **Service**: the Poste of a person running logistics, the buvette or security at the Event, with a Groupe de service.
 
+**Décharge**: the décharge de responsabilité a minor's legal representative approves when the minor signs up for an Event (under 18 on the first Journée signed up for), for the insurance of minors: the version in force, uploaded by the Super admin, is approved once per Event, and who approved it, when and which version are kept. Until a décharge is uploaded, minors cannot sign up. Signing up needs the person's birth date (and phone number); their e-mail is their account's.
+_Avoid_: autorisation parentale, consentement
+
 **Liste d'attente**: the queue of people who asked to take part in a Journée of an Event, or to be with a Groupe at it, after the maximum the Bureau set for that Event (or for that Groupe at that Event) was reached that Journée; a maximum applies to each Journée alike. It also serves as a reserve of riders on the day. Nobody moves up automatically: the Bureau (or, for a Groupe, its Chef de groupe) chooses. Everyone counts towards the maximums, whatever their Poste; a `passager` always follows their `conducteur`.
 _Avoid_: waitlist, file d'attente
 

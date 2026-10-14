@@ -69,6 +69,8 @@ public class DevPersonaController {
         person.setFirstName("Persona");
         person.setLastName(label(persona.role()) + (sector == null ? "" : " " + sector.getName()));
         person.setPhone("06 00 00 00 00");
+        // Ready to sign up: an adult unless set otherwise from the profile, to try a minor's décharge
+        if (person.getBirthDate() == null) person.setBirthDate(java.time.LocalDate.of(1990, 1, 1));
         person.setRole(persona.role());
         person.setSector(sector);
         Log.warnf("Dev persona in use: %s%s (%s)", persona.role().id(), sector == null ? "" : " of " + sector.getName(), personId);

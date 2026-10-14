@@ -114,7 +114,7 @@ public class PromotionResourceTest {
 
     private UUID persist(UUID id, RoleEnum role) {
         QuarkusTransaction.requiringNew().run(() -> userRepository.persist(
-                UserEntity.builder().userId(id).firstName("Test").lastName(role.name()).role(role)
+                UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(id).firstName("Test").lastName(role.name()).role(role)
                         .sector(role.isAtLeast(RoleEnum.MEMBRE) && role != RoleEnum.SUPER_ADMIN ? sectorRepository.findById(sector) : null)
                         .build()
         ));

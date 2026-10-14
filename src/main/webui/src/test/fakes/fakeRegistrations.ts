@@ -5,6 +5,9 @@ import { acceptsSignUps, EventStatus } from "../../features/events/status";
 import {
   Actor,
   ConducteurNotFoundError,
+  SignUpRequirementError,
+  ageOn,
+  Decharge,
   DemandeStatus,
   GroupRef,
   MonGroupe,
@@ -62,6 +65,8 @@ interface StoredEntry {
   demandeGroupId?: string | null;
   demandeStatus?: DemandeStatus | null;
   journees: StoredJournee[];
+  /** La décharge approuvée pour un mineur. */
+  decharge?: Decharge | null;
 }
 
 /**
@@ -124,6 +129,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       passager: passager ? personRef(passager) : null,
       leadsGroup: leads(all, entry.groupId, entry.personId),
       journees: entry.journees.map((j) => j.journee).sort(),
+      decharge: entry.decharge ?? null,
     };
   };
 
@@ -161,6 +167,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       conducteur: journees.find((j) => j.conducteur)?.conducteur ?? null,
       leadsGroup,
       journees,
+      decharge: entry.decharge ?? null,
     };
   };
 
@@ -327,7 +334,9 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       groupId?: string,
       conducteurName?: string,
       poste: Poste = conducteurName ? "passager" : "conducteur",
-      journees?: Journee[]
+      journees?: Journee[],
+      signataire?: string,
+      dechargeDocumentId?: string
     ): Promise<Registration> => {
       const event = await eventOrThrow(eventId);
       const all = eventJournees(event.startDateTime, event.endDateTime);
@@ -345,6 +354,12 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       if (person.sectorId && person.sectorId !== event.sectorId)
         throw new Error("Cet événement est réservé aux membres de son secteur et aux bénévoles.");
       if (!person.phone?.trim()) throw new PhoneRequiredError();
+      // Comme EventServiceImpl.requireDechargeOf : la date de naissance, puis la décharge d'un mineur
+      if (person.birthDate === null || person.birthDate === "") throw new SignUpRequirementError("birth-date-required");
+      const minor = Boolean(person.birthDate) && added.length > 0 && ageOn(person.birthDate!, added[0]) < 18 && !existing?.decharge;
+      if (minor && !dechargeDocumentId) throw new SignUpRequirementError("decharge-indisponible");
+      if (minor && !signataire?.trim()) throw new SignUpRequirementError("decharge-requise");
+      const decharge = minor ? { signataire: signataire!.trim(), signedAt: new Date().toISOString().slice(0, 19), documentId: dechargeDocumentId! } : null;
       if (groupId && !existing) requireFits(poste, await groupOrThrow(groupId));
 
       const freeOn = (c: StoredEntry, j: Journee) => (journeeOf(c, j) && !passagerOf(eventId, c.personId, j) ? journeeOf(c, j) : undefined);
@@ -394,6 +409,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
         demandeGroupId: groupId ?? null,
         demandeStatus: groupId ? "en_attente" : null,
         journees: newJournees,
+        decharge,
         ...comesWith,
       };
       write(eventId, [...read(eventId), entry]);

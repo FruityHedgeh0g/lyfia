@@ -18,6 +18,7 @@ const ChefBadge: React.FC = () => {
 export const ProfilePage: React.FC = () => {
   const { user, updateProfile, preview } = useAuth();
   const [phone, setPhone] = useState(user?.phone ?? "");
+  const [birthDate, setBirthDate] = useState(user?.birthDate ?? "");
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState(false);
 
@@ -26,7 +27,7 @@ export const ProfilePage: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSaveError(false);
-    updateProfile({ phone: phone.trim() }).then(
+    updateProfile({ phone: phone.trim(), birthDate: birthDate || undefined }).then(
       () => setSaved(true),
       () => setSaveError(true)
     );
@@ -58,6 +59,19 @@ export const ProfilePage: React.FC = () => {
             <FormField label="Prénom" value={user.firstName} disabled readOnly />
             <FormField label="Nom" value={user.lastName} disabled readOnly />
           </div>
+          <FormField label="E-mail" type="email" value={user.email ?? ""} disabled readOnly />
+          <p className={styles.hint}>Celui de votre compte : il se change dans les paramètres de votre compte de connexion.</p>
+          <FormField
+            label="Date de naissance"
+            type="date"
+            autoComplete="bday"
+            value={birthDate}
+            max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => {
+              setBirthDate(e.target.value);
+              setSaved(false);
+            }}
+          />
           <FormField
             label="Téléphone"
             type="tel"
@@ -68,7 +82,7 @@ export const ProfilePage: React.FC = () => {
               setSaved(false);
             }}
           />
-          <p className={styles.hint}>Nécessaire pour vous inscrire à un événement.</p>
+          <p className={styles.hint}>Votre date de naissance et votre téléphone sont nécessaires pour vous inscrire à un événement.</p>
           <p className={styles.hint}>Une erreur dans votre nom ? L'administrateur de votre secteur peut la corriger.</p>
           <div className={styles.actions}>
             <Button type="submit" label="Enregistrer" />

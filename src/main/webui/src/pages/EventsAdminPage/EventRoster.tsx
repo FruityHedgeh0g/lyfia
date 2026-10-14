@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useGroupActions, useRoster } from "../../features/events/useRoster";
-import { GroupRoster, groupKindOf, passagerLabel, POSTE_LABELS, POSTES, RosterEntry, rosterExportUrl, withoutConducteur } from "../../features/events/registrationsApi";
+import { ageOn, GroupRoster, groupKindOf, passagerLabel, POSTE_LABELS, POSTES, RosterEntry, rosterExportUrl, withoutConducteur } from "../../features/events/registrationsApi";
 import { useGroups } from "../../features/groups/useGroups";
 import { askWithPassager, confirmRefusal, confirmTakeOut, fullName } from "../../features/events/confirmations";
 import { useConfirm } from "../../components/molecules/ConfirmDialog/useConfirm";
@@ -13,6 +13,7 @@ import FeatureNotice from "../../components/molecules/FeatureNotice/FeatureNotic
 import Collapsible from "../../components/molecules/Collapsible/Collapsible";
 import { matchesSearch } from "../../lib/textSearch";
 import { Journee, journeeLabel } from "../../lib/journees";
+import { formatDate } from "../../lib/formatDate";
 import { useFeature, useFeatureOff } from "../../features/featureFlags/useFeatureFlags";
 import styles from "./EventRoster.module.css";
 
@@ -219,7 +220,15 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
     </>
   );
 
-  const details = (entry: RosterEntry) => [entry.phone, groupLine(entry)].filter(Boolean).join(" · ");
+  /** Un mineur ce jour-là, et qui a approuvé sa décharge (assurance des mineurs). */
+  const minorLine = (entry: RosterEntry) => {
+    if (!entry.birthDate || ageOn(entry.birthDate, shownJournee) >= 18) return undefined;
+    return entry.decharge
+      ? `Mineur · décharge signée par ${entry.decharge.signataire} le ${formatDate(entry.decharge.signedAt)}`
+      : "Mineur · sans décharge";
+  };
+
+  const details = (entry: RosterEntry) => [entry.phone, entry.email, groupLine(entry), minorLine(entry)].filter(Boolean).join(" · ");
 
   const row = (entry: RosterEntry, actions: React.ReactNode) => (
     <li key={entry.personId} className={styles.row}>

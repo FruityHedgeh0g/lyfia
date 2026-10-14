@@ -1,6 +1,7 @@
 package fr.fruityhedgeh0g.services.decorators.logs;
 
 import fr.fruityhedgeh0g.exceptions.ConducteurNotFoundException;
+import fr.fruityhedgeh0g.exceptions.SignUpRequirementException;
 import java.time.LocalDate;
 import fr.fruityhedgeh0g.enums.PosteEnum;
 import fr.fruityhedgeh0g.dtos.eventDtos.EventDto;
@@ -111,6 +112,7 @@ public class EventLogDecorator implements EventService{
                         case InvalidResourceException ex -> Log.warnf("Sign-up refused: %s", ex.getMessage());
                         case PhoneRequiredException ex -> Log.debugf("Sign-up waiting for a phone number: %s", ex.getMessage());
                         case ConducteurNotFoundException ex -> Log.debugf("Sign-up waiting for a clearer conducteur: %s", ex.getMessage());
+                        case SignUpRequirementException ex -> Log.debugf("Sign-up waiting for %s: %s", ex.getCode(), ex.getMessage());
                         case UnknownResourceException ex -> Log.warnf("Sign-up refused: %s", ex.getMessage());
                         default -> Log.errorf(t, "An error occurred during a sign-up.");
                     }

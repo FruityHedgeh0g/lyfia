@@ -52,7 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @TestHTTPEndpoint(EventController.class)
 public class RosterExportResourceTest {
 
-    static final String HEADER = "Nom|Prénom|Téléphone|Poste|Groupe|Avec|Place";
+    static final String HEADER = "Nom|Prénom|Téléphone|Poste|Groupe|Avec|Place|E-mail|Naissance|Décharge";
 
     static final String ANNE_ID = "00000000-0000-0000-0010-000000000001";
     static final String PAUL_ID = "00000000-0000-0000-0010-000000000002";
@@ -136,7 +136,7 @@ public class RosterExportResourceTest {
     private void persistPerson(String id, RoleEnum role, String firstName, String lastName, String phone) {
         UUID userId = UUID.fromString(id);
         QuarkusTransaction.requiringNew().run(() -> userRepository.persist(
-                UserEntity.builder().userId(userId).firstName(firstName).lastName(lastName).role(role).phone(phone).build()
+                UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(userId).firstName(firstName).lastName(lastName).role(role).phone(phone).build()
         ));
         persons.add(userId);
     }
@@ -219,12 +219,12 @@ public class RosterExportResourceTest {
         String nordName = groupName(nord);
         assertEquals(List.of(first, second), List.copyOf(sheets.keySet()));
         assertEquals(List.of(HEADER,
-                "Martin|Anne|06 01 01 01 01|Conducteur|" + nordName + "|Passager : Paul Martin|Participant",
-                "Martin|Paul|06 02 02 02 02|Passager|" + nordName + "|Derrière Anne Martin|Participant",
-                "Weber|Claire|06 03 03 03 03|Conducteur|||Participant",
-                "Klein|Denis|06 04 04 04 04|Conducteur||Passager : Eve Klein|Liste d'attente n°1",
-                "Klein|Eve|06 05 05 05 05|Passager||Derrière Denis Klein|Liste d'attente n°2"), sheets.get(first));
-        assertEquals("Martin|Paul|06 02 02 02 02|Passager|" + nordName + "|Sans conducteur|Participant", sheets.get(second).get(2));
+                "Martin|Anne|06 01 01 01 01|Conducteur|" + nordName + "|Passager : Paul Martin|Participant||01/01/1990|",
+                "Martin|Paul|06 02 02 02 02|Passager|" + nordName + "|Derrière Anne Martin|Participant||01/01/1990|",
+                "Weber|Claire|06 03 03 03 03|Conducteur|||Participant||01/01/1990|",
+                "Klein|Denis|06 04 04 04 04|Conducteur||Passager : Eve Klein|Liste d'attente n°1||01/01/1990|",
+                "Klein|Eve|06 05 05 05 05|Passager||Derrière Denis Klein|Liste d'attente n°2||01/01/1990|"), sheets.get(first));
+        assertEquals("Martin|Paul|06 02 02 02 02|Passager|" + nordName + "|Sans conducteur|Participant||01/01/1990|", sheets.get(second).get(2));
     }
 
     @Test

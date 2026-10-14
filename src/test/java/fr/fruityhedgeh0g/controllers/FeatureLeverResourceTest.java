@@ -91,7 +91,7 @@ class FeatureLeverResourceTest {
     }
 
     private static UserEntity person(String id, RoleEnum role) {
-        return UserEntity.builder().userId(UUID.fromString(id)).firstName("Lever").lastName(role.name()).role(role).phone("06 00 00 00 00").build();
+        return UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(UUID.fromString(id)).firstName("Lever").lastName(role.name()).role(role).phone("06 00 00 00 00").build();
     }
 
     private void turn(FeatureEnum feature, boolean on) {

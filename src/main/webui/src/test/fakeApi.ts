@@ -10,7 +10,7 @@ import { assignableRoles, canLeadGroupe, RoleId, roleAtLeast } from "../auth/rol
 import { createMemoryJsonStore, JsonStore } from "./fakes/jsonStore";
 import { createEventsApi as fakeEventsOn } from "./fakes/fakeEvents";
 import { createRegistrationsApi as fakeRegistrationsOn } from "./fakes/fakeRegistrations";
-import { ConducteurNotFoundError, PhoneRequiredError } from "../features/events/registrationsApi";
+import { ConducteurNotFoundError, PhoneRequiredError, SignUpRequirementError } from "../features/events/registrationsApi";
 import { mockPosts } from "./fixtures/posts";
 import { Post } from "../features/posts/types";
 import { mockConfigurations } from "./fixtures/configurations";
@@ -36,10 +36,22 @@ interface Viewer {
   firstName: string;
   lastName: string;
   phone: string;
+  /** `AAAA-MM-JJ`, vide tant qu'elle n'est pas renseignée. */
+  birthDate?: string;
+}
+
+/** Une version de la décharge déposée par le Super admin (comme DechargeDocumentDto). */
+interface FakeDecharge {
+  documentId: string;
+  originalFilename: string;
+  fileSize: number;
+  uploadedAt: string;
 }
 
 interface State {
   viewer: Viewer;
+  /** Les versions de la décharge, la dernière en vigueur. */
+  decharges: FakeDecharge[];
   /** Événements, inscriptions et maximums des Groupes, tenus par test/fakes/fakeEvents et fakeRegistrations. */
   store: JsonStore;
   sectors: Sector[];
@@ -72,7 +84,8 @@ export function withoutDevPersonas() {
 
 export function resetFakeApi() {
   state = {
-    viewer: { role: "visiteur", sectorId: null, userId: "", firstName: "", lastName: "", phone: "" },
+    viewer: { role: "visiteur", sectorId: null, userId: "", firstName: "", lastName: "", phone: "", birthDate: "" },
+    decharges: [],
     store: createMemoryJsonStore(),
     sectors: structuredClone(mockSectors).map((s) => ({ ...s, closed: s.closed ?? false })),
     groups: structuredClone(mockGroups),
@@ -124,6 +137,7 @@ async function handle(input: RequestInfo | URL, init: RequestInit = {}): Promise
   if (parts[0] === "api" && parts[1] === "sectors") return sectors(method, parts.slice(2), body);
   if (parts[0] === "api" && parts[1] === "groups") return groups(method, parts.slice(2), body);
   if (parts[0] === "api" && parts[1] === "users") return users(method, parts.slice(2), body);
+  if (parts[0] === "api" && parts[1] === "decharge" && parts.length === 2) return decharge(method, body);
   if (parts[0] === "api" && parts[1] === "features") return features(method, parts.slice(2), body, url.searchParams);
   if (parts[0] === "api" && parts[1] === "feature-requests") return featureRequests(method, body);
   if (parts[0] === "api" && parts[1] === "medias") return medias(method, parts.slice(2), body);
@@ -254,8 +268,13 @@ function users(method: string, [userId, action]: string[], body: any): Response 
   if (!userId) return method === "GET" ? json(state.members.map(userDto)) : empty(405);
   if (userId === "me" && method === "PATCH") {
     state.viewer.phone = body.phone ?? "";
-    const { userId: id, firstName, lastName, phone, role } = state.viewer;
-    return json({ userId: id, firstName, lastName, phone, role, sector: state.viewer.sectorId ? { sectorId: state.viewer.sectorId, name: "" } : null });
+    // Absente, la date de naissance est gardée ; jamais dans le futur
+    if (body.birthDate) {
+      if (body.birthDate > new Date().toISOString().slice(0, 10)) return empty(400);
+      state.viewer.birthDate = body.birthDate;
+    }
+    const { userId: id, firstName, lastName, phone, role, birthDate } = state.viewer;
+    return json({ userId: id, firstName, lastName, phone, birthDate, role, sector: state.viewer.sectorId ? { sectorId: state.viewer.sectorId, name: "" } : null });
   }
   const member = state.members.find((m) => m.userId === userId);
   if (!member) return empty(404);
@@ -309,8 +328,36 @@ const me = () => ({
   firstName: state.viewer.firstName,
   lastName: state.viewer.lastName,
   phone: state.viewer.phone,
+  birthDate: state.viewer.birthDate ?? "",
   sectorId: state.viewer.sectorId,
 });
+
+/** La décharge en vigueur : la dernière déposée. */
+const currentDecharge = () => state.decharges[state.decharges.length - 1];
+
+/** Comme DechargeController : la version en vigueur, et le dépôt d'une nouvelle par le Super admin. */
+function decharge(method: string, body: any): Response {
+  if (method === "GET") return currentDecharge() ? json(currentDecharge()) : empty(204);
+  if (method === "POST") {
+    if (!isSuperAdmin()) return empty(403);
+    const file = body instanceof FormData ? (body.get("file") as File | null) : null;
+    if (!file || file.type !== "application/pdf") return empty(400);
+    const uploaded: FakeDecharge = {
+      documentId: `decharge-${state.decharges.length + 1}`,
+      originalFilename: file.name,
+      fileSize: file.size,
+      uploadedAt: new Date().toISOString().slice(0, 19),
+    };
+    state.decharges.push(uploaded);
+    return json(uploaded);
+  }
+  return empty(405);
+}
+
+/** Dépose une décharge, pour préparer un test. */
+export function seedDecharge(originalFilename = "decharge.pdf") {
+  state.decharges.push({ documentId: `decharge-${state.decharges.length + 1}`, originalFilename, fileSize: 100, uploadedAt: "2026-01-01T00:00:00" });
+}
 
 /** Les erreurs des règles mockées, en statuts HTTP comme le backend. */
 async function answer(call: () => Promise<unknown>): Promise<Response> {
@@ -320,6 +367,7 @@ async function answer(call: () => Promise<unknown>): Promise<Response> {
   } catch (error) {
     if (error instanceof PhoneRequiredError) return json({ error: "phone-required" }, 422);
     if (error instanceof ConducteurNotFoundError) return json({ error: error.ambiguous ? "conducteur-ambigu" : "conducteur-introuvable" }, 422);
+    if (error instanceof SignUpRequirementError) return json({ error: error.code }, 422);
     return empty(400);
   }
 }
@@ -360,7 +408,9 @@ async function events(method: string, [eventId, ...rest]: string[], body: any, q
     const groupId = query.get("groupId") ?? undefined;
     const conducteur = query.get("conducteur") ?? undefined;
     const poste = (query.get("poste") ?? (conducteur ? "passager" : "conducteur")) as Poste;
-    return answer(() => reg.signUp(eventId, me(), groupId, conducteur, poste, query.getAll("journee")));
+    return answer(() =>
+      reg.signUp(eventId, me(), groupId, conducteur, poste, query.getAll("journee"), query.get("signataire") ?? undefined, currentDecharge()?.documentId)
+    );
   }
   const withPassager = query.get("withPassager") !== "false";
   if (path === "registration" && method === "DELETE")

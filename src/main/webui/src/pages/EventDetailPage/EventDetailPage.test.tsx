@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "../../auth/AuthContext";
-import { createEventsApi, createRegistrationsApi, seedGroup, setFakeFeature, setFakeFeatureOffIn } from "../../test/fakeApi";
+import { createEventsApi, createRegistrationsApi, seedDecharge, seedGroup, setFakeFeature, setFakeFeatureOffIn } from "../../test/fakeApi";
 import EventDetailPage from "./EventDetailPage";
 import { testUser } from "../../test/testUser";
 import { confirmIn } from "../../test/confirm";
@@ -18,6 +18,20 @@ const renderPage = (role = "benevole", phone = "06 12 34 56 78") =>
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter initialEntries={[`/evenements/${eventId}`]}>
         <AuthProvider user={testUser(role, { phone })}>
+          <Routes>
+            <Route path="/evenements/:eventId" element={<EventDetailPage />} />
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+
+/** Mineur le jour de l'Événement (dans dix jours) : 17 ans. */
+const renderMinor = () =>
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={[`/evenements/${eventId}`]}>
+        <AuthProvider user={testUser("benevole", { birthDate: new Date(Date.now() - 17 * 365.25 * 86_400_000).toISOString().slice(0, 10) })}>
           <Routes>
             <Route path="/evenements/:eventId" element={<EventDetailPage />} />
           </Routes>
@@ -50,6 +64,50 @@ describe("EventDetailPage sign-up", () => {
     await userEvent.click(screen.getByRole("button", { name: "Enregistrer et m'inscrire" }));
 
     expect(await screen.findByText("Vous êtes inscrit comme conducteur")).toBeInTheDocument();
+  });
+
+  it("asks for the birth date, saves it and signs up", async () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={[`/evenements/${eventId}`]}>
+          <AuthProvider user={testUser("benevole", { birthDate: "" })}>
+            <Routes>
+              <Route path="/evenements/:eventId" element={<EventDetailPage />} />
+            </Routes>
+          </AuthProvider>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "M'inscrire comme conducteur" }));
+    expect(screen.queryByLabelText("Téléphone")).not.toBeInTheDocument();
+    await userEvent.type(await screen.findByLabelText("Date de naissance"), "1990-05-01");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer et m'inscrire" }));
+
+    expect(await screen.findByText("Vous êtes inscrit comme conducteur")).toBeInTheDocument();
+  });
+
+  it("keeps minors out until a décharge is uploaded", async () => {
+    renderMinor();
+    await userEvent.click(await screen.findByRole("button", { name: "M'inscrire comme conducteur" }));
+    expect(await screen.findByText(/L'inscription des mineurs ouvrira dès que la décharge/)).toBeInTheDocument();
+  });
+
+  it("has a minor's legal representative approve the décharge, keeping their name", async () => {
+    seedDecharge("decharge-2026.pdf");
+    renderMinor();
+    await userEvent.click(await screen.findByRole("button", { name: "M'inscrire comme conducteur" }));
+
+    const modal = await screen.findByRole("dialog", { name: "Décharge de responsabilité" });
+    expect(within(modal).getByRole("link", { name: /decharge-2026\.pdf/ })).toBeInTheDocument();
+    const approve = within(modal).getByRole("button", { name: "Approuver et m'inscrire" });
+    expect(approve).toBeDisabled();
+    await userEvent.click(within(modal).getByLabelText(/je l'approuve en tant que représentant légal/));
+    await userEvent.type(within(modal).getByLabelText("Prénom et nom du représentant légal"), "Marie Dupont");
+    await userEvent.click(approve);
+
+    expect(await screen.findByText("Vous êtes inscrit comme conducteur")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("signs up with a chosen Groupe and shows the pending Demande", async () => {

@@ -80,7 +80,7 @@ public class PostResourceTest {
 
     private void persistPerson(String id, RoleEnum role, String lastName) {
         QuarkusTransaction.requiringNew().run(() -> userRepository.persist(
-                UserEntity.builder().userId(UUID.fromString(id)).firstName("Test").lastName(lastName).role(role).build()));
+                UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(UUID.fromString(id)).firstName("Test").lastName(lastName).role(role).build()));
     }
 
     private UUID persistPost(String title, PostStatusEnum status) {

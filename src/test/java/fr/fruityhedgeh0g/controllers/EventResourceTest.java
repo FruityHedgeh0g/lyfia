@@ -63,7 +63,7 @@ public class EventResourceTest {
         QuarkusTransaction.requiringNew().run(() -> {
             for (var actor : Map.of(MEMBRE_ID, RoleEnum.MEMBRE, CHEF_ID, RoleEnum.CHEF_DE_GROUPE, BUREAU_ID, RoleEnum.BUREAU).entrySet()) {
                 UUID id = UUID.fromString(actor.getKey());
-                userRepository.persist(UserEntity.builder().userId(id).firstName("Test").lastName("Test").role(actor.getValue()).build());
+                userRepository.persist(UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(id).firstName("Test").lastName("Test").role(actor.getValue()).build());
                 persons.add(id);
             }
             SectorEntity algrange = SectorEntity.builder().name("Test Algrange " + UUID.randomUUID()).build();

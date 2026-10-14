@@ -56,9 +56,9 @@ public class UserLogDecorator implements UserService{
     }
 
     @Override
-    public UserDto getOrJoin(UUID personId, String firstName, String lastName) {
+    public UserDto getOrJoin(UUID personId, String firstName, String lastName, String email) {
         Log.debugf("Retrieving the logged-in person %s...", personId);
-        return Try.of(() -> userService.getOrJoin(personId, firstName, lastName))
+        return Try.of(() -> userService.getOrJoin(personId, firstName, lastName, email))
                 .onFailure(t -> Log.errorf(t,"An error occurred while retrieving the logged-in person %s.", personId))
                 .get();
     }

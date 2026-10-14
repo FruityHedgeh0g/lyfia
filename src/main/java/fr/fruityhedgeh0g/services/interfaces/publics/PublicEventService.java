@@ -32,9 +32,14 @@ public interface PublicEventService {
 
     /**
      * What one signs up with: a Poste, the Journées (none: every Journée), and either a Demande de groupe or, for a
-     * passager, the name of a conducteur to come with ("je viens avec"), typed freely: who is signed up is never listed.
+     * passager, the name of a conducteur to come with ("je viens avec"), typed freely: who is signed up is never listed;
+     * for a minor, the name of the legal representative approving the décharge.
      */
-    record SignUp(@NotNull PosteEnum poste, UUID groupId, String conducteurName, List<LocalDate> journees) {
+    record SignUp(@NotNull PosteEnum poste, UUID groupId, String conducteurName, List<LocalDate> journees,
+                  String dechargeSignataire) {
+        public SignUp(PosteEnum poste, UUID groupId, String conducteurName, List<LocalDate> journees) {
+            this(poste, groupId, conducteurName, journees, null);
+        }
     }
 
     /**
@@ -43,6 +48,8 @@ public interface PublicEventService {
      * whose name matches (NameMatching), among those with no passager yet one of the chosen Journées, on the Journées
      * both are at, waiting as they do, and takes their Groupe or Demande; without a clear match the sign-up is refused
      * (ConducteurNotFoundException). Signing up again at the same Poste adds the Journées not signed up for yet.
+     * The birth date is required; a minor on the first Journée signed up for needs the décharge in force approved
+     * by their legal representative, named in {@code dechargeSignataire} (SignUpRequirementException otherwise).
      */
     RegistrationDto signUp(@NotNull UUID eventId, @NotNull UUID personId, @NotNull SignUp signUp);
     /** A new Demande de groupe, for someone signed up and not yet with a Groupe. */

@@ -18,9 +18,10 @@ public interface PublicUserService {
 
     /**
      * The logged-in person. Someone registered in Keycloak before the application was deployed never produced
-     * a "user created" event: they join as a Bénévole, with the names from their token.
+     * a "user created" event: they join as a Bénévole, with the names from their token. The e-mail is copied from the
+     * token at each sign-in: it is their Keycloak account's.
      */
-    UserDto getOrJoin(@NotNull UUID personId, String firstName, String lastName);
+    UserDto getOrJoin(@NotNull UUID personId, String firstName, String lastName, String email);
 
     /** Promotion chain: see {@link fr.fruityhedgeh0g.enums.RoleEnum#maySetRole}. The database Role applies even if the Keycloak mirror fails. */
     /**

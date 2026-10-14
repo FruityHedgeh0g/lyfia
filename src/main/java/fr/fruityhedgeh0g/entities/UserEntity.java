@@ -1,5 +1,7 @@
 package fr.fruityhedgeh0g.entities;
 
+import java.time.LocalDate;
+import java.time.Period;
 import fr.fruityhedgeh0g.enums.BureauFunctionEnum;
 import fr.fruityhedgeh0g.enums.RoleEnum;
 import jakarta.persistence.*;
@@ -31,6 +33,14 @@ public class UserEntity extends AuditTemplate{
     /** Required before signing up for an Event. */
     @Column(name = "phone")
     private String phone;
+
+    /** The e-mail of their Keycloak account, copied at each sign-in; optional. */
+    @Column(name = "email")
+    private String email;
+
+    /** Required before signing up for an Event: a minor's sign-up needs a décharge approved. */
+    @Column(name = "birth_date")
+    private LocalDate birthDate;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)
@@ -77,6 +87,15 @@ public class UserEntity extends AuditTemplate{
             this.bureauFunction = null;
         else if (role == RoleEnum.BUREAU && this.bureauFunction == null)
             this.bureauFunction = BureauFunctionEnum.MEMBRE_DU_BUREAU;
+    }
+
+    public boolean hasBirthDate() {
+        return birthDate != null;
+    }
+
+    /** Under 18 on that day; unknown without a birth date. */
+    public boolean isMinorOn(LocalDate day) {
+        return birthDate != null && Period.between(birthDate, day).getYears() < 18;
     }
 
     /** A phone number is required before signing up for an Event. */

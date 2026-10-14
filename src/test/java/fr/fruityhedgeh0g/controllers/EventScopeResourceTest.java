@@ -119,7 +119,7 @@ public class EventScopeResourceTest {
     private void persistPerson(String id, RoleEnum role, UUID sectorId) {
         UUID userId = UUID.fromString(id);
         QuarkusTransaction.requiringNew().run(() -> userRepository.persist(
-                UserEntity.builder().userId(userId).firstName("Test").lastName(role.name()).role(role).phone("06 00 00 00 00")
+                UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(userId).firstName("Test").lastName(role.name()).role(role).phone("06 00 00 00 00")
                         .sector(sectorId == null ? null : sectorRepository.findById(sectorId)).build()));
         persons.add(userId);
     }

@@ -118,7 +118,7 @@ public class JourneeResourceTest {
     private void persistPerson(String id, RoleEnum role, String lastName) {
         UUID userId = UUID.fromString(id);
         QuarkusTransaction.requiringNew().run(() -> userRepository.persist(
-                UserEntity.builder().userId(userId).firstName("Test").lastName(lastName).role(role).phone("06 00 00 00 00").build()
+                UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(userId).firstName("Test").lastName(lastName).role(role).phone("06 00 00 00 00").build()
         ));
         persons.add(userId);
     }

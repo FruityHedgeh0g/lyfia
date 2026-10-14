@@ -76,7 +76,7 @@ class SuperAdminBootstrapTest {
             SectorEntity sector = SectorEntity.builder().name("Bootstrap " + personId).build();
             sectorRepository.persist(sector);
             sectorId = sector.getSectorId();
-            userRepository.persist(UserEntity.builder().userId(personId).firstName("Julien").lastName("Peynot")
+            userRepository.persist(UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(personId).firstName("Julien").lastName("Peynot")
                     .role(RoleEnum.BUREAU).bureauFunction(BureauFunctionEnum.PRESIDENT).sector(sector).build());
         });
         directory.register("julien", new KeycloakPerson(personId, "Julien", "Peynot"));

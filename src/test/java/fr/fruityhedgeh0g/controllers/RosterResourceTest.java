@@ -84,7 +84,7 @@ public class RosterResourceTest {
 
     private UUID persistPerson(UUID id, RoleEnum role, String lastName) {
         QuarkusTransaction.requiringNew().run(() -> userRepository.persist(
-                UserEntity.builder().userId(id).firstName("Test").lastName(lastName).role(role).phone("06 00 00 00 00").build()
+                UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(id).firstName("Test").lastName(lastName).role(role).phone("06 00 00 00 00").build()
         ));
         persons.add(id);
         return id;

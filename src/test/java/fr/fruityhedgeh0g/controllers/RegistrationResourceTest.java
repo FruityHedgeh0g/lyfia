@@ -89,7 +89,7 @@ public class RegistrationResourceTest {
 
     private UUID persistPerson(UUID id, RoleEnum role, String phone) {
         QuarkusTransaction.requiringNew().run(() -> userRepository.persist(
-                UserEntity.builder().userId(id).firstName("Test").lastName(role.name()).role(role).phone(phone).build()
+                UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(id).firstName("Test").lastName(role.name()).role(role).phone(phone).build()
         ));
         persons.add(id);
         return id;

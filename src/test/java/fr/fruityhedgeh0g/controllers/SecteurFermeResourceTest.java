@@ -119,7 +119,7 @@ public class SecteurFermeResourceTest {
 
     private void persistPerson(String id, RoleEnum role) {
         QuarkusTransaction.requiringNew().run(() -> userRepository.persist(
-                UserEntity.builder().userId(UUID.fromString(id)).firstName("Test").lastName(role.name()).role(role).phone("06 00 00 00 00").build()));
+                UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(UUID.fromString(id)).firstName("Test").lastName(role.name()).role(role).phone("06 00 00 00 00").build()));
     }
 
     private UUID persistEvent(SectorEntity s, EventStatusEnum status, LocalDateTime start, LocalDateTime end) {

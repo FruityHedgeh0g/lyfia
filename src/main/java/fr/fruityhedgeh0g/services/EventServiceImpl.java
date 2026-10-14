@@ -24,6 +24,8 @@ import fr.fruityhedgeh0g.enums.PosteEnum;
 import fr.fruityhedgeh0g.enums.RegistrationStatusEnum;
 import fr.fruityhedgeh0g.enums.RoleEnum;
 import fr.fruityhedgeh0g.exceptions.ConducteurNotFoundException;
+import fr.fruityhedgeh0g.exceptions.SignUpRequirementException;
+import fr.fruityhedgeh0g.dtos.eventDtos.DechargeDto;
 import fr.fruityhedgeh0g.exceptions.ForbiddenActionException;
 import fr.fruityhedgeh0g.exceptions.InvalidResourceException;
 import fr.fruityhedgeh0g.exceptions.PhoneRequiredException;
@@ -93,6 +95,9 @@ public class EventServiceImpl implements EventService {
 
     @Inject
     FeatureLevers featureLevers;
+
+    @Inject
+    DechargeService dechargeService;
 
     /** A Journée's sign-ups in the order they were taken: the order of its Liste d'attente. */
     private static final Comparator<JourneeRegistrationEntity> BY_SIGN_UP = Comparator
@@ -260,6 +265,7 @@ public class EventServiceImpl implements EventService {
         if (existing.isPresent() && added.isEmpty()) return toDto(existing.get());
         featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS, event.getSector());
         requireSignUpOpenTo(event, person);
+        UUID decharge = requireDechargeOf(person, existing.orElse(null), added, signUp.dechargeSignataire());
 
         EventRegistrationEntity conducteur = comesWithSomeone ? conducteurNamed(eventId, signUp.conducteurName(), personId, added) : null;
         GroupEntity asked = signUp.groupId() == null || existing.isPresent() ? null : groupOrThrow(signUp.groupId());
@@ -270,6 +276,7 @@ public class EventServiceImpl implements EventService {
             return created;
         });
         if (asked != null) registration.requestGroup(asked);
+        if (decharge != null) registration.approveDecharge(signUp.dechargeSignataire(), decharge);
         addJournees(event, registration, added, conducteur);
         if (existing.isEmpty() && conducteur != null) comeWith(event, registration, conducteur);
         return toDto(registration);
@@ -294,6 +301,25 @@ public class EventServiceImpl implements EventService {
             // Counted by the checks of the next Journées and sign-ups
             journeeRepository.persist(added);
         }
+    }
+
+    /**
+     * The birth date is required to sign up; a minor on the first Journée signed up for needs the décharge in force,
+     * approved by their legal representative, unless already approved for this Event. Gives the version to record.
+     */
+    private UUID requireDechargeOf(UserEntity person, EventRegistrationEntity existing, List<LocalDate> added, String signataire) {
+        if (!person.hasBirthDate())
+            throw new SignUpRequirementException(SignUpRequirementException.BIRTH_DATE_REQUIRED,
+                    "A birth date is required to sign up: " + person.getUserId());
+        if ((existing != null && existing.hasDecharge()) || added.isEmpty() || !person.isMinorOn(added.getFirst())) return null;
+        UUID document = dechargeService.current()
+                .orElseThrow(() -> new SignUpRequirementException(SignUpRequirementException.DECHARGE_INDISPONIBLE,
+                        "No décharge is uploaded yet: minors cannot sign up."))
+                .documentId();
+        if (signataire == null || signataire.isBlank())
+            throw new SignUpRequirementException(SignUpRequirementException.DECHARGE_REQUISE,
+                    "A minor's legal representative approves the décharge: " + person.getUserId());
+        return document;
     }
 
     /** "Je viens avec": the passager takes the conducteur's Groupe (within its maximum) or pending Demande. */
@@ -526,22 +552,23 @@ public class EventServiceImpl implements EventService {
                     return new MonGroupeDto.EventRoster(
                             event.getEventId(), event.getName(), event.getStartDateTime(), event.currentStatus(),
                             event.maximumOf(group),
-                            all.stream().filter(r -> r.ridesWith(group)).map(r -> toRosterEntry(r, null)).toList(),
-                            all.stream().filter(r -> r.asksFor(group)).map(r -> toRosterEntry(r, null)).toList(),
+                            all.stream().filter(r -> r.ridesWith(group)).map(r -> toRosterEntry(r, null, false)).toList(),
+                            all.stream().filter(r -> r.asksFor(group)).map(r -> toRosterEntry(r, null, false)).toList(),
                             event.journees().stream().map(d -> new MonGroupeDto.JourneeRoster(d,
-                                    entriesAt(all, d, r -> r.ridesWith(group)),
-                                    entriesAt(all, d, r -> r.asksFor(group)))).toList());
+                                    entriesAt(all, d, r -> r.ridesWith(group), false),
+                                    entriesAt(all, d, r -> r.asksFor(group), false))).toList());
                 })
                 .toList();
         return new MonGroupeDto(GroupRefDto.of(group), events);
     }
 
-    /** The sign-ups for that Journée matching, in that Journée's sign-up order. */
-    private static List<RosterEntryDto> entriesAt(List<EventRegistrationEntity> all, LocalDate journee, Predicate<EventRegistrationEntity> matching) {
+    /** The sign-ups for that Journée matching, in that Journée's sign-up order; {@code forBureau} with their personal details. */
+    private static List<RosterEntryDto> entriesAt(List<EventRegistrationEntity> all, LocalDate journee,
+                                                  Predicate<EventRegistrationEntity> matching, boolean forBureau) {
         return all.stream().filter(matching)
                 .flatMap(r -> r.journee(journee).stream())
                 .sorted(BY_SIGN_UP)
-                .map(j -> toRosterEntry(j.getRegistration(), journee))
+                .map(j -> toRosterEntry(j.getRegistration(), journee, forBureau))
                 .toList();
     }
 
@@ -684,19 +711,22 @@ public class EventServiceImpl implements EventService {
                     return new RosterDto.JourneeCountDto(d, at.size() - waiting, waiting);
                 }).toList(),
                 event.getMaxParticipants(),
-                that.stream().filter(j -> !j.isWaiting()).map(j -> toRosterEntry(j.getRegistration(), journee)).toList(),
-                that.stream().filter(JourneeRegistrationEntity::isWaiting).map(j -> toRosterEntry(j.getRegistration(), journee)).toList(),
+                that.stream().filter(j -> !j.isWaiting()).map(j -> toRosterEntry(j.getRegistration(), journee, true)).toList(),
+                that.stream().filter(JourneeRegistrationEntity::isWaiting).map(j -> toRosterEntry(j.getRegistration(), journee, true)).toList(),
                 groups.stream().map(group -> new GroupRosterDto(
                         GroupRefDto.of(group),
                         event.maximumOf(group),
-                        entriesAt(all, journee, r -> r.ridesWith(group)),
-                        entriesAt(all, journee, r -> r.asksFor(group))
+                        entriesAt(all, journee, r -> r.ridesWith(group), true),
+                        entriesAt(all, journee, r -> r.asksFor(group), true)
                 )).toList()
         );
     }
 
-    /** One person on the roster, with that Journée's place and pairing (their first Journée's when none). */
-    private static RosterEntryDto toRosterEntry(EventRegistrationEntity registration, LocalDate journee) {
+    /**
+     * One person on the roster, with that Journée's place and pairing (their first Journée's when none); the Bureau
+     * also sees their e-mail, birth date and décharge (insurance of minors), a Chef de groupe does not.
+     */
+    private static RosterEntryDto toRosterEntry(EventRegistrationEntity registration, LocalDate journee, boolean forBureau) {
         UserEntity person = registration.getPerson();
         JourneeRegistrationEntity at = (journee == null ? Optional.<JourneeRegistrationEntity>empty() : registration.journee(journee))
                 .or(() -> registration.getJournees().stream().findFirst())
@@ -705,7 +735,9 @@ public class EventServiceImpl implements EventService {
                 registration.getPoste(), at == null ? registration.getSignedUpAt() : at.getSignedUpAt(),
                 GroupRefDto.of(registration.getGroup()), DemandeDto.of(registration),
                 at == null ? null : personOf(at.getConducteur()), at == null ? null : personOf(at.getPassager()),
-                registration.isChefOfItsGroup(), registration.journeeDates());
+                registration.isChefOfItsGroup(), registration.journeeDates(),
+                forBureau ? person.getEmail() : null, forBureau ? person.getBirthDate() : null,
+                forBureau ? DechargeDto.of(registration) : null);
     }
 
     /** true when the Event has no maximum or still has {@code needed} places under it that Journée (every Poste counts). */
@@ -793,7 +825,7 @@ public class EventServiceImpl implements EventService {
         NestedUserDto conducteur = journees.stream().map(RegistrationDto.JourneeDto::conducteur).filter(Objects::nonNull).findFirst().orElse(null);
         return new RegistrationDto(registration.getEvent().getEventId(), registration.getPoste(), registration.status(),
                 registration.getSignedUpAt(), GroupRefDto.of(registration.getGroup()), DemandeDto.of(registration), conducteur,
-                registration.isChefOfItsGroup(), journees);
+                registration.isChefOfItsGroup(), journees, DechargeDto.of(registration));
     }
 
     /** A maximum of 0 or less means no maximum. */

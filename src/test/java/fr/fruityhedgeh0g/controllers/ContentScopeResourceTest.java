@@ -100,7 +100,7 @@ class ContentScopeResourceTest {
     }
 
     private static UserEntity person(String id, RoleEnum role, SectorEntity sector) {
-        return UserEntity.builder().userId(UUID.fromString(id)).firstName("Scope").lastName(role.name()).role(role).sector(sector).build();
+        return UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(UUID.fromString(id)).firstName("Scope").lastName(role.name()).role(role).sector(sector).build();
     }
 
     private UUID post(String title, PostStatusEnum status, SectorEntity sector) {
