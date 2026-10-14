@@ -21,13 +21,22 @@ export function useEventRegistration() {
 
   const register = useMutation({
     /** `conducteur` : le prénom et le nom du conducteur avec qui vient un passager, rapproché par l'API. L'API lit le téléphone au profil. */
-    mutationFn: (input: { eventId: string; poste: Poste; phone?: string; groupId?: string; conducteur?: string; journees?: Journee[] }) => {
+    mutationFn: (input: {
+      eventId: string;
+      poste: Poste;
+      phone?: string;
+      groupId?: string;
+      conducteur?: string;
+      journees?: Journee[];
+      signataire?: string;
+    }) => {
       if (!user) throw new Error("Connectez-vous pour vous inscrire.");
       return signUp(input.eventId, {
         poste: input.poste,
         groupId: input.groupId || undefined,
         conducteur: input.conducteur?.trim() || undefined,
         journees: input.journees,
+        signataire: input.signataire,
       });
     },
     onSuccess: invalidate,

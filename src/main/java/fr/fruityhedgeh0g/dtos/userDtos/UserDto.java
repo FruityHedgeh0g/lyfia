@@ -1,5 +1,6 @@
 package fr.fruityhedgeh0g.dtos.userDtos;
 
+import java.time.LocalDate;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonView;
 import fr.fruityhedgeh0g.dtos.Views;
@@ -34,6 +35,13 @@ public class UserDto {
 
     @JsonView({Views.Detailed.class,Views.Update.class})
     String phone;
+
+    /** Read only: their Keycloak account's e-mail, copied at each sign-in. */
+    @JsonView({Views.Detailed.class,Views.Creation.class,Views.Update.class})
+    String email;
+
+    @JsonView(Views.Detailed.class)
+    LocalDate birthDate;
 
     @JsonView(Views.Basic.class)
     RoleEnum role;

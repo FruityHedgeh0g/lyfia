@@ -18,13 +18,21 @@ export interface CurrentUser {
   sector: UserSector | null;
   /** Nécessaire pour s'inscrire à un Événement. */
   phone?: string;
+  /** Celui de son compte Keycloak, recopié à chaque connexion ; facultatif. */
+  email?: string;
+  /** `AAAA-MM-JJ`, nécessaire pour s'inscrire à un Événement : un mineur fait approuver la décharge. */
+  birthDate?: string;
   /** Sa Fonction au Bureau, s'il y siège (ADR 0001). */
   bureauFunction?: BureauFunction | null;
 }
 
-/** Ce qu'une personne modifie d'elle-même dans Mon espace (PATCH /api/users/me) : son téléphone ; ses noms, seul un Admin les corrige (ADR 0007). */
+/**
+ * Ce qu'une personne modifie d'elle-même dans Mon espace (PATCH /api/users/me) : son téléphone et sa date de naissance
+ * (absente, elle est gardée) ; ses noms, seul un Admin les corrige (ADR 0007), son e-mail est celui de son compte.
+ */
 export interface Profile {
   phone?: string;
+  birthDate?: string;
 }
 
 interface UserDto {
@@ -33,6 +41,8 @@ interface UserDto {
   lastName: string;
   role: RoleId;
   phone?: string | null;
+  email?: string | null;
+  birthDate?: string | null;
   sector?: UserSector | null;
   bureauFunction?: BureauFunction | null;
 }
@@ -44,6 +54,8 @@ const toCurrentUser = (dto: UserDto): CurrentUser => ({
   role: dto.role,
   sector: dto.sector ?? null,
   phone: dto.phone ?? undefined,
+  email: dto.email ?? undefined,
+  birthDate: dto.birthDate ?? undefined,
   bureauFunction: dto.bureauFunction ?? null,
 });
 

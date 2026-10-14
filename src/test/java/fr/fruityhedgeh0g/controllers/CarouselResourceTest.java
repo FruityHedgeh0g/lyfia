@@ -47,7 +47,7 @@ class CarouselResourceTest {
             SectorEntity s = SectorEntity.builder().name("Test Secteur " + UUID.randomUUID()).build();
             sectorRepository.persist(s);
             sector = s.getSectorId();
-            userRepository.persist(UserEntity.builder().userId(UUID.fromString(BUREAU_ID)).firstName("Test").lastName("Bureau")
+            userRepository.persist(UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(UUID.fromString(BUREAU_ID)).firstName("Test").lastName("Bureau")
                     .role(RoleEnum.BUREAU).sector(s).build());
         });
     }

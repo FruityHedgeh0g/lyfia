@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useEvent } from "../../features/events/useEvents";
 import { acceptsSignUps, EVENT_STATUS_LABELS, statusTone } from "../../features/events/status";
 import { useEventRegistration, useMyRegistrations } from "../../features/events/useMyRegistrations";
-import { DEMANDE_STATUS_LABELS, groupKindOf, passagerLabel, PhoneRequiredError, Poste, POSTE_LABELS, POSTES, Registration } from "../../features/events/registrationsApi";
+import { DEMANDE_STATUS_LABELS, groupKindOf, passagerLabel, PhoneRequiredError, Poste, SignUpRequirementError, POSTE_LABELS, POSTES, Registration } from "../../features/events/registrationsApi";
 import { useGroups } from "../../features/groups/useGroups";
 import Select from "../../components/atoms/Select/Select";
 import { useFeature, useFeatureOff } from "../../features/featureFlags/useFeatureFlags";
@@ -21,6 +21,7 @@ import { useSectors } from "../../features/sectors/useSector";
 import Icon from "../../components/atoms/Icon/Icon";
 import FeatureNotice from "../../components/molecules/FeatureNotice/FeatureNotice";
 import Checkbox from "../../components/atoms/Checkbox/Checkbox";
+import DechargeModal from "../../features/decharge/DechargeModal";
 import { askWithPassager } from "../../features/events/confirmations";
 import { eventJournees, Journee, journeeLabel } from "../../lib/journees";
 import styles from "./EventDetailPage.module.css";
@@ -57,34 +58,50 @@ export const EventDetailPage: React.FC = () => {
   const [added, setAdded] = useState<Journee[]>([]);
   const registrationOpen = useFeature("inscription-evenements", event?.sectorId);
   const registrationOff = useFeatureOff("inscription-evenements", event?.sectorId);
-  const [askPhone, setAskPhone] = useState(false);
+  /** Ce que l'API demande encore avant d'inscrire : le téléphone et la date de naissance manquants au profil. */
+  const [askProfile, setAskProfile] = useState(false);
   const [phone, setPhone] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  /** Pour un mineur : la décharge que son représentant légal approuve. */
+  const [askDecharge, setAskDecharge] = useState(false);
 
   const registration = registrations?.find((r) => r.eventId === eventId);
   const { confirm, dialog } = useConfirm();
   const isPending = register.isPending || unregister.isPending || askGroup.isPending;
 
-  /** Sans téléphone, l'API refuse l'inscription : on le demande, on l'enregistre au profil, puis on réessaie. */
-  const signUp = (withPhone?: string) => {
+  /**
+   * Sans téléphone ni date de naissance, l'API refuse l'inscription : on les demande, on les enregistre au profil,
+   * puis on réessaie. Pour un mineur, son représentant légal approuve la décharge, puis on réessaie avec son nom.
+   */
+  const signUp = (signataire?: string) => {
     if (!eventId) return;
     const journees = chosen ?? undefined;
     register.mutate(
       poste === "passager" && conducteur.trim()
-        ? { eventId, poste, phone: withPhone, conducteur, journees }
-        : { eventId, poste, phone: withPhone, groupId: groupKindOf(poste) ? groupId : undefined, journees },
+        ? { eventId, poste, conducteur, journees, signataire }
+        : { eventId, poste, groupId: groupKindOf(poste) ? groupId : undefined, journees, signataire },
       {
-        onSuccess: () => setAskPhone(false),
-        onError: (error) => setAskPhone(error instanceof PhoneRequiredError),
+        onSuccess: () => {
+          setAskProfile(false);
+          setAskDecharge(false);
+        },
+        onError: (error) => {
+          setAskProfile(
+            error instanceof PhoneRequiredError || (error instanceof SignUpRequirementError && error.code === "birth-date-required")
+          );
+          setAskDecharge(error instanceof SignUpRequirementError && error.code === "decharge-requise");
+        },
       }
     );
   };
 
-  const savePhoneAndSignUp = (e: React.FormEvent) => {
+  const saveProfileAndSignUp = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !phone.trim()) return;
-    const withPhone = phone.trim();
-    // Inscrit même si le profil n'a pas pu être mis à jour : le téléphone accompagne l'inscription
-    updateProfile({ phone: withPhone }).finally(() => signUp(withPhone));
+    if (!user || (!user.phone && !phone.trim()) || (!user.birthDate && !birthDate)) return;
+    updateProfile({ phone: user.phone || phone.trim(), birthDate: user.birthDate || birthDate }).then(
+      () => signUp(),
+      () => undefined
+    );
   };
 
   const back = (
@@ -292,17 +309,30 @@ export const EventDetailPage: React.FC = () => {
                 <div className={styles.actions}>
                   {!isAuthenticated ? (
                     <ButtonLink to="/connexion" label="Se connecter pour m'inscrire" />
-                  ) : askPhone ? (
-                    <form onSubmit={savePhoneAndSignUp} noValidate>
-                      <FormField
-                        label="Téléphone"
-                        type="tel"
-                        autoComplete="tel"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        required
-                      />
-                      <p>Votre numéro est nécessaire pour vous inscrire ; il est enregistré dans votre profil.</p>
+                  ) : askProfile ? (
+                    <form onSubmit={saveProfileAndSignUp} noValidate>
+                      {!user?.phone && (
+                        <FormField
+                          label="Téléphone"
+                          type="tel"
+                          autoComplete="tel"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          required
+                        />
+                      )}
+                      {!user?.birthDate && (
+                        <FormField
+                          label="Date de naissance"
+                          type="date"
+                          autoComplete="bday"
+                          value={birthDate}
+                          max={new Date().toISOString().slice(0, 10)}
+                          onChange={(e) => setBirthDate(e.target.value)}
+                          required
+                        />
+                      )}
+                      <p>Ces informations sont nécessaires pour vous inscrire ; elles sont enregistrées dans votre profil.</p>
                       <Button type="submit" label="Enregistrer et m'inscrire" variant="accent" disabled={isPending} />
                     </form>
                   ) : (
@@ -341,7 +371,7 @@ export const EventDetailPage: React.FC = () => {
                         disabled={isPending || picked.length === 0}
                         onClick={() => signUp()}
                       />
-                      {register.isError && !askPhone && <p className={styles.error}>{register.error.message}</p>}
+                      {register.isError && !askProfile && !askDecharge && <p className={styles.error}>{register.error.message}</p>}
                     </>
                   )}
                 </div>
@@ -351,6 +381,7 @@ export const EventDetailPage: React.FC = () => {
         </div>
       </div>
       {dialog}
+      <DechargeModal isOpen={askDecharge} onClose={() => setAskDecharge(false)} onApprove={(signataire) => signUp(signataire)} pending={isPending} />
     </article>
   );
 };

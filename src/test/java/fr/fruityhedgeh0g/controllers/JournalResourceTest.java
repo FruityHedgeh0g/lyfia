@@ -41,7 +41,7 @@ class JournalResourceTest {
     @BeforeEach
     void seed() {
         QuarkusTransaction.requiringNew().run(() -> {
-            userRepository.persist(UserEntity.builder().userId(UUID.fromString(SUPER_ADMIN))
+            userRepository.persist(UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(UUID.fromString(SUPER_ADMIN))
                     .firstName("Sam").lastName("Levier").role(RoleEnum.SUPER_ADMIN).build());
             featureRepository.persist(FeatureEntity.builder().name(FEATURE).description("Test").isActive(true).build());
         });

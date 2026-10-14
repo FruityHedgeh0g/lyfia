@@ -73,6 +73,8 @@ export interface Registration {
   /** On y roule comme Chef du Groupe qu'on mène : une place que seul un changement d'Affectation retire (ADR 0010). */
   leadsGroup?: boolean;
   journees: RegistrationJournee[];
+  /** La décharge approuvée pour un mineur. */
+  decharge?: Decharge | null;
 }
 
 /**
@@ -95,6 +97,10 @@ export interface RosterEntry {
   /** Le Chef du Groupe : ni retiré, ni sorti du groupe, tant qu'il le mène (ADR 0010). */
   leadsGroup?: boolean;
   journees: Journee[];
+  /** Pour le Bureau seulement : l'e-mail, la date de naissance et la décharge d'un mineur. */
+  email?: string | null;
+  birthDate?: string | null;
+  decharge?: Decharge | null;
 }
 
 /** Un passager sans conducteur ce jour-là, signalé au Bureau et à son Chef de groupe pour être associé. */
@@ -165,8 +171,24 @@ export interface SigningUpPerson {
   firstName: string;
   lastName: string;
   phone?: string;
+  /** `AAAA-MM-JJ` ; vide : à demander avant de s'inscrire ; absente (préparation des tests) : majeur supposé. */
+  birthDate?: string | null;
   /** Secteur de la personne à partir de Membre : elle ne roule qu'aux Événements de ce Secteur (ADR 0004). */
   sectorId?: string | null;
+}
+
+/** Reflète DechargeDto : la décharge approuvée pour un mineur, par qui, quand, et quelle version. */
+export interface Decharge {
+  signataire: string;
+  signedAt: string;
+  documentId: string;
+}
+
+/** L'âge, en années révolues, à ce jour-là (`AAAA-MM-JJ`). */
+export function ageOn(birthDate: string, day: string): number {
+  const [by, bm, bd] = birthDate.split("-").map(Number);
+  const [y, m, d] = day.split("-").map(Number);
+  return y - by - (m < bm || (m === bm && d < bd) ? 1 : 0);
 }
 
 export const REGISTRATION_STATUS_LABELS: Record<RegistrationStatus, string> = {
@@ -199,6 +221,26 @@ export class PhoneRequiredError extends Error {
 }
 
 /**
+ * Réponse 422 `birth-date-required`, `decharge-requise` ou `decharge-indisponible` : ce qu'il manque encore pour
+ * s'inscrire — la date de naissance, la décharge approuvée par le représentant légal d'un mineur, ou la décharge
+ * elle-même, pas encore déposée.
+ */
+export type SignUpRequirement = "birth-date-required" | "decharge-requise" | "decharge-indisponible";
+
+const SIGN_UP_REQUIREMENT_MESSAGES: Record<SignUpRequirement, string> = {
+  "birth-date-required": "Votre date de naissance est nécessaire pour vous inscrire.",
+  "decharge-requise": "Pour un mineur, la décharge de responsabilité doit être approuvée par son représentant légal.",
+  "decharge-indisponible": "L'inscription des mineurs ouvrira dès que la décharge de responsabilité sera disponible.",
+};
+
+export class SignUpRequirementError extends Error {
+  constructor(readonly code: SignUpRequirement) {
+    super(SIGN_UP_REQUIREMENT_MESSAGES[code]);
+    this.name = "SignUpRequirementError";
+  }
+}
+
+/**
  * Réponse 422 `conducteur-introuvable` ou `conducteur-ambigu` : le nom tapé ne désigne clairement aucun conducteur
  * inscrit, libre l'une des journées choisies. La liste des inscrits n'est jamais montrée.
  */
@@ -224,6 +266,7 @@ async function phoneRequired<T>(call: Promise<T>): Promise<T> {
     if (error instanceof HttpError && error.status === 422) {
       if (error.code === "conducteur-introuvable" || error.code === "conducteur-ambigu")
         throw new ConducteurNotFoundError(error.code === "conducteur-ambigu");
+      if (error.code && error.code in SIGN_UP_REQUIREMENT_MESSAGES) throw new SignUpRequirementError(error.code as SignUpRequirement);
       throw new PhoneRequiredError();
     }
     throw error;
@@ -247,14 +290,16 @@ const query = (params: URLSearchParams) => (params.size ? `?${params}` : "");
 /**
  * S'inscrire aux Journées choisies (aucune : tout l'Événement), à un Poste ; `groupId` demande ce Groupe ;
  * `conducteur` : le prénom et le nom du conducteur avec qui vient un passager (« je viens avec »), rapproché par l'API
- * parmi les inscrits. S'inscrire de nouveau ajoute des Journées.
+ * parmi les inscrits ; `signataire` : pour un mineur, le représentant légal qui approuve la décharge. S'inscrire de
+ * nouveau ajoute des Journées.
  */
 export function signUp(
   eventId: string,
-  options: { poste?: Poste; groupId?: string; conducteur?: string; journees?: Journee[] } = {}
+  options: { poste?: Poste; groupId?: string; conducteur?: string; journees?: Journee[]; signataire?: string } = {}
 ): Promise<Registration> {
   const params = withJournees(new URLSearchParams(), options.journees);
   if (options.poste) params.set("poste", options.poste);
+  if (options.signataire) params.set("signataire", options.signataire);
   if (options.conducteur) params.set("conducteur", options.conducteur);
   else if (options.groupId) params.set("groupId", options.groupId);
   const query = params.size ? `?${params}` : "";

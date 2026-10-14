@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { seedGroup } from "../../test/fakeApi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "../../auth/AuthContext";
@@ -35,6 +36,17 @@ describe("ProfilePage", () => {
     seedGroup({ name: "Test Nord", sectorId: "sector-1", chef: { userId: user.userId, firstName: user.firstName, lastName: user.lastName } });
     renderFor(user);
     expect(await screen.findByText("Chef de groupe — Test Nord")).toBeInTheDocument();
+  });
+
+  it("shows the account's e-mail, read only, and saves the birth date", async () => {
+    renderFor({ ...testUser("benevole", { birthDate: "" })!, email: "jean@example.org" });
+    const email = screen.getByLabelText("E-mail");
+    expect(email).toHaveValue("jean@example.org");
+    expect(email).toBeDisabled();
+
+    await userEvent.type(screen.getByLabelText("Date de naissance"), "1995-04-12");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    expect(await screen.findByText("Vos informations ont été mises à jour.")).toBeInTheDocument();
   });
 
   it("shows the Super admin account as such only", () => {

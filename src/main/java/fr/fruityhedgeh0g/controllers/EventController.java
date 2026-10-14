@@ -75,7 +75,8 @@ public class EventController {
      * {@code ?poste=} conducteur (by default), passager, chauffeur_camionnette, point_fixe or service;
      * {@code ?journee=} each Journée signed up for (none: every one, "tout l'Événement"); {@code ?groupId=} creates a
      * Demande de groupe for that Groupe; {@code ?conducteur=} the first and last name of the conducteur a passager comes
-     * with ("je viens avec"), matched among those signed up, taking their Groupe. Signing up again adds Journées.
+     * with ("je viens avec"), matched among those signed up, taking their Groupe; {@code ?signataire=} for a minor, the
+     * legal representative approving the décharge. Signing up again adds Journées.
      */
     @PUT
     @Path("/{eventId}/registration")
@@ -83,12 +84,14 @@ public class EventController {
     @RolesAllowed("benevole")
     public RegistrationDto signUp(@PathParam("eventId") UUID eventId, @QueryParam("poste") String poste,
                                   @QueryParam("groupId") UUID groupId, @QueryParam("conducteur") String conducteur,
-                                  @QueryParam("journee") List<LocalDate> journees){
+                                  @QueryParam("journee") List<LocalDate> journees,
+                                  @QueryParam("signataire") String signataire){
         boolean named = conducteur != null && !conducteur.isBlank();
         PosteEnum chosen = poste == null ? (named ? PosteEnum.PASSAGER : PosteEnum.CONDUCTEUR) : PosteEnum.of(poste);
         if (named && chosen != PosteEnum.PASSAGER) throw new BadRequestException("Only a passager names a conducteur.");
         if (named && groupId != null) throw new BadRequestException("A passager rides with their conducteur's Groupe.");
-        return eventService.signUp(eventId, me(), new PublicEventService.SignUp(chosen, groupId, named ? conducteur : null, journees));
+        return eventService.signUp(eventId, me(),
+                new PublicEventService.SignUp(chosen, groupId, named ? conducteur : null, journees, signataire));
     }
 
     @PUT

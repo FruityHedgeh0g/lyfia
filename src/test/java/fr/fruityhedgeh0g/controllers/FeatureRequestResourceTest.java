@@ -37,8 +37,8 @@ class FeatureRequestResourceTest {
     @BeforeEach
     void seed() {
         QuarkusTransaction.requiringNew().run(() -> {
-            userRepository.persist(UserEntity.builder().userId(UUID.fromString(BUREAU_ID)).firstName("Claire").lastName("Hoffmann").role(RoleEnum.BUREAU).build());
-            userRepository.persist(UserEntity.builder().userId(UUID.fromString(MEMBRE_ID)).firstName("Test").lastName("Membre").role(RoleEnum.MEMBRE).build());
+            userRepository.persist(UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(UUID.fromString(BUREAU_ID)).firstName("Claire").lastName("Hoffmann").role(RoleEnum.BUREAU).build());
+            userRepository.persist(UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(UUID.fromString(MEMBRE_ID)).firstName("Test").lastName("Membre").role(RoleEnum.MEMBRE).build());
         });
     }
 

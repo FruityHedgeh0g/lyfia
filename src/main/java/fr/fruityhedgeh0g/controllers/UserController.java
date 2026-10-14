@@ -47,7 +47,7 @@ public class UserController {
     @Authenticated
     public @JsonView(Views.Detailed.class) UserDto getCurrentUser(){
         UUID userId = UUID.fromString(token.getSubject());
-        return userService.getOrJoin(userId, token.getClaim("given_name"), token.getClaim("family_name"));
+        return userService.getOrJoin(userId, token.getClaim("given_name"), token.getClaim("family_name"), token.getClaim("email"));
     }
 
     @PATCH

@@ -88,7 +88,7 @@ class RenameResourceTest {
     }
 
     private UserEntity person(String id, RoleEnum role, SectorEntity sector) {
-        UserEntity user = UserEntity.builder().userId(UUID.fromString(id)).firstName("Test").lastName(role.name()).role(role).sector(sector).build();
+        UserEntity user = UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1)).userId(UUID.fromString(id)).firstName("Test").lastName(role.name()).role(role).sector(sector).build();
         userRepository.persist(user);
         return user;
     }

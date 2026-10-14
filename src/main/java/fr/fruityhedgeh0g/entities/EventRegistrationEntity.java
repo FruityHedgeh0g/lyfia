@@ -65,6 +65,16 @@ public class EventRegistrationEntity extends AuditTemplate {
     @Column(name = "demande_status")
     private DemandeStatusEnum demandeStatus;
 
+    /** For a minor: who approved the décharge (their legal representative), when, and which version. */
+    @Column(name = "decharge_signataire")
+    private String dechargeSignataire;
+
+    @Column(name = "decharge_signed_at")
+    private LocalDateTime dechargeSignedAt;
+
+    @Column(name = "decharge_document_id")
+    private UUID dechargeDocumentId;
+
     /** The Journées signed up for; the sign-up goes once it has none left. */
     @OneToMany(mappedBy = "registration", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("journee")
@@ -117,6 +127,17 @@ public class EventRegistrationEntity extends AuditTemplate {
     public RegistrationStatusEnum status() {
         return journees.stream().allMatch(JourneeRegistrationEntity::isWaiting) ? RegistrationStatusEnum.EN_ATTENTE
                 : RegistrationStatusEnum.PARTICIPANT;
+    }
+
+    public boolean hasDecharge() {
+        return dechargeSignedAt != null;
+    }
+
+    /** The legal representative approves that version of the décharge, now; kept for the audit. */
+    public void approveDecharge(String signataire, UUID documentId) {
+        dechargeSignataire = signataire.trim();
+        dechargeSignedAt = LocalDateTime.now(EventEntity.ZONE);
+        dechargeDocumentId = documentId;
     }
 
     /** A new pending Demande de groupe; only someone outside any Groupe at this Event makes one. */

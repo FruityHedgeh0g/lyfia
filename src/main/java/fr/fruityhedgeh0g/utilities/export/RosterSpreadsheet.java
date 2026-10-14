@@ -20,7 +20,8 @@ import java.util.Objects;
 /**
  * An Event's roster as an .xlsx file: one sheet per Journée (ADR 0011), the list of the day on the ground. Each row
  * gives name, phone, Poste, Groupe and who the person rides with that Journée (a passager's conducteur, a
- * conducteur's passager), Participants first in sign-up order, then the Liste d'attente in its order.
+ * conducteur's passager), then e-mail, birth date and the décharge signed for a minor; Participants first in sign-up
+ * order, then the Liste d'attente in its order.
  */
 public final class RosterSpreadsheet {
 
@@ -28,7 +29,9 @@ public final class RosterSpreadsheet {
 
     static final String LISTE_D_ATTENTE = "Liste d'attente";
     static final String SANS_CONDUCTEUR = "Sans conducteur";
-    private static final List<String> HEADER = List.of("Nom", "Prénom", "Téléphone", "Poste", "Groupe", "Avec", "Place");
+    private static final List<String> HEADER = List.of("Nom", "Prénom", "Téléphone", "Poste", "Groupe", "Avec", "Place",
+            "E-mail", "Naissance", "Décharge");
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter SHEET_NAME = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.FRENCH);
 
     private RosterSpreadsheet() {
@@ -68,6 +71,10 @@ public final class RosterSpreadsheet {
         sheet.value(row, 4, person.group() == null ? "" : person.group().name());
         sheet.value(row, 5, withWhom(person));
         sheet.value(row, 6, place);
+        sheet.value(row, 7, Objects.requireNonNullElse(person.email(), ""));
+        sheet.value(row, 8, person.birthDate() == null ? "" : person.birthDate().format(DATE));
+        sheet.value(row, 9, person.decharge() == null ? ""
+                : "Signée par " + person.decharge().signataire() + " le " + person.decharge().signedAt().format(DATE));
     }
 
     /** Who rides with the person that Journée; a passager without a conducteur stands out. */

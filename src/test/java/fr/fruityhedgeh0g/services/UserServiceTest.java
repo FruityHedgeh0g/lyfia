@@ -57,14 +57,14 @@ class UserServiceTest {
     @Test
     @TestTransaction
     public void listAllUsers_Success(){
-        UserEntity firstUser = UserEntity.builder()
+        UserEntity firstUser = UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1))
                 .userId(UUID.randomUUID())
                 .firstName("Platy")
                 .lastName("Pus")
                 .build();
         userRepository.persist(firstUser);
 
-        UserEntity secondUser = UserEntity.builder()
+        UserEntity secondUser = UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1))
                 .userId(UUID.randomUUID())
                 .firstName("Hedge")
                 .lastName("Hog")
@@ -92,7 +92,7 @@ class UserServiceTest {
     @Test
     @TestTransaction
     public void getById_Success(){
-        UserEntity user = UserEntity.builder()
+        UserEntity user = UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1))
                 .userId(UUID.randomUUID())
                 .firstName("Platy")
                 .lastName("Pus")
@@ -157,7 +157,7 @@ class UserServiceTest {
     @Test
     @TestTransaction
     public void create_Duplicate(){
-        UserEntity user = UserEntity.builder()
+        UserEntity user = UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1))
                 .userId(UUID.randomUUID())
                 .firstName("Platy")
                 .lastName("Pus")
@@ -177,7 +177,7 @@ class UserServiceTest {
     @Test
     @TestTransaction
     public void update_Success(){
-        UserEntity user = UserEntity.builder()
+        UserEntity user = UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1))
                 .userId(UUID.randomUUID())
                 .firstName("Platy")
                 .lastName("Pus")
@@ -202,7 +202,7 @@ class UserServiceTest {
     @Test
     @TestTransaction
     public void update_KeepsRole(){
-        UserEntity user = UserEntity.builder()
+        UserEntity user = UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1))
                 .userId(UUID.randomUUID())
                 .firstName("Platy")
                 .lastName("Pus")
@@ -254,7 +254,7 @@ class UserServiceTest {
     @Disabled("User deletion not implemented yet")
     public void delete_Success(){
 
-        UserEntity user = UserEntity.builder()
+        UserEntity user = UserEntity.builder().birthDate(java.time.LocalDate.of(1990, 1, 1))
                 .userId(UUID.randomUUID())
                 .firstName("Platy")
                 .lastName("Pus")

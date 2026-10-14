@@ -9,6 +9,7 @@ import fr.fruityhedgeh0g.exceptions.KeycloakUnavailableException;
 import fr.fruityhedgeh0g.exceptions.NotImplementedYetException;
 import fr.fruityhedgeh0g.exceptions.PhoneRequiredException;
 import fr.fruityhedgeh0g.exceptions.ConducteurNotFoundException;
+import fr.fruityhedgeh0g.exceptions.SignUpRequirementException;
 import fr.fruityhedgeh0g.exceptions.UnknownResourceException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
@@ -57,6 +58,12 @@ public class GlobalExceptionHandler {
     @ServerExceptionMapper
     public RestResponse<Map<String, String>> mapPhoneRequiredException(PhoneRequiredException x) {
         return RestResponse.ResponseBuilder.<Map<String, String>>create(422).entity(Map.of("error", "phone-required")).build();
+    }
+
+    /** The front end reads {@code error} to ask for what a sign-up still needs: a birth date, a décharge approved. */
+    @ServerExceptionMapper
+    public RestResponse<Map<String, String>> mapSignUpRequirementException(SignUpRequirementException x) {
+        return RestResponse.ResponseBuilder.<Map<String, String>>create(422).entity(Map.of("error", x.getCode())).build();
     }
 
     /** The front end reads {@code error} to ask for a more precise name; who is signed up is never shown. */

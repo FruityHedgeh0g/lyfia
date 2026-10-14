@@ -1,5 +1,6 @@
 package fr.fruityhedgeh0g.services;
 
+import java.time.LocalDate;
 import fr.fruityhedgeh0g.utilities.logging.Logged;
 
 import fr.fruityhedgeh0g.dtos.userDtos.NamesDto;
@@ -82,7 +83,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserDto getOrJoin(UUID personId, String firstName, String lastName) {
+    public UserDto getOrJoin(UUID personId, String firstName, String lastName, String email) {
         UserEntity person = userRepository.findByIdOptional(personId).orElseGet(() -> {
             UserEntity joined = UserEntity.builder()
                     .userId(personId)
@@ -93,6 +94,8 @@ public class UserServiceImpl implements UserService {
             userRepository.persist(joined);
             return joined;
         });
+        // The e-mail is the Keycloak account's: copied at each sign-in
+        if (!isBlank(email) && !email.trim().equals(person.getEmail())) person.setEmail(email.trim());
         return userMapper.toDto(person);
     }
 
@@ -175,6 +178,11 @@ public class UserServiceImpl implements UserService {
         UserEntity person = userRepository.findByIdOptional(personId)
                 .orElseThrow(() -> new UnknownResourceException("User not found: " + personId));
         person.setPhone(isBlank(profile.phone()) ? null : profile.phone().trim());
+        if (profile.birthDate() != null) {
+            if (profile.birthDate().isAfter(LocalDate.now()) || profile.birthDate().isBefore(LocalDate.of(1900, 1, 1)))
+                throw new InvalidResourceException("A birth date lies between 1900 and today: " + profile.birthDate());
+            person.setBirthDate(profile.birthDate());
+        }
         return userMapper.toDto(person);
     }
 
