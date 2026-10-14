@@ -32,7 +32,7 @@ _Avoid_: volunteer, inscrit, user
 **Membre**: a Bénévole who is part of the association through one Secteur, promoted by a Bureau member once their membership fee is settled (the fee itself is handled off-site). Every Role from Membre up belongs to exactly one Secteur (the Super admin excepted) and rides only at that Secteur's Events. Nobody changes Secteur (except when the Super admin appoints them Admin of another one): a person goes back to Bénévole, losing their Secteur, and is promoted again in the other one.
 _Avoid_: adhérent
 
-**Chef de groupe**: a Membre holding the operational function of leading a Groupe, appointed by the Bureau. Keeps the title between Affectations. From an Event's `Planification` until it is under way, the one leading a Groupe rides at it with that Groupe, as a `pilote` with a place kept beyond any maximum, which they cannot give up and nobody takes from them: only a new Affectation does, leaving them signed up without a Groupe.
+**Chef de groupe**: a Membre holding the operational function of leading a Groupe, appointed by the Bureau. Keeps the title between Affectations. From an Event's `Planification` until it is under way, the one leading a Groupe is at each of its Journées with that Groupe, at the Poste of its kind (`conducteur` or `service`), with a place kept beyond any maximum, which they cannot give up and nobody takes from them: only a new Affectation does, leaving them signed up without a Groupe.
 _Avoid_: group leader, responsable
 
 **Affectation**: the Bureau's decision that a given Chef de groupe leads a given Groupe. A Groupe has at most one Chef de groupe at a time; a Chef de groupe leads at most one Groupe. Handing a Groupe to a new Chef de groupe is a single Affectation.
@@ -57,7 +57,7 @@ _Avoid_: titre, poste, case Bureau
 _Avoid_: supprimé, gelé, actif (for the other state: a Secteur is simply a Secteur), deleted, frozen
 _Avoid_: sector (in UI copy), zone
 
-**Groupe**: a lasting team of bikers covering its own part of a Secteur, led by a Chef de groupe. Always belongs to exactly one Secteur. Who rides with a Groupe is decided per Event (see Demande de groupe).
+**Groupe**: a lasting team of a Secteur, led by a Chef de groupe, of one of two kinds: a Groupe de motards covers its own part of the Secteur on the road (its people are `conducteur`, `passager` or `chauffeur camionnette`), a Groupe de service runs one task at the Event (its people are `service`). Always belongs to exactly one Secteur. Who is with a Groupe is decided per Event (see Demande de groupe).
 _Avoid_: team, équipe
 
 **Demande de groupe**: a Participant's request to ride with a specific Groupe at one Event, made when signing up. Stays pending until the Bureau or that Groupe's Chef de groupe accepts or refuses it. A refused Participant stays signed up without a Groupe, and can make a new Demande or be placed by the Bureau.
@@ -70,9 +70,26 @@ _Avoid_: join request, candidature
 **Event status**: where an Event stands in its lifecycle: `Planification` → `Ouvert` ⇄ `Complet` (set by hand by the Bureau), then `En cours` and `Archivé` (follow the dates of an `Ouvert` or `Complet` Event; one still in `Planification` stays there, hidden). `Annulé` is set by hand from any status before `Archivé`. Only the Bureau, and the Chefs de groupe already riding at it with their Groupe, see an Event in `Planification`.
 _Avoid_: Publié (for Events)
 
-**Participant**: a Bénévole with a confirmed place at an Event (someone on a Liste d'attente is not yet a Participant), either as `pilote` or `passager` (chosen per Event). A `passager` is a registered Bénévole too and rides with the Groupe of their `pilote`. Signing up is possible while the Event is `Ouvert` or `Complet` (each Groupe's Chef de groupe is signed up from the `Planification`); while `Complet`, or once a maximum is reached, a sign-up goes onto the Liste d'attente. A Participant can withdraw at any time before the Event is `Archivé`. The Bureau can remove a Participant from an Event; the Chef de groupe can only take them out of their Groupe, leaving them a Participant without a Groupe.
+**Journée**: one calendar date between an Event's start and its end; an Event of one day has one Journée. People sign up per Journée, and the maximums and Listes d'attente count per Journée.
+_Avoid_: jour, date, session
 
-**Liste d'attente**: the queue of people who asked to take part in an Event, or to ride with a Groupe at an Event, after the maximum the Bureau set for that Event (or for that Groupe at that Event) was reached. It also serves as a reserve of riders on the day. Nobody moves up automatically: the Bureau (or, for a Groupe, its Chef de groupe) chooses. A `passager` counts towards every maximum and always follows their `pilote`.
+**Participant**: a Bénévole with a confirmed place at a Journée of an Event (someone on its Liste d'attente is not yet a Participant there), at one Poste. Signing up is possible while the Event is `Ouvert` or `Complet` (each Groupe's Chef de groupe is signed up from the `Planification`); while `Complet`, or once a maximum is reached, a sign-up goes onto the Liste d'attente. A Participant can withdraw at any time before the Event is `Archivé`. The Bureau can remove a Participant from an Event; the Chef de groupe can only take them out of their Groupe, leaving them a Participant without a Groupe.
+
+**Poste**: what a person signed up for an Event does at it: `conducteur`, `passager`, `chauffeur camionnette`, `point fixe` or `service`. Every Poste counts towards the Event's maximum: it caps how many people the Event receives, for their physical safety. Chosen by the person when signing up, per Event, the same for each of its Journées; the Bureau can change it afterwards.
+_Avoid_: rôle (that is the Role), mode
+
+**Conducteur**: the Poste of a person riding their own motorbike at an Event.
+_Avoid_: pilote
+
+**Passager**: the Poste of a registered Bénévole riding behind a `conducteur` of their own Groupe. A passager has a Groupe of their own, like a conducteur, and may sign up without naming a conducteur; naming one ("je viens avec") puts them in that conducteur's Groupe. Each Journée, a conducteur takes at most one passager, and the Bureau or the Groupe's Chef de groupe may pair a passager with another conducteur of the Groupe, for instance when theirs is not there that Journée. A conducteur withdrawing, or removed by the Bureau, chooses (the Bureau chooses) whether their passager goes too; one left behind stays signed up, flagged to the Bureau and the Chef de groupe as waiting for a conducteur. A passager rides behind a conducteur only on the Journées both are signed up for, however they were paired. A conducteur and their passager wait on the Liste d'attente and move up together, taking two places. When the Bureau or a Chef de groupe takes a conducteur out of their Groupe or places them in another, they choose whether the passager follows or the pairing ends.
+
+**Point fixe**: the Poste of a person stationed at one place along the Event's route instead of riding; is with no Groupe.
+
+**Chauffeur camionnette**: the Poste of a person driving the van that accompanies the motards, with a Groupe de motards. Takes no passager.
+
+**Service**: the Poste of a person running logistics, the buvette or security at the Event, with a Groupe de service.
+
+**Liste d'attente**: the queue of people who asked to take part in a Journée of an Event, or to be with a Groupe at it, after the maximum the Bureau set for that Event (or for that Groupe at that Event) was reached that Journée; a maximum applies to each Journée alike. It also serves as a reserve of riders on the day. Nobody moves up automatically: the Bureau (or, for a Groupe, its Chef de groupe) chooses. Everyone counts towards the maximums, whatever their Poste; a `passager` always follows their `conducteur`.
 _Avoid_: waitlist, file d'attente
 
 ### Content
