@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchMyRegistrations, fetchConducteurs, requestGroup, signUp, withdraw } from "./registrationsApi";
+import { Poste, fetchMyRegistrations, fetchConducteurs, requestGroup, signUp, withdraw } from "./registrationsApi";
 import { queryKeys } from "../queryKeys";
 import { useAuth } from "../../auth/AuthContext";
 
@@ -29,9 +29,9 @@ export function useEventRegistration() {
 
   const register = useMutation({
     /** `conducteurId` : s'inscrire comme passager de ce conducteur (sans Demande de groupe). L'API lit le téléphone au profil. */
-    mutationFn: (input: { eventId: string; phone?: string; groupId?: string; conducteurId?: string }) => {
+    mutationFn: (input: { eventId: string; poste: Poste; phone?: string; groupId?: string; conducteurId?: string }) => {
       if (!user) throw new Error("Connectez-vous pour vous inscrire.");
-      return signUp(input.eventId, { groupId: input.groupId || undefined, conducteurId: input.conducteurId || undefined });
+      return signUp(input.eventId, { poste: input.poste, groupId: input.groupId || undefined, conducteurId: input.conducteurId || undefined });
     },
     onSuccess: invalidate,
   });

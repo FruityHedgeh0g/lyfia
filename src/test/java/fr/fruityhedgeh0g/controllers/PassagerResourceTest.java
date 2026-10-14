@@ -191,7 +191,7 @@ public class PassagerResourceTest {
         conducteurRidesWithNord();
 
         signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(200)
-                .body("mode", equalTo("passager"))
+                .body("poste", equalTo("passager"))
                 .body("status", equalTo("participant"))
                 .body("conducteur.userId", equalTo(CONDUCTEUR_ID))
                 .body("conducteur.lastName", equalTo("Conducteur"))
@@ -445,7 +445,7 @@ public class PassagerResourceTest {
     void theRosterNamesEachPassagersConducteur() {
         conducteurSignedUp(false);
         passagerSignedUp();
-        roster().body(entryOf("participants", PASSAGER_ID) + ".mode", equalTo("passager"))
+        roster().body(entryOf("participants", PASSAGER_ID) + ".poste", equalTo("passager"))
                 .body(entryOf("participants", CONDUCTEUR_ID) + ".passagers", equalTo(1))
                 .body(entryOf("participants", PASSAGER_ID) + ".conducteur.userId", equalTo(CONDUCTEUR_ID))
                 .body(entryOf("participants", CONDUCTEUR_ID) + ".conducteur", nullValue());

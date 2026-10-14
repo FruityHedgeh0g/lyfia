@@ -12,10 +12,11 @@ import {
   PersonRef,
   PhoneRequiredError,
   Registration,
-  RideMode,
+  Poste,
   Roster,
   RosterEntry,
   SigningUpPerson,
+  groupKindOf,
 } from "../../features/events/registrationsApi";
 
 const ROSTERS_KEY = "urue-event-rosters";
@@ -26,7 +27,7 @@ interface StoredEntry {
   firstName: string;
   lastName: string;
   phone: string;
-  mode: RideMode;
+  poste: Poste;
   signedUpAt: string;
   waiting: boolean;
   /** Pour un passager : son conducteur, qu'il suit partout. */
@@ -95,7 +96,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
 
   const toRegistration = async (eventId: string, entry: StoredEntry): Promise<Registration> => {
     const { group, demande, conducteur, leadsGroup } = toEntry(await groups.fetchGroups(), eventId, entry);
-    return { eventId, mode: entry.mode, status: entry.waiting ? "en_attente" : "participant", signedUpAt: entry.signedUpAt, group, demande, conducteur, leadsGroup };
+    return { eventId, poste: entry.poste, status: entry.waiting ? "en_attente" : "participant", signedUpAt: entry.signedUpAt, group, demande, conducteur, leadsGroup };
   };
 
   /** Les passagers d'un conducteur, qui suivent chaque changement de sa place et de son Groupe. */
@@ -111,7 +112,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       )
     );
   const requireNotPassager = (entry: StoredEntry) => {
-    if (entry.mode === "passager") throw new Error("Un passager suit son conducteur : agissez sur le conducteur.");
+    if (entry.poste === "passager") throw new Error("Un passager suit son conducteur : agissez sur le conducteur.");
   };
 
   const eventOrThrow = async (eventId: string) => {
@@ -130,6 +131,12 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
     const group = (await groups.fetchGroups()).find((g) => g.groupId === groupId);
     if (!group) throw new Error("Groupe introuvable.");
     return group;
+  };
+
+  /** Comme EventRegistrationEntity.requireFits : seuls ceux dont le Poste va avec sa sorte sont avec un Groupe. */
+  const requireFits = (poste: Poste, group: Group) => {
+    if (groupKindOf(poste) !== group.kind)
+      throw new Error(poste === "point_fixe" ? "Un point fixe n'est avec aucun groupe." : "Ce groupe n'est pas de la sorte qui va avec ce poste.");
   };
 
   /** Un Chef n'agit que sur le Groupe qu'il mène ; le Bureau sur tous. */
@@ -185,9 +192,9 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
   const requestGroup = async (eventId: string, personId: string, groupId: string): Promise<Registration> => {
     await refuseOnArchived(eventId);
     const entry = entryOrThrow(eventId, personId);
-    if (entry.mode === "passager") throw new Error("Un passager roule avec le groupe de son conducteur.");
+    if (entry.poste === "passager") throw new Error("Un passager roule avec le groupe de son conducteur.");
     if (entry.groupId) throw new Error("Vous roulez déjà avec un groupe à cet événement.");
-    await groupOrThrow(groupId);
+    requireFits(entry.poste, await groupOrThrow(groupId));
     update(eventId, personId, { demandeGroupId: groupId, demandeStatus: "en_attente" });
     return toRegistration(eventId, entryOrThrow(eventId, personId));
   };
@@ -201,7 +208,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       ),
 
     /** En conducteur, `groupId` fait une Demande de groupe ; avec `conducteurId`, en passager de ce conducteur, dont on prend la place et le Groupe. */
-    signUp: async (eventId: string, person: SigningUpPerson, groupId?: string, conducteurId?: string): Promise<Registration> => {
+    signUp: async (eventId: string, person: SigningUpPerson, groupId?: string, conducteurId?: string, poste: Poste = conducteurId ? "passager" : "conducteur"): Promise<Registration> => {
       const existing = read(eventId).find((e) => e.personId === person.userId);
       if (existing && conducteurId && existing.conducteurId !== conducteurId) throw new Error("Vous êtes déjà inscrit à cet événement.");
       if (existing) return toRegistration(eventId, existing);
@@ -211,12 +218,13 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       if (person.sectorId && person.sectorId !== event.sectorId)
         throw new Error("Cet événement est réservé aux membres de son secteur et aux bénévoles.");
       if (!person.phone?.trim()) throw new PhoneRequiredError();
-      if (groupId) await groupOrThrow(groupId);
+      if ((poste === "passager") !== Boolean(conducteurId)) throw new Error("Un passager, et lui seul, nomme son conducteur.");
+      if (groupId) requireFits(poste, await groupOrThrow(groupId));
 
       const conducteur = conducteurId ? read(eventId).find((e) => e.personId === conducteurId) : undefined;
       if (conducteurId) {
         if (groupId) throw new Error("Un passager roule avec le groupe de son conducteur.");
-        if (!conducteur || conducteur.mode !== "conducteur") throw new Error("Choisissez un conducteur inscrit à cet événement.");
+        if (!conducteur || conducteur.poste !== "conducteur") throw new Error("Choisissez un conducteur inscrit à cet événement.");
         // Le passager prend la place du conducteur : refusé plutôt que séparé s'il n'y a plus de place, y compris « Complet »
         if (!conducteur.waiting) {
           if (event.status !== "ouvert" || !placeLeft(eventId, event.maxParticipants)) throw new Error("Plus de place à côté de ce conducteur.");
@@ -229,7 +237,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
         firstName: person.firstName,
         lastName: person.lastName,
         phone: person.phone.trim(),
-        mode: conducteur ? "passager" : "conducteur",
+        poste,
         // Horodatage strictement croissant : l'ordre d'inscription départage la liste d'attente
         signedUpAt: new Date(Math.max(Date.now(), ...read(eventId).map((e) => Date.parse(e.signedUpAt) + 1))).toISOString(),
         waiting: conducteur ? conducteur.waiting : !(event.status === "ouvert" && placeLeft(eventId, event.maxParticipants)),
@@ -250,7 +258,39 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
     },
 
     fetchConducteurs: async (eventId: string): Promise<PersonRef[]> =>
-      [...read(eventId)].sort(bySignUp).filter((e) => e.mode === "conducteur").map(personRef),
+      [...read(eventId)].sort(bySignUp).filter((e) => e.poste === "conducteur").map(personRef),
+
+    /** Comme EventServiceImpl.changePoste : jamais en passager, ni pour le Chef, ni pour un conducteur qui a un passager. */
+    changePoste: async (eventId: string, personId: string, poste: Poste): Promise<Roster> => {
+      await refuseOnArchived(eventId);
+      const entry = entryOrThrow(eventId, personId);
+      await refuseOnChef(entry);
+      if (poste === "passager") throw new Error("Un passager nomme son conducteur en s'inscrivant.");
+      if (passagersOf(eventId, personId).length > 0 && poste !== "conducteur") throw new Error("Un conducteur qui a un passager garde son poste.");
+      const all = await groups.fetchGroups();
+      const kindOf = (groupId: string | null | undefined) => all.find((g) => g.groupId === groupId)?.kind;
+      const patch: Partial<StoredEntry> = { poste, conducteurId: null };
+      // Un Groupe (ou une Demande en attente) d'une autre sorte que celle du nouveau Poste est quitté
+      if (entry.groupId && kindOf(entry.groupId) !== groupKindOf(poste)) Object.assign(patch, { groupId: null, demandeGroupId: null, demandeStatus: null });
+      else if (!entry.groupId && entry.demandeStatus === "en_attente" && kindOf(entry.demandeGroupId) !== groupKindOf(poste))
+        Object.assign(patch, { demandeGroupId: null, demandeStatus: null });
+      update(eventId, personId, patch);
+      return fetchRoster(eventId);
+    },
+
+    /** Comme GroupKindChange : quelqu'un d'autre que son Chef est avec le Groupe, ou le demande, à un Événement. */
+    concernsOthersThanChef: (group: Group): boolean =>
+      Object.values(readAll()).some((entries) =>
+        entries.some((e) => (ridesWith(group.groupId)(e) || asksFor(group.groupId)(e)) && e.personId !== group.chef?.userId)
+      ),
+
+    /** Le Chef prend le Poste de la nouvelle sorte de son Groupe (ADR 0010). */
+    chefFollowsKind: (group: Group) =>
+      Object.entries(readAll()).forEach(([eventId, entries]) =>
+        entries
+          .filter((e) => ridesWith(group.groupId)(e) && e.personId === group.chef?.userId)
+          .forEach((e) => update(eventId, e.personId, { poste: group.kind === "service" ? "service" : "conducteur" }))
+      ),
 
     requestGroup,
 
@@ -272,7 +312,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       requireNotPassager(entry);
       await refuseOnChef(entry);
       if (entry.waiting) throw new Error("Seul un Participant est placé dans un groupe.");
-      await groupOrThrow(groupId);
+      requireFits(entry.poste, await groupOrThrow(groupId));
       if (entry.groupId !== groupId) requireRoomIn(eventId, groupId, placesTaken(eventId, personId));
       updateWithPassagers(eventId, personId, { groupId, demandeGroupId: groupId, demandeStatus: "acceptee" }, { groupId });
       return fetchRoster(eventId);

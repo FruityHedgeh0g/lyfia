@@ -7,6 +7,7 @@ export const mockGroups: Group[] = [
     description: "Les motards du centre d'Algrange.",
     area: "Centre-ville d'Algrange",
     sectorId: "sector-1",
+    kind: "motards",
     chef: { userId: "user-1", firstName: "Marc", lastName: "Weber" },
   },
   {
@@ -15,6 +16,7 @@ export const mockGroups: Group[] = [
     description: "Les motards de l'agglomération de Thionville.",
     area: "Agglomération de Thionville",
     sectorId: "sector-2",
+    kind: "motards",
     chef: { userId: "user-6", firstName: "Nathalie", lastName: "Roth" },
   },
 ];

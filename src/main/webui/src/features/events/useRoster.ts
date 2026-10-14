@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { decideDemande, fetchMonGroupe, fetchRoster, placeInGroup, promote, remove, setGroupMaximum, takeOutOfGroup } from "./registrationsApi";
+import { changePoste, Poste, decideDemande, fetchMonGroupe, fetchRoster, placeInGroup, promote, remove, setGroupMaximum, takeOutOfGroup } from "./registrationsApi";
 import { queryKeys } from "../queryKeys";
 import { useAuth } from "../../auth/AuthContext";
 
@@ -34,7 +34,12 @@ export function useRoster(eventId: string) {
     onSuccess: invalidate,
   });
 
-  return { roster, moveUp, removePerson, place };
+  const changePosteOf = useMutation({
+    mutationFn: (input: { personId: string; poste: Poste }) => changePoste(eventId, input.personId, input.poste),
+    onSuccess: invalidate,
+  });
+
+  return { roster, moveUp, removePerson, place, changePoste: changePosteOf };
 }
 
 /** Maximum d'un Groupe à un Événement, enregistré avec la fiche de l'Événement. */

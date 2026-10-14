@@ -90,4 +90,14 @@ describe("GroupsAdminPage", () => {
 
     expect(await screen.findByRole("button", { name: /Groupe Nord/ })).toHaveTextContent("Nord du secteur");
   });
+
+  it("creates a Groupe de service", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "+ Nouveau groupe" }));
+    await userEvent.type(screen.getByLabelText(/Nom du groupe/), "Buvette");
+    await userEvent.selectOptions(screen.getByLabelText("Sorte"), "service");
+    await userEvent.click(screen.getByRole("button", { name: "Créer le groupe" }));
+
+    expect(await screen.findByRole("button", { name: /Buvette/ })).toHaveTextContent("Groupe de service");
+  });
 });

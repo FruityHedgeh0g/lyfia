@@ -1,4 +1,4 @@
-import { Group, GroupChef } from "./types";
+import { Group, GroupChef, GroupKind } from "./types";
 import { apiFetch } from "../../lib/http";
 
 export interface GroupInput {
@@ -6,6 +6,7 @@ export interface GroupInput {
   description: string;
   area: string;
   sectorId: string;
+  kind: GroupKind;
 }
 
 /** GroupDto (vue Basic) ; `chef` manque dans la réponse à une création. */
@@ -15,6 +16,7 @@ interface GroupDto {
   description?: string | null;
   area?: string | null;
   sectorId: string;
+  kind?: GroupKind | null;
   chef?: GroupChef | null;
 }
 
@@ -24,6 +26,7 @@ const toGroup = (dto: GroupDto): Group => ({
   description: dto.description ?? "",
   area: dto.area ?? "",
   sectorId: dto.sectorId,
+  kind: dto.kind ?? "motards",
   chef: dto.chef ?? null,
 });
 
@@ -43,8 +46,8 @@ export async function createGroup(input: GroupInput): Promise<Group> {
 }
 
 export async function updateGroup(groupId: string, patch: GroupInput): Promise<Group> {
-  const { name, description, area } = patch;
-  return toGroup(await apiFetch<GroupDto>("/api/groups", { method: "PATCH", body: JSON.stringify({ groupId, name, description, area }) }));
+  const { name, description, area, kind } = patch;
+  return toGroup(await apiFetch<GroupDto>("/api/groups", { method: "PATCH", body: JSON.stringify({ groupId, name, description, area, kind }) }));
 }
 
 /** Affectation : le Chef quitte le Groupe qu'il menait éventuellement. */

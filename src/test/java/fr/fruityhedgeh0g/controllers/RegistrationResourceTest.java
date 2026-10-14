@@ -138,7 +138,7 @@ public class RegistrationResourceTest {
         UUID event = futureEvent(EventStatusEnum.OUVERT, null);
         signUp(event).statusCode(200)
                 .body("eventId", equalTo(event.toString()))
-                .body("mode", equalTo("conducteur"))
+                .body("poste", equalTo("conducteur"))
                 .body("status", equalTo("participant"));
     }
 
