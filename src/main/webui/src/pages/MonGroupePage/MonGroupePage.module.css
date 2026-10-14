@@ -42,8 +42,11 @@
   color: var(--color-muted);
 }
 
+/* Boutons calés sur la zone de saisie des champs voisins, pas étirés sur leur étiquette */
 .actions {
   display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
