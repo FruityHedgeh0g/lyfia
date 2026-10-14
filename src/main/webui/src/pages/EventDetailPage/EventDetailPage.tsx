@@ -14,6 +14,7 @@ import PageHero from "../../components/organisms/PageHero/PageHero";
 import Spinner from "../../components/atoms/Spinner/Spinner";
 import Badge from "../../components/atoms/Badge/Badge";
 import Button from "../../components/atoms/Button/Button";
+import { useConfirm } from "../../components/molecules/ConfirmDialog/useConfirm";
 import FormField from "../../components/molecules/FormField/FormField";
 import ButtonLink from "../../components/atoms/ButtonLink/ButtonLink";
 import { useSectors } from "../../features/sectors/useSector";
@@ -45,6 +46,7 @@ export const EventDetailPage: React.FC = () => {
   const [phone, setPhone] = useState("");
 
   const registration = registrations?.find((r) => r.eventId === eventId);
+  const { confirm, dialog } = useConfirm();
   const isPending = register.isPending || unregister.isPending || askGroup.isPending;
 
   /** Sans téléphone, l'API refuse l'inscription : on le demande, on l'enregistre au profil, puis on réessaie. */
@@ -173,7 +175,17 @@ export const EventDetailPage: React.FC = () => {
                     label="Me désinscrire"
                     variant="outline"
                     disabled={isPending}
-                    onClick={() => unregister.mutate(event.eventId)}
+                    onClick={async () => {
+                      const confirmed = await confirm({
+                        title: "Se désinscrire ?",
+                        message:
+                          registration.mode === "pilote"
+                            ? `Votre place à « ${event.name} » sera libérée, et vos éventuels passagers seront désinscrits avec vous.`
+                            : `Votre place à « ${event.name} » sera libérée.`,
+                        confirmLabel: "Me désinscrire",
+                      });
+                      if (confirmed) unregister.mutate(event.eventId);
+                    }}
                   />
                 )}
               </div>
@@ -233,6 +245,7 @@ export const EventDetailPage: React.FC = () => {
           </aside>
         </div>
       </div>
+      {dialog}
     </article>
   );
 };

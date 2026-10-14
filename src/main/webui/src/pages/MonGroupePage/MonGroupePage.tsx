@@ -4,6 +4,8 @@ import { passagerLabel, RosterEntry } from "../../features/events/registrationsA
 import { EVENT_STATUS_LABELS } from "../../features/events/status";
 import { formatDate } from "../../lib/formatDate";
 import Button from "../../components/atoms/Button/Button";
+import { useConfirm } from "../../components/molecules/ConfirmDialog/useConfirm";
+import { confirmRefusal, confirmTakeOut } from "../../features/events/confirmations";
 import Spinner from "../../components/atoms/Spinner/Spinner";
 import styles from "./MonGroupePage.module.css";
 
@@ -17,6 +19,7 @@ import styles from "./MonGroupePage.module.css";
 export const MonGroupePage: React.FC = () => {
   const { data, isLoading } = useMonGroupe();
   const { decide, takeOut } = useGroupActions();
+  const { confirm, dialog } = useConfirm();
   const pending = decide.isPending || takeOut.isPending;
   const error = decide.error ?? takeOut.error;
 
@@ -39,6 +42,7 @@ export const MonGroupePage: React.FC = () => {
 
   return (
     <div className={styles.page}>
+      {dialog}
       <h2 className={styles.title}>{data.group.name}</h2>
       {data.events.length === 0 && <p className={styles.empty}>Aucun événement ne concerne votre groupe pour le moment.</p>}
       {error && <p className={styles.error}>{error.message}</p>}
@@ -72,7 +76,9 @@ export const MonGroupePage: React.FC = () => {
                         label="Sortir du groupe"
                         variant="outline"
                         disabled={pending}
-                        onClick={() => takeOut.mutate({ eventId: event.eventId, personId: m.personId })}
+                        onClick={async () => {
+                          if (await confirmTakeOut(confirm, m)) takeOut.mutate({ eventId: event.eventId, personId: m.personId });
+                        }}
                       />
                     )
                   )
@@ -97,7 +103,9 @@ export const MonGroupePage: React.FC = () => {
                         label="Refuser"
                         variant="outline"
                         disabled={pending}
-                        onClick={() => decide.mutate({ eventId: event.eventId, personId: d.personId, accept: false })}
+                        onClick={async () => {
+                          if (await confirmRefusal(confirm, d)) decide.mutate({ eventId: event.eventId, personId: d.personId, accept: false });
+                        }}
                       />
                     </>
                   )

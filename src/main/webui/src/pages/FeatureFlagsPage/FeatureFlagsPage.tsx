@@ -10,6 +10,7 @@ import Badge from "../../components/atoms/Badge/Badge";
 import Button from "../../components/atoms/Button/Button";
 import Spinner from "../../components/atoms/Spinner/Spinner";
 import FormField from "../../components/molecules/FormField/FormField";
+import { useConfirm } from "../../components/molecules/ConfirmDialog/useConfirm";
 import styles from "./FeatureFlagsPage.module.css";
 
 /** Qui a changé le levier en dernier, quand et pourquoi (le Journal). */
@@ -33,9 +34,19 @@ const FeatureLever: React.FC<FeatureLeverProps> = ({ flag, pending, onSwitch, se
   const [reason, setReason] = useState("");
   const label = FEATURE_LABELS[flag.name] ?? flag.name;
   const switched = lastSwitch(flag);
+  const { confirm, dialog } = useConfirm();
+
+  /** Couper une Fonctionnalité la cache et la refuse à tous (ADR 0009) : confirmé d'abord ; la réactiver, non. */
+  const confirmTurnOff = (where: string) =>
+    confirm({
+      title: `Désactiver ${label}${where} ?`,
+      message: "Elle sera cachée et refusée à tous jusqu'à ce que vous la réactiviez. Ce qui est déjà enregistré reste tel quel.",
+      confirmLabel: "Désactiver",
+    });
 
   return (
     <li className={`${styles.item}${flag.isActive ? ` ${styles.active}` : ""}`}>
+      {dialog}
       <div className={styles.body}>
         <div className={styles.titleLine}>
           <span className={styles.title}>{label}</span>
@@ -52,8 +63,9 @@ const FeatureLever: React.FC<FeatureLeverProps> = ({ flag, pending, onSwitch, se
       </div>
       <form
         className={styles.lever}
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
+          if (flag.isActive && !(await confirmTurnOff(" pour tout le site"))) return;
           onSwitch(reason);
           setReason("");
         }}
@@ -80,7 +92,8 @@ const FeatureLever: React.FC<FeatureLeverProps> = ({ flag, pending, onSwitch, se
                   label={sectorOn ? `Désactiver pour ${sector.name}` : `Activer pour ${sector.name}`}
                   variant="outline"
                   disabled={pending}
-                  onClick={() => {
+                  onClick={async () => {
+                    if (sectorOn && !(await confirmTurnOff(` pour ${sector.name}`))) return;
                     onSwitchSector(sector.sectorId, !sectorOn, reason);
                     setReason("");
                   }}

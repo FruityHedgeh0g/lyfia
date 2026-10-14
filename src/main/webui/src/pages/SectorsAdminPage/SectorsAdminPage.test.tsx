@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "../../auth/AuthContext";
 import { testUser } from "../../test/testUser";
 import SectorsAdminPage from "./SectorsAdminPage";
+import { confirmIn } from "../../test/confirm";
 
 const renderPage = () => {
   const user = testUser("super_admin");
@@ -26,6 +27,7 @@ describe("SectorsAdminPage (Super admin)", () => {
     expect(screen.queryByRole("button", { name: "Supprimer" })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Fermer le secteur" }));
+    await confirmIn("Fermer le secteur");
     await waitFor(() => expect(screen.getByRole("button", { name: /Secteur Thionville/ })).toHaveTextContent("Fermé"));
 
     await userEvent.click(await screen.findByRole("button", { name: "Rouvrir le secteur" }));

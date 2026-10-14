@@ -6,6 +6,7 @@ import { AuthProvider } from "../../auth/AuthContext";
 import { testUser } from "../../test/testUser";
 import { createEventsApi, createRegistrationsApi, setFakeFeature } from "../../test/fakeApi";
 import EventsAdminPage from "./EventsAdminPage";
+import { confirmIn } from "../../test/confirm";
 
 const inDays = (days: number, hour: number) => {
   const d = new Date();
@@ -68,6 +69,33 @@ describe("EventsAdminPage", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /Test Préparation/ })).toHaveTextContent("Ouvert"));
   });
 
+  it("cancels an Event only once confirmed", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /Test Ouvert/ }));
+    await userEvent.selectOptions(screen.getByLabelText("Statut"), "annule");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await confirmIn("Garder l'événement");
+    // Renoncer laisse la fiche ouverte, rien n'est enregistré
+    expect(screen.getByLabelText("Statut")).toHaveValue("annule");
+    expect(screen.getByRole("button", { name: /Test Ouvert/ })).toHaveTextContent("Ouvert");
+
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await confirmIn("Annuler l'événement");
+    await waitFor(() => expect(screen.getByRole("button", { name: /Test Ouvert/ })).toHaveTextContent("Annulé"));
+  });
+
+  it("refuses a Demande de groupe only once confirmed", async () => {
+    const eventId = (await createEventsApi().fetchEvents(true)).find((e) => e.name === "Test Ouvert")!.eventId;
+    await createRegistrationsApi().signUp(eventId, { userId: "p-3", firstName: "Test", lastName: "Meyer", phone: "06 00 00 00 00" }, "group-1");
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /Test Ouvert/ }));
+    const meyer = () => within(screen.getByRole("list", { name: "Liste d'attente" })).getByText(/Meyer/).closest("li") as HTMLElement;
+    await screen.findByRole("list", { name: "Liste d'attente" });
+    await userEvent.click(within(meyer()).getByRole("button", { name: "Refuser" }));
+    await confirmIn("Refuser");
+    await waitFor(() => expect(meyer()).not.toHaveTextContent("Demande : Groupe Algrange Centre"));
+  });
+
   it("shows the roster: Participants and Liste d'attente in sign-up order", async () => {
     renderPage();
     await userEvent.click(await screen.findByRole("button", { name: /Test Ouvert/ }));
@@ -83,6 +111,7 @@ describe("EventsAdminPage", () => {
     await userEvent.click(await screen.findByRole("button", { name: /Test Ouvert/ }));
     const participants = await screen.findByRole("list", { name: "Participants" });
     await userEvent.click(within(participants).getByRole("button", { name: "Retirer" }));
+    await confirmIn("Retirer");
 
     // La place libérée ne profite à personne automatiquement
     await waitFor(() => expect(screen.getByText("Aucun participant.")).toBeInTheDocument());
@@ -103,6 +132,7 @@ describe("EventsAdminPage", () => {
 
     await waitFor(() => expect(within(participants).getByText(/Groupe Algrange Centre/)).toBeInTheDocument());
     await userEvent.click(within(participants).getByRole("button", { name: "Sortir du groupe" }));
+    await confirmIn("Sortir du groupe");
     await waitFor(() => expect(within(participants).getByLabelText("Groupe")).toHaveValue(""));
   });
 

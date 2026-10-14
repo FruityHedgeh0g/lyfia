@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { AuthProvider } from "../../auth/AuthContext";
 import { testUser } from "../../test/testUser";
 import FeatureFlagsPage from "./FeatureFlagsPage";
+import { confirmIn } from "../../test/confirm";
 
 const renderAs = (role: string) =>
   render(
@@ -30,6 +31,7 @@ describe("FeatureFlagsPage", () => {
     await userEvent.type(await screen.findByLabelText("Raison (facultatif) — Galerie photos"), "Spam");
     const gallery = screen.getByText("Galerie photos").closest("li") as HTMLElement;
     await userEvent.click(within(gallery).getByRole("button", { name: "Désactiver" }));
+    await confirmIn("Désactiver");
 
     expect(await within(gallery).findByText(/Désactivée par Jean Dupont .* — « Spam »/)).toBeInTheDocument();
     expect(within(gallery).getByText("0 tentative refusée depuis la coupure")).toBeInTheDocument();
@@ -39,6 +41,7 @@ describe("FeatureFlagsPage", () => {
     renderAs("super_admin");
     const perSecteur = await screen.findByRole("list", { name: "Inscription aux événements par secteur" });
     await userEvent.click(within(perSecteur).getByRole("button", { name: "Désactiver pour Secteur Algrange" }));
+    await confirmIn("Désactiver");
 
     expect(await within(perSecteur).findByRole("button", { name: "Activer pour Secteur Algrange" })).toBeInTheDocument();
     expect(within(perSecteur).getByText("Secteur Algrange : désactivée")).toBeInTheDocument();

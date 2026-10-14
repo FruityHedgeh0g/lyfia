@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { useGroupActions, useRoster } from "../../features/events/useRoster";
 import { GroupRoster, passagerLabel, RosterEntry, rosterExportUrl } from "../../features/events/registrationsApi";
 import { useGroups } from "../../features/groups/useGroups";
+import { confirmRefusal, confirmTakeOut, fullName } from "../../features/events/confirmations";
+import { useConfirm } from "../../components/molecules/ConfirmDialog/useConfirm";
 import Button from "../../components/atoms/Button/Button";
 import Select from "../../components/atoms/Select/Select";
 import ButtonLink from "../../components/atoms/ButtonLink/ButtonLink";
@@ -88,6 +90,7 @@ const GroupRow: React.FC<GroupRowProps> = ({ entry, editable, disabled, onMaximu
 export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, editable }) => {
   const { roster, moveUp, removePerson, place, setMaximum } = useRoster(eventId);
   const { decide, takeOut } = useGroupActions();
+  const { confirm, dialog } = useConfirm();
   const { data: groups } = useGroups();
   const exportOn = useFeature("export-liste", sectorId);
   const exportOff = useFeatureOff("export-liste", sectorId);
@@ -114,7 +117,20 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
   };
 
   const removeButton = (entry: RosterEntry) => (
-    <Button type="button" label="Retirer" variant="outline" disabled={pending} onClick={() => removePerson.mutate(entry.personId)} />
+    <Button
+      type="button"
+      label="Retirer"
+      variant="outline"
+      disabled={pending}
+      onClick={async () => {
+        const confirmed = await confirm({
+          title: "Retirer de l'événement ?",
+          message: `${fullName(entry)} sera retiré(e) de l'événement${entry.passagers > 0 ? ", avec ses passagers" : ""}. Personne ne prend sa place automatiquement.`,
+          confirmLabel: "Retirer",
+        });
+        if (confirmed) removePerson.mutate(entry.personId);
+      }}
+    />
   );
 
   /** Décision sur une Demande en attente, et sortie du Groupe pour qui y roule. */
@@ -128,12 +144,22 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
             label="Refuser"
             variant="outline"
             disabled={pending}
-            onClick={() => decide.mutate({ eventId, personId: entry.personId, accept: false })}
+            onClick={async () => {
+              if (await confirmRefusal(confirm, entry)) decide.mutate({ eventId, personId: entry.personId, accept: false });
+            }}
           />
         </>
       )}
       {entry.group && !entry.pilote && (
-        <Button type="button" label="Sortir du groupe" variant="outline" disabled={pending} onClick={() => takeOut.mutate({ eventId, personId: entry.personId })} />
+        <Button
+          type="button"
+          label="Sortir du groupe"
+          variant="outline"
+          disabled={pending}
+          onClick={async () => {
+            if (await confirmTakeOut(confirm, entry)) takeOut.mutate({ eventId, personId: entry.personId });
+          }}
+        />
       )}
     </>
   );
@@ -150,6 +176,7 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
 
   return (
     <section className={styles.roster} aria-label="Inscrits">
+      {dialog}
       {exportOn ? (
         <ButtonLink to={rosterExportUrl(eventId)} label="Télécharger la liste (.xlsx)" variant="outline" className={styles.export} download />
       ) : (

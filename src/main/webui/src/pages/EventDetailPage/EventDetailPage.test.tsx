@@ -7,6 +7,7 @@ import { AuthProvider } from "../../auth/AuthContext";
 import { createEventsApi, createRegistrationsApi, setFakeFeature, setFakeFeatureOffIn } from "../../test/fakeApi";
 import EventDetailPage from "./EventDetailPage";
 import { testUser } from "../../test/testUser";
+import { confirmIn } from "../../test/confirm";
 
 const inDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 19);
 
@@ -95,7 +96,18 @@ describe("EventDetailPage sign-up", () => {
     setFakeFeature("inscription-evenements", false);
 
     await userEvent.click(screen.getByRole("button", { name: "Me désinscrire" }));
+    await confirmIn("Me désinscrire");
     expect(await screen.findByRole("button", { name: "M'inscrire comme pilote" })).toBeInTheDocument();
+  });
+
+  it("keeps the place when the withdrawal is not confirmed", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "M'inscrire comme pilote" }));
+    expect(await screen.findByText("Vous êtes inscrit comme pilote")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Me désinscrire" }));
+    await confirmIn("Annuler");
+    expect(screen.getByText("Vous êtes inscrit comme pilote")).toBeInTheDocument();
   });
 
   it("reserves another Secteur's Event to its Membres and to Bénévoles", async () => {
@@ -116,6 +128,7 @@ describe("EventDetailPage sign-up", () => {
     expect(await screen.findByText("Vous êtes inscrit comme pilote")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Me désinscrire" }));
+    await confirmIn("Me désinscrire");
     expect(await screen.findByRole("button", { name: "M'inscrire comme pilote" })).toBeInTheDocument();
   });
 });

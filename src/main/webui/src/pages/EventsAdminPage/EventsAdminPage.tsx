@@ -10,6 +10,7 @@ import AdminCrudList from "../../components/organisms/AdminCrudList/AdminCrudLis
 import FormField from "../../components/molecules/FormField/FormField";
 import Select from "../../components/atoms/Select/Select";
 import Spinner from "../../components/atoms/Spinner/Spinner";
+import { useConfirm } from "../../components/molecules/ConfirmDialog/useConfirm";
 import EventRoster from "./EventRoster";
 
 /** Le statut n'est modifiable qu'à l'édition, vers les seules transitions permises. */
@@ -39,6 +40,7 @@ export const EventsAdminPage: React.FC = () => {
   const events = isSuperAdmin ? allEvents : allEvents?.filter((e) => e.sectorId === ownSectorId);
   const { data: sectors } = useSectors();
   const { update, create, moveTo } = useEventMutations();
+  const { confirm, dialog } = useConfirm();
 
   const sectorOptions = (sectors ?? []).map((s) => ({ value: s.sectorId, label: s.name }));
   const emptyDraft: EventDraft = {
@@ -57,15 +59,27 @@ export const EventsAdminPage: React.FC = () => {
   };
 
   const save = async (eventId: string, { status, sectorId: _sectorId, maxParticipants, ...patch }: EventDraft) => {
-    await update.mutateAsync({ eventId, ...patch, maxParticipants: Number(maxParticipants) || 0 });
     const current = events?.find((e) => e.eventId === eventId)?.status;
+    // Annulé est sans retour : rien n'est enregistré sans confirmation, et la fiche reste ouverte
+    if (status === "annule" && status !== current) {
+      const confirmed = await confirm({
+        title: `Annuler « ${patch.name} » ?`,
+        message: "Un événement annulé ne peut plus être rouvert. Les inscriptions restent enregistrées telles quelles.",
+        confirmLabel: "Annuler l'événement",
+        cancelLabel: "Garder l'événement",
+      });
+      if (!confirmed) throw new Error("Annulation abandonnée");
+    }
+    await update.mutateAsync({ eventId, ...patch, maxParticipants: Number(maxParticipants) || 0 });
     if (status !== current) await moveTo.mutateAsync({ eventId, status });
   };
 
   if (isLoading) return <Spinner label="Chargement des événements..." />;
 
   return (
-    <AdminCrudList
+    <>
+      {dialog}
+      <AdminCrudList
       title="Gestion des événements"
       hint="Un événement n'est jamais supprimé : annulez-le. En cours et Archivé suivent les dates."
       items={events ?? []}
@@ -148,6 +162,7 @@ export const EventsAdminPage: React.FC = () => {
           create.mutateAsync({ ...input, maxParticipants: Number(maxParticipants) || undefined }),
       }}
     />
+    </>
   );
 };
 

@@ -5,6 +5,7 @@ import AdminCrudList from "../../components/organisms/AdminCrudList/AdminCrudLis
 import FormField from "../../components/molecules/FormField/FormField";
 import Button from "../../components/atoms/Button/Button";
 import Spinner from "../../components/atoms/Spinner/Spinner";
+import { useConfirm } from "../../components/molecules/ConfirmDialog/useConfirm";
 
 const emptyDraft: SectorInput = { name: "", description: "" };
 
@@ -17,11 +18,24 @@ export const SectorsAdminPage: React.FC = () => {
   const { data: sectors, isLoading } = useSectors();
   const { update, create, close, reopen } = useSectorMutations();
   const pending = close.isPending || reopen.isPending;
+  const { confirm, dialog } = useConfirm();
+
+  const closeSector = async (sectorId: string, name: string) => {
+    const confirmed = await confirm({
+      title: `Fermer ${name} ?`,
+      message:
+        "Le secteur passera en lecture seule : ses groupes perdront leur chef et ses événements non terminés seront annulés. Vous pourrez le rouvrir, mais les événements annulés le resteront.",
+      confirmLabel: "Fermer le secteur",
+    });
+    if (confirmed) close.mutate(sectorId);
+  };
 
   if (isLoading) return <Spinner label="Chargement des secteurs..." />;
 
   return (
-    <AdminCrudList
+    <>
+      {dialog}
+      <AdminCrudList
       title="Secteurs"
       hint="Un secteur n'est jamais supprimé : fermé, il reste en lecture seule et n'est plus visible que du Super admin."
       items={sectors ?? []}
@@ -51,7 +65,7 @@ export const SectorsAdminPage: React.FC = () => {
               variant="outline"
               label={sector.closed ? "Rouvrir le secteur" : "Fermer le secteur"}
               disabled={pending}
-              onClick={() => (sector.closed ? reopen : close).mutate(sector.sectorId)}
+              onClick={() => (sector.closed ? reopen.mutate(sector.sectorId) : closeSector(sector.sectorId, sector.name))}
             />
           )}
         </>
@@ -64,6 +78,7 @@ export const SectorsAdminPage: React.FC = () => {
         onCreate: (draft) => create.mutateAsync(draft),
       }}
     />
+    </>
   );
 };
 

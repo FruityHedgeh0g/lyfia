@@ -7,6 +7,7 @@ import { testUser } from "../../test/testUser";
 import { createEventsApi, createRegistrationsApi } from "../../test/fakeApi";
 import { seedGroup } from "../../test/fakeApi";
 import MonGroupePage from "./MonGroupePage";
+import { confirmIn } from "../../test/confirm";
 
 const inDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 19);
 
@@ -73,6 +74,7 @@ describe("MonGroupePage", () => {
     expect(within(balade).getByText(/Maximum atteint/)).toBeInTheDocument();
 
     await userEvent.click(within(within(balade).getByRole("list", { name: "Membres du groupe" })).getByRole("button", { name: "Sortir du groupe" }));
+    await confirmIn("Sortir du groupe");
     await waitFor(() => expect(within(balade).getByText("Dans le groupe : 0 / 1")).toBeInTheDocument());
     expect(within(within(balade).getByRole("list", { name: "Demandes en attente" })).getAllByRole("listitem")).toHaveLength(2);
   });
@@ -85,6 +87,7 @@ describe("MonGroupePage", () => {
 
     const members = await within(balade).findByRole("list", { name: "Membres du groupe" });
     await userEvent.click(within(members).getByRole("button", { name: "Sortir du groupe" }));
+    await confirmIn("Sortir du groupe");
     await waitFor(() => expect(within(balade).getByText("Aucun membre pour cet événement.")).toBeInTheDocument());
   });
 });
