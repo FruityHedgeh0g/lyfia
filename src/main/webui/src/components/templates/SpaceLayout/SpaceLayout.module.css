@@ -57,6 +57,23 @@
   transform: scaleX(1);
 }
 
+/* Par thème, les onglets tiennent sur une ligne : leurs menus déroulants débordent de la barre */
+.grouped {
+  overflow: visible;
+  flex-wrap: wrap;
+}
+
+.groupTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  appearance: none;
+  border: none;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
 .content {
   max-width: 1200px;
   margin: 0 auto;

@@ -12,11 +12,16 @@ export interface DropdownItem {
 export interface DropdownMenuProps {
   label: string;
   items: DropdownItem[];
+  /** Le style du déclencheur et de son état actif, pour l'habiller autrement (les onglets d'un espace). */
+  triggerClassName?: string;
+  activeClassName?: string;
 }
 
-export const DropdownMenu: React.FC<DropdownMenuProps> = ({ label, items }) => {
+export const DropdownMenu: React.FC<DropdownMenuProps> = ({ label, items, triggerClassName = styles.trigger, activeClassName = styles.active }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  /** Ouvert au survol : le clic qui suit (souris) le laisse ouvert au lieu de le refermer aussitôt. */
+  const openedByHover = useRef(false);
   const { pathname } = useLocation();
   const isActive = items.some((item) => !item.to.includes("#") && pathname.startsWith(item.to));
 
@@ -42,14 +47,23 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({ label, items }) => {
     <div
       className={styles.dropdown}
       ref={ref}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      onMouseEnter={() => {
+        openedByHover.current = !open;
+        setOpen(true);
+      }}
+      onMouseLeave={() => {
+        openedByHover.current = false;
+        setOpen(false);
+      }}
     >
       <button
-        className={`${styles.trigger}${isActive ? ` ${styles.active}` : ""}`}
+        className={`${triggerClassName}${isActive ? ` ${activeClassName}` : ""}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (openedByHover.current) openedByHover.current = false;
+          else setOpen((v) => !v);
+        }}
         type="button"
       >
         {label}
