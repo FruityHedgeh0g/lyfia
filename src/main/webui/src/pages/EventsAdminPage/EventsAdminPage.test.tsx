@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "../../auth/AuthContext";
 import { testUser } from "../../test/testUser";
-import { createEventsApi, createRegistrationsApi, setFakeFeature } from "../../test/fakeApi";
+import { createEventsApi, createRegistrationsApi, seedGroup, setFakeFeature } from "../../test/fakeApi";
 import EventsAdminPage from "./EventsAdminPage";
 import { confirmIn } from "../../test/confirm";
 
@@ -134,6 +134,20 @@ describe("EventsAdminPage", () => {
     await userEvent.click(within(participants).getByRole("button", { name: "Sortir du groupe" }));
     await confirmIn("Sortir du groupe");
     await waitFor(() => expect(within(participants).getByLabelText("Groupe")).toHaveValue(""));
+  });
+
+  it("neither removes nor takes out the Chef of the Groupe they lead", async () => {
+    const nord = seedGroup({ name: "Test Nord", sectorId: "sector-1", chef: { userId: "p-1", firstName: "Test", lastName: "Weber" } });
+    const eventId = (await createEventsApi().fetchEvents(true)).find((e) => e.name === "Test Ouvert")!.eventId;
+    await createRegistrationsApi().placeInGroup(eventId, "p-1", nord);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /Test Ouvert/ }));
+
+    const participants = await screen.findByRole("list", { name: "Participants" });
+    const weber = within(participants).getByText(/Weber/).closest("li") as HTMLElement;
+    expect(weber).toHaveTextContent("Chef de groupe : Test Nord");
+    expect(within(weber).queryByRole("button", { name: "Retirer" })).not.toBeInTheDocument();
+    expect(within(weber).queryByRole("button", { name: "Sortir du groupe" })).not.toBeInTheDocument();
   });
 
   it("lets the Bureau decide a pending Demande de groupe", async () => {

@@ -150,7 +150,12 @@ export const EventDetailPage: React.FC = () => {
                   <Icon name="check" size={18} strokeWidth={3} />
                   {registeredAs(registration)}
                 </p>
-                {registration.group && <p>Vous roulez avec {registration.group.name}.</p>}
+                {registration.group &&
+                  (registration.leadsGroup ? (
+                    <p>Vous menez {registration.group.name} : votre place vous est réservée tant que vous menez ce groupe.</p>
+                  ) : (
+                    <p>Vous roulez avec {registration.group.name}.</p>
+                  ))}
                 {registration.demande && registration.demande.status !== "acceptee" && (
                   <p>
                     Demande pour {registration.demande.group.name} : {DEMANDE_STATUS_LABELS[registration.demande.status]}
@@ -170,7 +175,7 @@ export const EventDetailPage: React.FC = () => {
                     />
                   </>
                 )}
-                {event.status !== "archive" && (
+                {event.status !== "archive" && !registration.leadsGroup && (
                   <Button
                     label="Me désinscrire"
                     variant="outline"

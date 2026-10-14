@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "../../auth/AuthContext";
-import { createEventsApi, createRegistrationsApi, setFakeFeature, setFakeFeatureOffIn } from "../../test/fakeApi";
+import { createEventsApi, createRegistrationsApi, seedGroup, setFakeFeature, setFakeFeatureOffIn } from "../../test/fakeApi";
 import EventDetailPage from "./EventDetailPage";
 import { testUser } from "../../test/testUser";
 import { confirmIn } from "../../test/confirm";
@@ -108,6 +108,17 @@ describe("EventDetailPage sign-up", () => {
     await userEvent.click(screen.getByRole("button", { name: "Me désinscrire" }));
     await confirmIn("Annuler");
     expect(screen.getByText("Vous êtes inscrit comme pilote")).toBeInTheDocument();
+  });
+
+  it("keeps the Chef's place in the Groupe they lead, with no way to withdraw", async () => {
+    const nord = seedGroup({ name: "Test Nord", sectorId: "sector-1", chef: { userId: "mock-user", firstName: "Jean", lastName: "Dupont" } });
+    const registrations = createRegistrationsApi();
+    await registrations.signUp(eventId, { userId: "mock-user", firstName: "Jean", lastName: "Dupont", phone: "06 00 00 00 00" });
+    await registrations.placeInGroup(eventId, "mock-user", nord);
+    renderPage();
+
+    expect(await screen.findByText(/Vous menez Test Nord/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Me désinscrire" })).not.toBeInTheDocument();
   });
 
   it("reserves another Secteur's Event to its Membres and to Bénévoles", async () => {

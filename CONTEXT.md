@@ -32,7 +32,7 @@ _Avoid_: volunteer, inscrit, user
 **Membre**: a Bénévole who is part of the association through one Secteur, promoted by a Bureau member once their membership fee is settled (the fee itself is handled off-site). Every Role from Membre up belongs to exactly one Secteur (the Super admin excepted) and rides only at that Secteur's Events. Nobody changes Secteur (except when the Super admin appoints them Admin of another one): a person goes back to Bénévole, losing their Secteur, and is promoted again in the other one.
 _Avoid_: adhérent
 
-**Chef de groupe**: a Membre holding the operational function of leading a Groupe, appointed by the Bureau. Keeps the title between Affectations.
+**Chef de groupe**: a Membre holding the operational function of leading a Groupe, appointed by the Bureau. Keeps the title between Affectations. From an Event's `Planification` until it is under way, the one leading a Groupe rides at it with that Groupe, as a `pilote` with a place kept beyond any maximum, which they cannot give up and nobody takes from them: only a new Affectation does, leaving them signed up without a Groupe.
 _Avoid_: group leader, responsable
 
 **Affectation**: the Bureau's decision that a given Chef de groupe leads a given Groupe. A Groupe has at most one Chef de groupe at a time; a Chef de groupe leads at most one Groupe. Handing a Groupe to a new Chef de groupe is a single Affectation.
@@ -67,10 +67,10 @@ _Avoid_: join request, candidature
 
 **Event**: a gathering organised by the Bureau for a Secteur. Never deleted: cancelled instead.
 
-**Event status**: where an Event stands in its lifecycle: `Planification` → `Ouvert` ⇄ `Complet` (set by hand by the Bureau), then `En cours` and `Archivé` (follow the dates of an `Ouvert` or `Complet` Event; one still in `Planification` stays there, hidden). `Annulé` is set by hand from any status before `Archivé`. Only the Bureau sees an Event in `Planification`.
+**Event status**: where an Event stands in its lifecycle: `Planification` → `Ouvert` ⇄ `Complet` (set by hand by the Bureau), then `En cours` and `Archivé` (follow the dates of an `Ouvert` or `Complet` Event; one still in `Planification` stays there, hidden). `Annulé` is set by hand from any status before `Archivé`. Only the Bureau, and the Chefs de groupe already riding at it with their Groupe, see an Event in `Planification`.
 _Avoid_: Publié (for Events)
 
-**Participant**: a Bénévole with a confirmed place at an Event (someone on a Liste d'attente is not yet a Participant), either as `pilote` or `passager` (chosen per Event). A `passager` is a registered Bénévole too and rides with the Groupe of their `pilote`. Signing up is possible while the Event is `Ouvert` or `Complet`; while `Complet`, or once a maximum is reached, a sign-up goes onto the Liste d'attente. A Participant can withdraw at any time before the Event is `Archivé`. The Bureau can remove a Participant from an Event; the Chef de groupe can only take them out of their Groupe, leaving them a Participant without a Groupe.
+**Participant**: a Bénévole with a confirmed place at an Event (someone on a Liste d'attente is not yet a Participant), either as `pilote` or `passager` (chosen per Event). A `passager` is a registered Bénévole too and rides with the Groupe of their `pilote`. Signing up is possible while the Event is `Ouvert` or `Complet` (each Groupe's Chef de groupe is signed up from the `Planification`); while `Complet`, or once a maximum is reached, a sign-up goes onto the Liste d'attente. A Participant can withdraw at any time before the Event is `Archivé`. The Bureau can remove a Participant from an Event; the Chef de groupe can only take them out of their Groupe, leaving them a Participant without a Groupe.
 
 **Liste d'attente**: the queue of people who asked to take part in an Event, or to ride with a Groupe at an Event, after the maximum the Bureau set for that Event (or for that Groupe at that Event) was reached. It also serves as a reserve of riders on the day. Nobody moves up automatically: the Bureau (or, for a Groupe, its Chef de groupe) chooses. A `passager` counts towards every maximum and always follows their `pilote`.
 _Avoid_: waitlist, file d'attente

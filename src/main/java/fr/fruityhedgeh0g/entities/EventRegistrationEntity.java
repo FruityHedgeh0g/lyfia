@@ -153,6 +153,25 @@ public class EventRegistrationEntity extends AuditTemplate {
         passagersFollowGroup();
     }
 
+    /** true while this person leads the Groupe they ride with: their sign-up follows the Affectation alone (ADR 0010). */
+    public boolean isChefOfItsGroup() {
+        return group != null && group.getChef() != null && group.getChef().getUserId().equals(person.getUserId());
+    }
+
+    /**
+     * The Chef rides with the Groupe they lead (ADR 0010): a confirmed pilote place in it, whatever the maximums.
+     * A passager leaves their pilote, a Demande is settled, and their own passagers follow.
+     */
+    public void leadGroup(GroupEntity led) {
+        if (isPassager()) {
+            pilote.getPassagers().remove(this);
+            pilote = null;
+            mode = RideModeEnum.PILOTE;
+        }
+        moveUp();
+        placeIn(led);
+    }
+
     private void requirePendingDemande() {
         if (!hasPendingDemande())
             throw new InvalidResourceException("No pending Demande de groupe.");

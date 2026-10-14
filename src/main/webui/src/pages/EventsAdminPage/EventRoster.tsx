@@ -110,13 +110,14 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
 
   const groupLine = (entry: RosterEntry) => {
     const passager = entry.pilote ? passagerLabel(entry.pilote) : entry.passagers > 0 && `+ ${entry.passagers} passager(s)`;
-    if (entry.group) return [passager, `Groupe : ${entry.group.name}`].filter(Boolean).join(" · ");
+    if (entry.group) return [passager, `${entry.leadsGroup ? "Chef de groupe" : "Groupe"} : ${entry.group.name}`].filter(Boolean).join(" · ");
     if (passager) return passager;
     if (entry.demande?.status === "en_attente") return `Demande : ${entry.demande.group.name}`;
     return undefined;
   };
 
-  const removeButton = (entry: RosterEntry) => (
+  /** Le Chef du Groupe n'est ni retiré ni sorti du groupe : seule l'Affectation le fait (ADR 0010). */
+  const removeButton = (entry: RosterEntry) => !entry.leadsGroup && (
     <Button
       type="button"
       label="Retirer"
@@ -150,7 +151,7 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
           />
         </>
       )}
-      {entry.group && !entry.pilote && (
+      {entry.group && !entry.pilote && !entry.leadsGroup && (
         <Button
           type="button"
           label="Sortir du groupe"

@@ -16,8 +16,9 @@ import java.util.UUID;
 /** Events are never deleted: they are cancelled instead. */
 public interface PublicEventService {
     /** @param seesPlanification true for the Bureau and above; others never see Planification Events */
-    List<EventDto> listAll(boolean seesPlanification);
-    EventDto getById(@NotNull UUID eventId, boolean seesPlanification);
+    /** {@code viewerId}: also the Events in Planification that person rides at, as a Groupe's Chef (ADR 0010). */
+    List<EventDto> listAll(boolean seesPlanification, UUID viewerId);
+    EventDto getById(@NotNull UUID eventId, boolean seesPlanification, UUID viewerId);
     /** A new Event belongs to a Secteur and starts in Planification. */
     EventDto create(@NotNull @Valid EventDto eventDto);
     EventDto update(@NotNull @Valid EventDto eventDto);

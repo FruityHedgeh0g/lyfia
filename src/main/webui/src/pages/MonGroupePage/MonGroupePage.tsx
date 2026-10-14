@@ -69,8 +69,8 @@ export const MonGroupePage: React.FC = () => {
                 {event.members.map((m) =>
                   person(
                     m,
-                    // Un passager sort du groupe avec son pilote
-                    !m.pilote && (
+                    // Un passager sort du groupe avec son pilote ; le Chef reste avec le Groupe qu'il mène (ADR 0010)
+                    !m.pilote && !m.leadsGroup && (
                       <Button
                         type="button"
                         label="Sortir du groupe"
