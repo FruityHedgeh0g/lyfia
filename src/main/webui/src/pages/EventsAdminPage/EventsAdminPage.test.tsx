@@ -106,6 +106,34 @@ describe("EventsAdminPage", () => {
     expect(within(waiting).getByRole("button", { name: "Faire monter" })).toBeDisabled();
   });
 
+  it("filters both lists together, ignoring case and accents, without saving the Event on Enter", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /Test Ouvert/ }));
+    await screen.findByRole("list", { name: "Participants" });
+    await userEvent.type(screen.getByLabelText("Rechercher un inscrit"), "KRÉMER{Enter}");
+
+    expect(screen.getByText("Aucun résultat pour « KRÉMER ».")).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Liste d'attente" })).getByText(/Kremer/)).toBeInTheDocument();
+    // Les titres gardent les vrais totaux et comptent les résultats
+    expect(screen.getByRole("heading", { name: "Participants (1 / 1) · 0 résultat(s)" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Liste d'attente (1) · 1 résultat(s)" })).toBeInTheDocument();
+
+    await userEvent.clear(screen.getByLabelText("Rechercher un inscrit"));
+    expect(within(screen.getByRole("list", { name: "Participants" })).getByText(/Weber/)).toBeInTheDocument();
+  });
+
+  it("folds the Participants and the Liste d'attente, both open at first", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /Test Ouvert/ }));
+    const heading = await screen.findByRole("heading", { name: "Liste d'attente (1)" });
+    const section = heading.closest("details")!;
+    expect(section).toHaveAttribute("open");
+    expect(screen.getByRole("heading", { name: "Participants (1 / 1)" }).closest("details")).toHaveAttribute("open");
+
+    await userEvent.click(heading);
+    expect(section).not.toHaveAttribute("open");
+  });
+
   it("removes a Participant, then moves someone up by hand", async () => {
     renderPage();
     await userEvent.click(await screen.findByRole("button", { name: /Test Ouvert/ }));
@@ -162,7 +190,7 @@ describe("EventsAdminPage", () => {
     await waitFor(() => expect(within(screen.getByRole("list", { name: "Liste d'attente" })).getByText(/Meyer/).closest("li")).toHaveTextContent("Groupe : Groupe Algrange Centre"));
   });
 
-  it("sets a Groupe's maximum and shows the Groupe's Liste d'attente in sign-up order", async () => {
+  it("saves a Groupe's maximum with the Event and shows the Groupe's Liste d'attente in sign-up order", async () => {
     const eventId = (await createEventsApi().fetchEvents(true)).find((e) => e.name === "Test Ouvert")!.eventId;
     const registrations = createRegistrationsApi();
     for (const [userId, lastName] of [["p-3", "Meyer"], ["p-4", "Klein"]]) {
@@ -170,13 +198,19 @@ describe("EventsAdminPage", () => {
     }
     renderPage();
     await userEvent.click(await screen.findByRole("button", { name: /Test Ouvert/ }));
+    const centreRow = async () =>
+      within(await screen.findByRole("list", { name: "Groupes" })).getByText("Groupe Algrange Centre").closest("li") as HTMLElement;
 
-    const groupes = await screen.findByRole("list", { name: "Groupes" });
-    const centre = within(groupes).getByText("Groupe Algrange Centre").closest("li") as HTMLElement;
-    await userEvent.type(within(centre).getByLabelText("Maximum"), "1");
-    await userEvent.click(within(centre).getByRole("button", { name: "Appliquer" }));
+    await userEvent.type(within(await centreRow()).getByLabelText("Maximum"), "1");
+    expect(within(await centreRow()).queryByRole("button", { name: "Appliquer" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
 
-    await waitFor(() => expect(centre).toHaveTextContent("0 / 1"));
+    // L'enregistrement referme la fiche : on la rouvre pour voir le maximum
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Enregistrer" })).not.toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Test Ouvert/ }));
+    const centre = await centreRow();
+    expect(centre).toHaveTextContent("0 / 1");
+    expect(within(centre).getByLabelText("Maximum")).toHaveValue(1);
     const waiting = within(centre).getByRole("list", { name: "Liste d'attente de Groupe Algrange Centre" });
     expect(within(waiting).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
       expect.stringContaining("Meyer"),

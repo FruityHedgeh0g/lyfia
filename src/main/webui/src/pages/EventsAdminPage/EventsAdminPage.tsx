@@ -11,11 +11,12 @@ import FormField from "../../components/molecules/FormField/FormField";
 import Select from "../../components/atoms/Select/Select";
 import Spinner from "../../components/atoms/Spinner/Spinner";
 import { useConfirm } from "../../components/molecules/ConfirmDialog/useConfirm";
+import { useGroupMaximum } from "../../features/events/useRoster";
 import EventRoster from "./EventRoster";
 
 /** Le statut n'est modifiable qu'à l'édition, vers les seules transitions permises. */
-/** `maxParticipants` vide : pas de maximum. */
-type EventDraft = Omit<EventInput, "maxParticipants"> & { status: EventStatus; maxParticipants: string };
+/** `maxParticipants` vide : pas de maximum. `groupMaxima` : maximums des Groupes touchés, par groupId (vide : sans limite). */
+type EventDraft = Omit<EventInput, "maxParticipants"> & { status: EventStatus; maxParticipants: string; groupMaxima: Record<string, string> };
 
 const toDraft = (event: Event): EventDraft => ({
   name: event.name,
@@ -30,6 +31,7 @@ const toDraft = (event: Event): EventDraft => ({
   city: event.city ?? "",
   postalCode: event.postalCode ?? "",
   country: event.country ?? "France",
+  groupMaxima: {},
 });
 
 /** Le Bureau et les Admins gèrent les Événements de leur Secteur ; le Super admin ceux de tous (ADR 0004). */
@@ -40,6 +42,7 @@ export const EventsAdminPage: React.FC = () => {
   const events = isSuperAdmin ? allEvents : allEvents?.filter((e) => e.sectorId === ownSectorId);
   const { data: sectors } = useSectors();
   const { update, create, moveTo } = useEventMutations();
+  const groupMaximum = useGroupMaximum();
   const { confirm, dialog } = useConfirm();
 
   const sectorOptions = (sectors ?? []).map((s) => ({ value: s.sectorId, label: s.name }));
@@ -56,9 +59,10 @@ export const EventsAdminPage: React.FC = () => {
     city: "",
     postalCode: "",
     country: "France",
+    groupMaxima: {},
   };
 
-  const save = async (eventId: string, { status, sectorId: _sectorId, maxParticipants, ...patch }: EventDraft) => {
+  const save = async (eventId: string, { status, sectorId: _sectorId, maxParticipants, groupMaxima, ...patch }: EventDraft) => {
     const current = events?.find((e) => e.eventId === eventId)?.status;
     // Annulé est sans retour : rien n'est enregistré sans confirmation, et la fiche reste ouverte
     if (status === "annule" && status !== current) {
@@ -71,6 +75,10 @@ export const EventsAdminPage: React.FC = () => {
       if (!confirmed) throw new Error("Annulation abandonnée");
     }
     await update.mutateAsync({ eventId, ...patch, maxParticipants: Number(maxParticipants) || 0 });
+    // Avant le statut : un Événement archivé n'accepte plus de maximum
+    await Promise.all(
+      Object.entries(groupMaxima).map(([groupId, maximum]) => groupMaximum.mutateAsync({ eventId, groupId, maximum: Number(maximum) || null }))
+    );
     if (status !== current) await moveTo.mutateAsync({ eventId, status });
   };
 
@@ -149,7 +157,17 @@ export const EventsAdminPage: React.FC = () => {
             <FormField label="Adresse" value={value.address} onChange={(e) => onChange({ ...value, address: e.target.value })} />
             <FormField label="Ville" value={value.city} onChange={(e) => onChange({ ...value, city: e.target.value })} />
             <FormField label="Code postal" value={value.postalCode} onChange={(e) => onChange({ ...value, postalCode: e.target.value })} />
-            {event && <EventRoster eventId={event.eventId} sectorId={event.sectorId} editable={event.status !== "archive"} />}
+            {event && (
+              <EventRoster
+                key={event.eventId}
+                eventId={event.eventId}
+                sectorId={event.sectorId}
+                editable={event.status !== "archive"}
+                maxima={value.groupMaxima}
+                onMaximum={(groupId, maximum) => onChange({ ...value, groupMaxima: { ...value.groupMaxima, [groupId]: maximum } })}
+                maximumError={groupMaximum.error}
+              />
+            )}
           </>
         );
       }}
@@ -158,7 +176,7 @@ export const EventsAdminPage: React.FC = () => {
         buttonLabel: "+ Nouvel événement",
         submitLabel: "Créer l'événement",
         emptyDraft,
-        onCreate: ({ status: _status, maxParticipants, ...input }) =>
+        onCreate: ({ status: _status, maxParticipants, groupMaxima: _groupMaxima, ...input }) =>
           create.mutateAsync({ ...input, maxParticipants: Number(maxParticipants) || undefined }),
       }}
     />

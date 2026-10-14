@@ -48,6 +48,15 @@ describe("AdminCrudList", () => {
     await waitFor(() => expect(screen.queryByLabelText("Nom")).not.toBeInTheDocument());
   });
 
+  it("opens and closes an item from its chevron too", async () => {
+    renderList();
+    const chevron = screen.getByRole("button", { name: "Bravo" }).closest("li")!.querySelector("[aria-hidden='true']")!;
+    await userEvent.click(chevron);
+    expect(screen.getByLabelText("Nom")).toHaveValue("Bravo");
+    await userEvent.click(chevron);
+    expect(screen.queryByLabelText("Nom")).not.toBeInTheDocument();
+  });
+
   it("keeps the form open with the input when saving fails", async () => {
     renderList({ onUpdate: vi.fn().mockRejectedValue(new Error("boom")) });
     await userEvent.click(screen.getByRole("button", { name: "Alpha" }));

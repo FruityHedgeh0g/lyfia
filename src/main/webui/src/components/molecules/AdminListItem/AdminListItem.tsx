@@ -57,7 +57,8 @@ export const AdminListItem: React.FC<AdminListItemProps> = ({
           (editDisabled ? (
             <span className={styles.disabledNote}>{editDisabledReason}</span>
           ) : (
-            <span className={`${styles.chevron} ${editing ? styles.chevronOpen : ""}`} aria-hidden="true">
+            // Cible de souris en plus du bouton, qui reste le contrôle pour le clavier et les lecteurs d'écran
+            <span className={`${styles.chevron} ${editing ? styles.chevronOpen : ""}`} aria-hidden="true" onClick={onToggleEdit}>
               <Icon name="chevronDown" size={16} strokeWidth={2.5} />
             </span>
           ))}

@@ -33,12 +33,18 @@ export function useRoster(eventId: string) {
     mutationFn: (input: { personId: string; groupId: string }) => placeInGroup(eventId, input.personId, input.groupId),
     onSuccess: invalidate,
   });
-  const setMaximum = useMutation({
-    mutationFn: (input: { groupId: string; maximum: number | null }) => setGroupMaximum(eventId, input.groupId, input.maximum),
-    onSuccess: invalidate,
-  });
 
-  return { roster, moveUp, removePerson, place, setMaximum };
+  return { roster, moveUp, removePerson, place };
+}
+
+/** Maximum d'un Groupe à un Événement, enregistré avec la fiche de l'Événement. */
+export function useGroupMaximum() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { eventId: string; groupId: string; maximum: number | null }) =>
+      setGroupMaximum(input.eventId, input.groupId, input.maximum),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.myRegistrations.all }),
+  });
 }
 
 /** Mon groupe : le Groupe mené par la personne connectée et, par Événement, ses membres et Demandes. */
