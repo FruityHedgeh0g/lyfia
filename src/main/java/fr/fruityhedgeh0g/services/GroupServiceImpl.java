@@ -20,6 +20,7 @@ import fr.fruityhedgeh0g.services.interfaces.internals.InternalUserService;
 import fr.fruityhedgeh0g.utilities.mappers.GroupMapper;
 import io.quarkus.security.Authenticated;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Event;
 import jakarta.enterprise.inject.Default;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -33,6 +34,10 @@ import java.util.*;
 @ApplicationScoped
 @Default
 public class GroupServiceImpl implements GroupService, InternalGroupService {
+    /** The Events of the Groupe's Secteur follow each Affectation (EventServiceImpl, ADR 0010). */
+    @Inject
+    Event<AffectationChange> affectationChanges;
+
     @Inject GroupRepository groupRepository;
     @Inject InternalUserService internalUserService;
     @Inject GroupMapper groupMapper;
@@ -153,9 +158,12 @@ public class GroupServiceImpl implements GroupService, InternalGroupService {
                     previous.setChef(null);
                     // Frees the unique chef_id before it is given to this Groupe
                     groupRepository.flush();
+                    affectationChanges.fire(new AffectationChange(previous.getGroupId(), userId));
                 });
 
+        UUID previousChefId = chefIdOf(groupEntity);
         groupEntity.setChef(chef);
+        affectationChanges.fire(new AffectationChange(groupId, previousChefId));
         return groupMapper.toDto(groupEntity);
     }
 
@@ -165,14 +173,23 @@ public class GroupServiceImpl implements GroupService, InternalGroupService {
         GroupEntity groupEntity = visibleGroupOrThrow(groupId);
         requireManaged(groupEntity);
         refuseInClosedSector(groupEntity);
+        UUID previousChefId = chefIdOf(groupEntity);
         groupEntity.setChef(null);
+        affectationChanges.fire(new AffectationChange(groupId, previousChefId));
         return groupMapper.toDto(groupEntity);
     }
 
     @Override
     @Transactional
     public void doEndAffectationOf(UUID userId) {
-        groupRepository.findByChef(userId).ifPresent(group -> group.setChef(null));
+        groupRepository.findByChef(userId).ifPresent(group -> {
+            group.setChef(null);
+            affectationChanges.fire(new AffectationChange(group.getGroupId(), userId));
+        });
+    }
+
+    private static UUID chefIdOf(GroupEntity group) {
+        return group.getChef() == null ? null : group.getChef().getUserId();
     }
 
     @Override

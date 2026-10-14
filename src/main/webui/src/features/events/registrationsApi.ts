@@ -40,6 +40,8 @@ export interface Registration {
   demande: Demande | null;
   /** Le pilote d'un passager ; null pour un pilote. */
   pilote: PersonRef | null;
+  /** On y roule comme Chef du Groupe qu'on mène : une place que seul un changement d'Affectation retire (ADR 0010). */
+  leadsGroup?: boolean;
 }
 
 /** Reflète RosterEntryDto côté backend : une personne inscrite, vue par le Bureau ou son Chef de groupe. */
@@ -55,6 +57,8 @@ export interface RosterEntry {
   pilote: PersonRef | null;
   /** Nombre de passagers d'un pilote : ils comptent avec lui dans chaque maximum. */
   passagers: number;
+  /** Le Chef du Groupe : ni retiré, ni sorti du groupe, tant qu'il le mène (ADR 0010). */
+  leadsGroup?: boolean;
 }
 
 /**

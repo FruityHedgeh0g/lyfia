@@ -31,18 +31,18 @@ public class EventLogDecorator implements EventService{
     EventService eventService;
 
     @Override
-    public List<EventDto> listAll(boolean seesPlanification) {
+    public List<EventDto> listAll(boolean seesPlanification, UUID viewerId) {
         Log.debugf("Retrieving all events...");
-        return Try.of(() -> eventService.listAll(seesPlanification))
+        return Try.of(() -> eventService.listAll(seesPlanification, viewerId))
                 .onSuccess(events -> Log.debugf("%d events retrieved.",events.size()))
                 .onFailure(t -> Log.errorf(t,"An error occurred while retrieving events."))
                 .get();
     }
 
     @Override
-    public EventDto getById(UUID eventId, boolean seesPlanification) {
+    public EventDto getById(UUID eventId, boolean seesPlanification, UUID viewerId) {
         Log.debugf("Retrieving event by id %s...",eventId);
-        return Try.of(() -> eventService.getById(eventId, seesPlanification))
+        return Try.of(() -> eventService.getById(eventId, seesPlanification, viewerId))
                 .onSuccess(event -> Log.debugf("Event retrieved: "+event.toString()))
                 .onFailure(t -> {
                     switch (t) {

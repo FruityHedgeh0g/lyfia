@@ -43,6 +43,11 @@ public class EventController {
         return UUID.fromString(token.getSubject());
     }
 
+    /** The person making the request, or none for a Visiteur. */
+    private UUID meOrNone() {
+        return token.getSubject() == null ? null : UUID.fromString(token.getSubject());
+    }
+
     private boolean seesPlanification() {
         return identity.hasRole("bureau");
     }
@@ -50,7 +55,7 @@ public class EventController {
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     public @JsonView(Views.Basic.class) List<EventDto> getAllEvents(){
-        return eventService.listAll(seesPlanification());
+        return eventService.listAll(seesPlanification(), meOrNone());
     }
 
     /** The current person's sign-ups ("Mes événements"). */
@@ -194,7 +199,7 @@ public class EventController {
     @Path("/{eventId}")
     @Produces(MediaType.APPLICATION_JSON)
     public @JsonView(Views.Detailed.class) EventDto getEvent(@PathParam("eventId") UUID eventId){
-        return eventService.getById(eventId, seesPlanification());
+        return eventService.getById(eventId, seesPlanification(), meOrNone());
     }
 
     @POST

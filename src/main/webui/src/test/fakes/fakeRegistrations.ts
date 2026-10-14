@@ -81,12 +81,21 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       demande: demandeStatus && demandeGroup ? { group: demandeGroup, status: demandeStatus } : null,
       pilote: piloteRef(eventId, piloteId),
       passagers: passagersOf(eventId, entry.personId).length,
+      leadsGroup: leads(all, groupId, entry.personId),
     };
   };
 
+  /** Comme EventRegistrationEntity.isChefOfItsGroup : on mène le Groupe avec lequel on roule (ADR 0010). */
+  const leads = (all: Group[], groupId: string | null | undefined, personId: string) =>
+    Boolean(groupId) && all.find((g) => g.groupId === groupId)?.chef?.userId === personId;
+  const refuseOnChef = async (entry: StoredEntry) => {
+    if (leads(await groups.fetchGroups(), entry.groupId, entry.personId))
+      throw new Error("Le Chef du groupe y roule avec lui : changez l'Affectation.");
+  };
+
   const toRegistration = async (eventId: string, entry: StoredEntry): Promise<Registration> => {
-    const { group, demande, pilote } = toEntry(await groups.fetchGroups(), eventId, entry);
-    return { eventId, mode: entry.mode, status: entry.waiting ? "en_attente" : "participant", signedUpAt: entry.signedUpAt, group, demande, pilote };
+    const { group, demande, pilote, leadsGroup } = toEntry(await groups.fetchGroups(), eventId, entry);
+    return { eventId, mode: entry.mode, status: entry.waiting ? "en_attente" : "participant", signedUpAt: entry.signedUpAt, group, demande, pilote, leadsGroup };
   };
 
   /** Les passagers d'un pilote, qui suivent chaque changement de sa place et de son Groupe. */
@@ -235,7 +244,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
 
     /** Se désinscrire ; un pilote emmène ses passagers. */
     withdraw: async (eventId: string, personId: string): Promise<void> => {
-      entryOrThrow(eventId, personId);
+      await refuseOnChef(entryOrThrow(eventId, personId));
       await refuseOnArchived(eventId);
       write(eventId, read(eventId).filter((e) => e.personId !== personId && e.piloteId !== personId));
     },
@@ -261,6 +270,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       await refuseOnArchived(eventId);
       const entry = entryOrThrow(eventId, personId);
       requireNotPassager(entry);
+      await refuseOnChef(entry);
       if (entry.waiting) throw new Error("Seul un Participant est placé dans un groupe.");
       await groupOrThrow(groupId);
       if (entry.groupId !== groupId) requireRoomIn(eventId, groupId, placesTaken(eventId, personId));
@@ -284,6 +294,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       if (!entry.groupId) throw new Error("Cette personne ne roule avec aucun groupe.");
       await requireLeaderOrBureau(actor, entry.groupId);
       requireNotPassager(entry);
+      await refuseOnChef(entry);
       updateWithPassagers(eventId, personId, { groupId: null, demandeGroupId: null, demandeStatus: null }, { groupId: null });
       return toRegistration(eventId, entryOrThrow(eventId, personId));
     },
@@ -337,7 +348,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
     },
 
     remove: async (eventId: string, personId: string): Promise<Roster> => {
-      entryOrThrow(eventId, personId);
+      await refuseOnChef(entryOrThrow(eventId, personId));
       await refuseOnArchived(eventId);
       write(eventId, read(eventId).filter((e) => e.personId !== personId && e.piloteId !== personId));
       return fetchRoster(eventId);

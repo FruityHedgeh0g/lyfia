@@ -33,6 +33,7 @@ import fr.fruityhedgeh0g.services.interfaces.internals.InternalSectorService;
 import fr.fruityhedgeh0g.services.interfaces.internals.InternalUserService;
 import fr.fruityhedgeh0g.utilities.export.RosterSpreadsheet;
 import fr.fruityhedgeh0g.utilities.mappers.EventMapper;
+import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Default;
 import jakarta.inject.Inject;
@@ -40,6 +41,7 @@ import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -79,19 +81,24 @@ public class EventServiceImpl implements EventService {
     FeatureLevers featureLevers;
 
     @Override
-    public List<EventDto> listAll(boolean seesPlanification) {
-        List<EventEntity> events = seesPlanification
-                ? eventRepository.listAll()
-                : eventRepository.listOutsidePlanification();
+    public List<EventDto> listAll(boolean seesPlanification, UUID viewerId) {
+        List<EventEntity> events = seesPlanification ? eventRepository.listAll() : new ArrayList<>(eventRepository.listOutsidePlanification());
+        // A Chef sees the Events in Planification they already ride at with their Groupe (ADR 0010)
+        if (!seesPlanification && viewerId != null)
+            registrationRepository.listByPerson(viewerId).stream()
+                    .map(EventRegistrationEntity::getEvent)
+                    .filter(event -> event.getStatus() == EventStatusEnum.PLANIFICATION)
+                    .forEach(events::add);
         return events.stream().filter(this::visible).map(eventMapper::toDto).toList();
     }
 
     @Override
-    public EventDto getById(UUID eventId, boolean seesPlanification) {
+    public EventDto getById(UUID eventId, boolean seesPlanification, UUID viewerId) {
         return eventMapper.toDto(
                 eventRepository.findByIdOptional(eventId)
                         .filter(this::visible)
-                        .filter(event -> seesPlanification || event.getStatus() != EventStatusEnum.PLANIFICATION)
+                        .filter(event -> seesPlanification || event.getStatus() != EventStatusEnum.PLANIFICATION
+                                || (viewerId != null && registrationRepository.findByEventAndPerson(eventId, viewerId).isPresent()))
                         .orElseThrow(() -> new UnknownResourceException("Event not found: " + eventId))
         );
     }
@@ -114,7 +121,52 @@ public class EventServiceImpl implements EventService {
         normalizeMaximum(event);
         validate(event);
         eventRepository.persist(event);
+        // From its Planification on, each Groupe's Chef rides with it (ADR 0010)
+        internalGroupService.doListEntitiesOfSector(sector.getSectorId()).forEach(group -> enrollChef(event, group));
         return eventMapper.toDto(event);
+    }
+
+    /**
+     * The Events follow each Affectation until under way (ADR 0010): the Groupe's new Chef rides with it, and the
+     * previous one stays signed up, without a Groupe.
+     */
+    void onAffectationChange(@Observes AffectationChange change) {
+        GroupEntity group = internalGroupService.doGetEntityById(change.groupId()).orElse(null);
+        if (group == null || group.getSector() == null) return;
+        UUID chefId = group.getChef() == null ? null : group.getChef().getUserId();
+        eventRepository.list("sector.sectorId", group.getSector().getSectorId()).stream()
+                .filter(EventServiceImpl::followsAffectations)
+                .forEach(event -> {
+                    if (change.previousChefId() != null && !change.previousChefId().equals(chefId))
+                        registrationRepository.findByEventAndPerson(event.getEventId(), change.previousChefId())
+                                .filter(previous -> previous.ridesWith(group))
+                                .ifPresent(EventRegistrationEntity::leaveGroup);
+                    enrollChef(event, group);
+                });
+    }
+
+    /** Until an Event is under way (En cours, Archivé) or Annulé, its Groupes' Chefs ride with them. */
+    private static boolean followsAffectations(EventEntity event) {
+        EventStatusEnum current = event.currentStatus();
+        return !event.isInClosedSector() && (current == EventStatusEnum.PLANIFICATION || current.acceptsSignUps());
+    }
+
+    /**
+     * The Groupe's Chef rides with it at the Event as a pilote with a confirmed place, beyond any maximum and without
+     * the phone number asked of a sign-up: they were signed up, not signing up (ADR 0010).
+     */
+    private void enrollChef(EventEntity event, GroupEntity group) {
+        UserEntity chef = group.getChef();
+        if (chef == null) return;
+        EventRegistrationEntity registration = registrationRepository.findByEventAndPerson(event.getEventId(), chef.getUserId())
+                .orElseGet(() -> registrationRepository.persistConfirmed(event, chef));
+        registration.leadGroup(group);
+    }
+
+    /** The Chef leading the Groupe rides with it: only a change of Affectation takes them out (ADR 0010). */
+    private static void refuseOnChef(EventRegistrationEntity registration) {
+        if (registration.isChefOfItsGroup())
+            throw new InvalidResourceException("The Chef leading the Groupe rides with it at this Event: change the Affectation instead.");
     }
 
     @Override
@@ -235,6 +287,7 @@ public class EventServiceImpl implements EventService {
         refuseOnArchived(event);
         EventRegistrationEntity registration = registrationOrThrow(eventId, personId);
         requireNotPassager(registration);
+        refuseOnChef(registration);
         if (registration.isWaiting())
             throw new InvalidResourceException("Only a Participant is placed in a Groupe.");
         GroupEntity group = groupOrThrow(groupId);
@@ -265,6 +318,7 @@ public class EventServiceImpl implements EventService {
         EventRegistrationEntity registration = registrationOrThrow(eventId, personId);
         requireLeaderOrBureau(actor, registration.getGroup(), event);
         requireNotPassager(registration);
+        refuseOnChef(registration);
         registration.leaveGroup();
         return toDto(registration);
     }
@@ -280,7 +334,8 @@ public class EventServiceImpl implements EventService {
         // Every Event of the Groupe's Secteur a Chef prepares, even before anyone asks for the Groupe
         if (group.getSector() != null)
             eventRepository.list("sector.sectorId", group.getSector().getSectorId()).stream()
-                    .filter(e -> e.currentStatus().acceptsSignUps() || e.currentStatus() == EventStatusEnum.EN_COURS)
+                    // From its Planification on: the Chef already rides at it with the Groupe (ADR 0010)
+                    .filter(e -> followsAffectations(e) || e.currentStatus() == EventStatusEnum.EN_COURS)
                     .forEach(e -> byEvent.putIfAbsent(e, List.of()));
 
         List<MonGroupeDto.EventRoster> events = byEvent.entrySet().stream()
@@ -334,6 +389,7 @@ public class EventServiceImpl implements EventService {
         EventEntity event = eventOrThrow(eventId);
         EventRegistrationEntity registration = registrationOrThrow(eventId, personId);
         refuseOnArchived(event);
+        refuseOnChef(registration);
         registrationRepository.delete(registration);
     }
 
@@ -380,6 +436,7 @@ public class EventServiceImpl implements EventService {
         EventEntity event = managedEventOrThrow(eventId);
         EventRegistrationEntity registration = registrationOrThrow(eventId, personId);
         refuseOnArchived(event);
+        refuseOnChef(registration);
         registrationRepository.delete(registration);
         registrationRepository.flush();
         return rosterOf(event);
@@ -408,7 +465,7 @@ public class EventServiceImpl implements EventService {
         return new RosterEntryDto(person.getUserId(), person.getFirstName(), person.getLastName(), person.getPhone(),
                 registration.getMode(), registration.getSignedUpAt(),
                 GroupRefDto.of(registration.getGroup()), DemandeDto.of(registration), piloteOf(registration),
-                registration.getPassagers().size());
+                registration.getPassagers().size(), registration.isChefOfItsGroup());
     }
 
     /** true when the Event has no maximum or still has {@code needed} places under it (passagers count). */
@@ -496,7 +553,8 @@ public class EventServiceImpl implements EventService {
 
     private static RegistrationDto toDto(EventRegistrationEntity registration) {
         return new RegistrationDto(registration.getEvent().getEventId(), registration.getMode(), registration.status(),
-                registration.getSignedUpAt(), GroupRefDto.of(registration.getGroup()), DemandeDto.of(registration), piloteOf(registration));
+                registration.getSignedUpAt(), GroupRefDto.of(registration.getGroup()), DemandeDto.of(registration), piloteOf(registration),
+                registration.isChefOfItsGroup());
     }
 
     /** A maximum of 0 or less means no maximum. */

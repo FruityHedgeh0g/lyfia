@@ -79,6 +79,20 @@ describe("MonGroupePage", () => {
     expect(within(within(balade).getByRole("list", { name: "Demandes en attente" })).getAllByRole("listitem")).toHaveLength(2);
   });
 
+  it("keeps the Chef in the Groupe they lead", async () => {
+    const nord = await seedLedGroupe();
+    const eventId = (await createEventsApi().fetchEvents(true)).find((e) => e.name === "Test Balade")!.eventId;
+    const registrations = createRegistrationsApi();
+    await registrations.signUp(eventId, { userId: "mock-user", firstName: "Jean", lastName: "Dupont", phone: "06 00 00 00 00" });
+    await registrations.placeInGroup(eventId, "mock-user", nord);
+    renderPage();
+
+    const balade = await screen.findByRole("region", { name: "Test Balade" });
+    const members = await within(balade).findByRole("list", { name: "Membres du groupe" });
+    const chef = within(members).getByText(/Jean Dupont/).closest("li") as HTMLElement;
+    expect(within(chef).queryByRole("button", { name: "Sortir du groupe" })).not.toBeInTheDocument();
+  });
+
   it("takes a member out of the Groupe", async () => {
     await seedLedGroupe();
     renderPage();
