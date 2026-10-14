@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useEvent } from "../../features/events/useEvents";
 import { acceptsSignUps, EVENT_STATUS_LABELS, statusTone } from "../../features/events/status";
-import { useEventRegistration, useMyRegistrations, usePilotes } from "../../features/events/useMyRegistrations";
+import { useEventRegistration, useMyRegistrations, useConducteurs } from "../../features/events/useMyRegistrations";
 import { DEMANDE_STATUS_LABELS, passagerLabel, PhoneRequiredError, Registration, RideMode } from "../../features/events/registrationsApi";
 import { useGroups } from "../../features/groups/useGroups";
 import Select from "../../components/atoms/Select/Select";
@@ -22,10 +22,10 @@ import Icon from "../../components/atoms/Icon/Icon";
 import FeatureNotice from "../../components/molecules/FeatureNotice/FeatureNotice";
 import styles from "./EventDetailPage.module.css";
 
-/** Ce que la personne est à cet Événement : pilote, ou passager de son pilote. */
-const registeredAs = ({ status, pilote }: Registration) => {
-  if (status === "en_attente") return pilote ? `Vous êtes sur la liste d'attente (${passagerLabel(pilote)})` : "Vous êtes sur la liste d'attente";
-  return pilote ? `Vous êtes inscrit comme passager de ${pilote.firstName} ${pilote.lastName}` : "Vous êtes inscrit comme pilote";
+/** Ce que la personne est à cet Événement : conducteur, ou passager de son conducteur. */
+const registeredAs = ({ status, conducteur }: Registration) => {
+  if (status === "en_attente") return conducteur ? `Vous êtes sur la liste d'attente (${passagerLabel(conducteur)})` : "Vous êtes sur la liste d'attente";
+  return conducteur ? `Vous êtes inscrit comme passager de ${conducteur.firstName} ${conducteur.lastName}` : "Vous êtes inscrit comme conducteur";
 };
 
 export const EventDetailPage: React.FC = () => {
@@ -37,9 +37,9 @@ export const EventDetailPage: React.FC = () => {
   const { register, unregister, askGroup } = useEventRegistration();
   const { data: groups } = useGroups();
   const [groupId, setGroupId] = useState("");
-  const [mode, setMode] = useState<RideMode>("pilote");
-  const [piloteId, setPiloteId] = useState("");
-  const { data: pilotes } = usePilotes(mode === "passager" ? eventId : undefined);
+  const [mode, setMode] = useState<RideMode>("conducteur");
+  const [conducteurId, setConducteurId] = useState("");
+  const { data: conducteurs } = useConducteurs(mode === "passager" ? eventId : undefined);
   const registrationOpen = useFeature("inscription-evenements", event?.sectorId);
   const registrationOff = useFeatureOff("inscription-evenements", event?.sectorId);
   const [askPhone, setAskPhone] = useState(false);
@@ -53,7 +53,7 @@ export const EventDetailPage: React.FC = () => {
   const signUp = (withPhone?: string) => {
     if (!eventId) return;
     register.mutate(
-      mode === "passager" ? { eventId, phone: withPhone, piloteId } : { eventId, phone: withPhone, groupId },
+      mode === "passager" ? { eventId, phone: withPhone, conducteurId } : { eventId, phone: withPhone, groupId },
       {
         onSuccess: () => setAskPhone(false),
         onError: (error) => setAskPhone(error instanceof PhoneRequiredError),
@@ -96,14 +96,14 @@ export const EventDetailPage: React.FC = () => {
   ];
   const groupSelect = <Select label="Groupe (facultatif)" value={groupId} onChange={setGroupId} options={groupOptions} />;
   const canAskGroup =
-    registration?.mode === "pilote" && !registration.group && registration.demande?.status !== "en_attente" && event.status !== "archive";
-  /** Un passager choisit un pilote déjà inscrit ; il roulera avec son Groupe. */
-  const piloteOptions = [
-    { value: "", label: "Choisissez votre pilote" },
-    ...(pilotes ?? []).filter((p) => p.userId !== user?.userId).map((p) => ({ value: p.userId, label: `${p.firstName} ${p.lastName}` })),
+    registration?.mode === "conducteur" && !registration.group && registration.demande?.status !== "en_attente" && event.status !== "archive";
+  /** Un passager choisit un conducteur déjà inscrit ; il roulera avec son Groupe. */
+  const conducteurOptions = [
+    { value: "", label: "Choisissez votre conducteur" },
+    ...(conducteurs ?? []).filter((p) => p.userId !== user?.userId).map((p) => ({ value: p.userId, label: `${p.firstName} ${p.lastName}` })),
   ];
   const signUpLabel =
-    event.status === "complet" ? "Rejoindre la liste d'attente" : mode === "passager" ? "M'inscrire comme passager" : "M'inscrire comme pilote";
+    event.status === "complet" ? "Rejoindre la liste d'attente" : mode === "passager" ? "M'inscrire comme passager" : "M'inscrire comme conducteur";
 
   return (
     <article>
@@ -184,7 +184,7 @@ export const EventDetailPage: React.FC = () => {
                       const confirmed = await confirm({
                         title: "Se désinscrire ?",
                         message:
-                          registration.mode === "pilote"
+                          registration.mode === "conducteur"
                             ? `Votre place à « ${event.name} » sera libérée, et vos éventuels passagers seront désinscrits avec vous.`
                             : `Votre place à « ${event.name} » sera libérée.`,
                         confirmLabel: "Me désinscrire",
@@ -226,19 +226,19 @@ export const EventDetailPage: React.FC = () => {
                         value={mode}
                         onChange={(value) => setMode(value as RideMode)}
                         options={[
-                          { value: "pilote", label: "Pilote" },
+                          { value: "conducteur", label: "Conducteur" },
                           { value: "passager", label: "Passager" },
                         ]}
                       />
-                      {mode === "pilote" ? (
+                      {mode === "conducteur" ? (
                         groupSelect
                       ) : (
-                        <Select label="Pilote" value={piloteId} onChange={setPiloteId} options={piloteOptions} />
+                        <Select label="Conducteur" value={conducteurId} onChange={setConducteurId} options={conducteurOptions} />
                       )}
                       <Button
                         label={signUpLabel}
                         variant="accent"
-                        disabled={isPending || (mode === "passager" && !piloteId)}
+                        disabled={isPending || (mode === "passager" && !conducteurId)}
                         onClick={() => signUp()}
                       />
                       {register.isError && !askPhone && <p className={styles.error}>{register.error.message}</p>}

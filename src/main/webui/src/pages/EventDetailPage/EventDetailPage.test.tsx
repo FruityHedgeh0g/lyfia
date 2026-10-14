@@ -45,29 +45,29 @@ describe("EventDetailPage sign-up", () => {
   it("asks for the phone number, saves it and signs up", async () => {
     renderPage("benevole", "");
 
-    await userEvent.click(await screen.findByRole("button", { name: "M'inscrire comme pilote" }));
+    await userEvent.click(await screen.findByRole("button", { name: "M'inscrire comme conducteur" }));
     await userEvent.type(await screen.findByLabelText("Téléphone"), "06 12 34 56 78");
     await userEvent.click(screen.getByRole("button", { name: "Enregistrer et m'inscrire" }));
 
-    expect(await screen.findByText("Vous êtes inscrit comme pilote")).toBeInTheDocument();
+    expect(await screen.findByText("Vous êtes inscrit comme conducteur")).toBeInTheDocument();
   });
 
   it("signs up with a chosen Groupe and shows the pending Demande", async () => {
     renderPage();
 
     await userEvent.selectOptions(await screen.findByLabelText("Groupe (facultatif)"), "group-1");
-    await userEvent.click(screen.getByRole("button", { name: "M'inscrire comme pilote" }));
+    await userEvent.click(screen.getByRole("button", { name: "M'inscrire comme conducteur" }));
 
     expect(await screen.findByText("Demande pour Groupe Algrange Centre : en attente")).toBeInTheDocument();
   });
 
-  it("signs up as passager of a chosen pilote", async () => {
+  it("signs up as passager of a chosen conducteur", async () => {
     await createRegistrationsApi().signUp(eventId, { userId: "p-1", firstName: "Marc", lastName: "Weber", phone: "06 00 00 00 00" });
     renderPage();
 
     await userEvent.selectOptions(await screen.findByLabelText("Je roule comme"), "passager");
     expect(screen.queryByLabelText("Groupe (facultatif)")).not.toBeInTheDocument();
-    await userEvent.selectOptions(await screen.findByLabelText("Pilote"), "p-1");
+    await userEvent.selectOptions(await screen.findByLabelText("Conducteur"), "p-1");
     await userEvent.click(screen.getByRole("button", { name: "M'inscrire comme passager" }));
 
     expect(await screen.findByText("Vous êtes inscrit comme passager de Marc Weber")).toBeInTheDocument();
@@ -79,7 +79,7 @@ describe("EventDetailPage sign-up", () => {
     renderPage();
 
     expect(await screen.findByText("Les inscriptions en ligne sont temporairement suspendues.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "M'inscrire comme pilote" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "M'inscrire comme conducteur" })).not.toBeInTheDocument();
   });
 
   it("says sign-ups are suspended when Inscription aux événements is off for the Event's Secteur only", async () => {
@@ -91,23 +91,23 @@ describe("EventDetailPage sign-up", () => {
 
   it("still lets a Participant withdraw while Inscription aux événements is off", async () => {
     renderPage();
-    await userEvent.click(await screen.findByRole("button", { name: "M'inscrire comme pilote" }));
-    expect(await screen.findByText("Vous êtes inscrit comme pilote")).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "M'inscrire comme conducteur" }));
+    expect(await screen.findByText("Vous êtes inscrit comme conducteur")).toBeInTheDocument();
     setFakeFeature("inscription-evenements", false);
 
     await userEvent.click(screen.getByRole("button", { name: "Me désinscrire" }));
     await confirmIn("Me désinscrire");
-    expect(await screen.findByRole("button", { name: "M'inscrire comme pilote" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "M'inscrire comme conducteur" })).toBeInTheDocument();
   });
 
   it("keeps the place when the withdrawal is not confirmed", async () => {
     renderPage();
-    await userEvent.click(await screen.findByRole("button", { name: "M'inscrire comme pilote" }));
-    expect(await screen.findByText("Vous êtes inscrit comme pilote")).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "M'inscrire comme conducteur" }));
+    expect(await screen.findByText("Vous êtes inscrit comme conducteur")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Me désinscrire" }));
     await confirmIn("Annuler");
-    expect(screen.getByText("Vous êtes inscrit comme pilote")).toBeInTheDocument();
+    expect(screen.getByText("Vous êtes inscrit comme conducteur")).toBeInTheDocument();
   });
 
   it("keeps the Chef's place in the Groupe they lead, with no way to withdraw", async () => {
@@ -135,11 +135,11 @@ describe("EventDetailPage sign-up", () => {
   it("signs up straight away with a phone number, then withdraws", async () => {
     renderPage();
 
-    await userEvent.click(await screen.findByRole("button", { name: "M'inscrire comme pilote" }));
-    expect(await screen.findByText("Vous êtes inscrit comme pilote")).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "M'inscrire comme conducteur" }));
+    expect(await screen.findByText("Vous êtes inscrit comme conducteur")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Me désinscrire" }));
     await confirmIn("Me désinscrire");
-    expect(await screen.findByRole("button", { name: "M'inscrire comme pilote" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "M'inscrire comme conducteur" })).toBeInTheDocument();
   });
 });

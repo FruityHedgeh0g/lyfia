@@ -16,7 +16,7 @@ import java.util.UUID;
 /**
  * A person's sign-up for an Event: a confirmed place (Participant) or a place
  * on the Event's Liste d'attente, ordered by sign-up time. A passager's sign-up
- * points at their pilote's and follows every change to its placement and Groupe.
+ * points at their conducteur's and follows every change to its placement and Groupe.
  */
 @Entity
 @Table(name = "event_registrations",
@@ -66,16 +66,16 @@ public class EventRegistrationEntity extends AuditTemplate {
     @Column(name = "demande_status")
     private DemandeStatusEnum demandeStatus;
 
-    /** The pilote's sign-up a passager rides with; null for a pilote. */
+    /** The conducteur's sign-up a passager rides with; null for a conducteur. */
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "pilote_registration_id")
-    private EventRegistrationEntity pilote;
+    @JoinColumn(name = "conducteur_registration_id")
+    private EventRegistrationEntity conducteur;
 
     /**
-     * A pilote's passagers; removing the pilote's sign-up (through the entity manager) removes theirs.
+     * A conducteur's passagers; removing the conducteur's sign-up (through the entity manager) removes theirs.
      * A bulk JPQL delete bypasses this cascade: delete passagers first.
      */
-    @OneToMany(mappedBy = "pilote", cascade = CascadeType.REMOVE)
+    @OneToMany(mappedBy = "conducteur", cascade = CascadeType.REMOVE)
     @Builder.Default
     private List<EventRegistrationEntity> passagers = new ArrayList<>();
 
@@ -83,12 +83,12 @@ public class EventRegistrationEntity extends AuditTemplate {
         return mode == RideModeEnum.PASSAGER;
     }
 
-    /** Places this sign-up takes towards a maximum: the pilote and their passagers. */
+    /** Places this sign-up takes towards a maximum: the conducteur and their passagers. */
     public int placesTaken() {
         return 1 + passagers.size();
     }
 
-    /** Moves the pilote and their passagers up from the Liste d'attente. */
+    /** Moves the conducteur and their passagers up from the Liste d'attente. */
     public void moveUp() {
         waiting = false;
         passagers.forEach(p -> p.waiting = false);
@@ -101,7 +101,7 @@ public class EventRegistrationEntity extends AuditTemplate {
     /** A new pending Demande de groupe; only someone outside any Groupe at this Event makes one. */
     public void requestGroup(GroupEntity requested) {
         if (isPassager())
-            throw new InvalidResourceException("A passager rides with their pilote's Groupe.");
+            throw new InvalidResourceException("A passager rides with their conducteur's Groupe.");
         if (group != null)
             throw new InvalidResourceException("Already riding with a Groupe at this Event.");
         demandeGroup = requested;
@@ -159,14 +159,14 @@ public class EventRegistrationEntity extends AuditTemplate {
     }
 
     /**
-     * The Chef rides with the Groupe they lead (ADR 0010): a confirmed pilote place in it, whatever the maximums.
-     * A passager leaves their pilote, a Demande is settled, and their own passagers follow.
+     * The Chef rides with the Groupe they lead (ADR 0010): a confirmed conducteur place in it, whatever the maximums.
+     * A passager leaves their conducteur, a Demande is settled, and their own passagers follow.
      */
     public void leadGroup(GroupEntity led) {
         if (isPassager()) {
-            pilote.getPassagers().remove(this);
-            pilote = null;
-            mode = RideModeEnum.PILOTE;
+            conducteur.getPassagers().remove(this);
+            conducteur = null;
+            mode = RideModeEnum.CONDUCTEUR;
         }
         moveUp();
         placeIn(led);
@@ -177,31 +177,31 @@ public class EventRegistrationEntity extends AuditTemplate {
             throw new InvalidResourceException("No pending Demande de groupe.");
     }
 
-    /** A new pilote sign-up, dated now; {@code waiting} puts it on the Liste d'attente. */
-    public static EventRegistrationEntity pilote(EventEntity event, UserEntity person, boolean waiting) {
+    /** A new conducteur sign-up, dated now; {@code waiting} puts it on the Liste d'attente. */
+    public static EventRegistrationEntity conducteur(EventEntity event, UserEntity person, boolean waiting) {
         return EventRegistrationEntity.builder()
                 .event(event)
                 .person(person)
-                .mode(RideModeEnum.PILOTE)
+                .mode(RideModeEnum.CONDUCTEUR)
                 .waiting(waiting)
                 .signedUpAt(LocalDateTime.now(EventEntity.ZONE))
                 .build();
     }
 
-    /** A new passager sign-up with that pilote, dated now, mirroring the pilote's placement and Groupe. */
-    public static EventRegistrationEntity passager(EventRegistrationEntity pilote, UserEntity person) {
-        if (pilote.isPassager())
-            throw new InvalidResourceException("A passager rides with a pilote, not with another passager.");
+    /** A new passager sign-up with that conducteur, dated now, mirroring the conducteur's placement and Groupe. */
+    public static EventRegistrationEntity passager(EventRegistrationEntity conducteur, UserEntity person) {
+        if (conducteur.isPassager())
+            throw new InvalidResourceException("A passager rides with a conducteur, not with another passager.");
         EventRegistrationEntity passager = EventRegistrationEntity.builder()
-                .event(pilote.getEvent())
+                .event(conducteur.getEvent())
                 .person(person)
                 .mode(RideModeEnum.PASSAGER)
-                .pilote(pilote)
-                .waiting(pilote.isWaiting())
-                .group(pilote.getGroup())
+                .conducteur(conducteur)
+                .waiting(conducteur.isWaiting())
+                .group(conducteur.getGroup())
                 .signedUpAt(LocalDateTime.now(EventEntity.ZONE))
                 .build();
-        pilote.getPassagers().add(passager);
+        conducteur.getPassagers().add(passager);
         return passager;
     }
 

@@ -50,7 +50,7 @@ public class EventRegistrationRepository implements PanacheRepositoryBase<EventR
     }
 
     private EventRegistrationEntity persistSignUp(EventEntity event, UserEntity person, boolean waiting) {
-        EventRegistrationEntity registration = EventRegistrationEntity.pilote(event, person, waiting);
+        EventRegistrationEntity registration = EventRegistrationEntity.conducteur(event, person, waiting);
         persist(registration);
         return registration;
     }

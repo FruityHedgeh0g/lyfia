@@ -7,8 +7,8 @@ export type RegistrationStatus = "participant" | "en_attente";
 /** Où en est une Demande de groupe. */
 export type DemandeStatus = "en_attente" | "acceptee" | "refusee";
 
-/** Comment on roule à un Événement : `passager` d'un `pilote` inscrit, qu'il suit partout. */
-export type RideMode = "pilote" | "passager";
+/** Comment on roule à un Événement : `passager` d'un `conducteur` inscrit, qu'il suit partout. */
+export type RideMode = "conducteur" | "passager";
 
 /** Reflète NestedUserDto : une personne nommée, sans ses coordonnées. */
 export interface PersonRef {
@@ -38,8 +38,8 @@ export interface Registration {
   /** Groupe avec lequel on roule à cet Événement, une fois accepté ou placé. */
   group: GroupRef | null;
   demande: Demande | null;
-  /** Le pilote d'un passager ; null pour un pilote. */
-  pilote: PersonRef | null;
+  /** Le conducteur d'un passager ; null pour un conducteur. */
+  conducteur: PersonRef | null;
   /** On y roule comme Chef du Groupe qu'on mène : une place que seul un changement d'Affectation retire (ADR 0010). */
   leadsGroup?: boolean;
 }
@@ -54,8 +54,8 @@ export interface RosterEntry {
   signedUpAt: string;
   group: GroupRef | null;
   demande: Demande | null;
-  pilote: PersonRef | null;
-  /** Nombre de passagers d'un pilote : ils comptent avec lui dans chaque maximum. */
+  conducteur: PersonRef | null;
+  /** Nombre de passagers d'un conducteur : ils comptent avec lui dans chaque maximum. */
   passagers: number;
   /** Le Chef du Groupe : ni retiré, ni sorti du groupe, tant qu'il le mène (ADR 0010). */
   leadsGroup?: boolean;
@@ -125,8 +125,8 @@ export const REGISTRATION_STATUS_LABELS: Record<RegistrationStatus, string> = {
  */
 export const rosterExportUrl = (eventId: string) => `/api/events/${encodeURIComponent(eventId)}/roster/export`;
 
-/** « Passager de Prénom Nom », pour qui roule avec un pilote. */
-export const passagerLabel = (pilote: PersonRef) => `Passager de ${pilote.firstName} ${pilote.lastName}`;
+/** « Passager de Prénom Nom », pour qui roule avec un conducteur. */
+export const passagerLabel = (conducteur: PersonRef) => `Passager de ${conducteur.firstName} ${conducteur.lastName}`;
 
 export const DEMANDE_STATUS_LABELS: Record<DemandeStatus, string> = {
   en_attente: "en attente",
@@ -162,10 +162,10 @@ async function phoneRequired<T>(call: Promise<T>): Promise<T> {
  */
 export const fetchMyRegistrations = () => apiFetch<Registration[]>("/api/events/registrations");
 
-/** Comme pilote, `groupId` demande ce Groupe ; `piloteId` inscrit comme passager de ce pilote. */
-export function signUp(eventId: string, options: { groupId?: string; piloteId?: string } = {}): Promise<Registration> {
+/** Comme conducteur, `groupId` demande ce Groupe ; `conducteurId` inscrit comme passager de ce conducteur. */
+export function signUp(eventId: string, options: { groupId?: string; conducteurId?: string } = {}): Promise<Registration> {
   const params = new URLSearchParams();
-  if (options.piloteId) params.set("piloteId", options.piloteId);
+  if (options.conducteurId) params.set("conducteurId", options.conducteurId);
   else if (options.groupId) params.set("groupId", options.groupId);
   const query = params.size ? `?${params}` : "";
   return phoneRequired(apiFetch<Registration>(`${base(eventId)}/registration${query}`, { method: "PUT" }));
@@ -173,7 +173,7 @@ export function signUp(eventId: string, options: { groupId?: string; piloteId?: 
 
 export const withdraw = (eventId: string) => apiFetch<void>(`${base(eventId)}/registration`, { method: "DELETE" });
 
-export const fetchPilotes = (eventId: string) => apiFetch<PersonRef[]>(`${base(eventId)}/pilotes`);
+export const fetchConducteurs = (eventId: string) => apiFetch<PersonRef[]>(`${base(eventId)}/conducteurs`);
 
 export const requestGroup = (eventId: string, groupId: string) =>
   apiFetch<Registration>(`${base(eventId)}/registration/demande`, { method: "PUT", body: JSON.stringify({ groupId }) });

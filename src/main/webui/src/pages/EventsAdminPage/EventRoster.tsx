@@ -82,7 +82,7 @@ const GroupRow: React.FC<GroupRowProps> = ({ entry, editable, maximum, onMaximum
  * Le Bureau fait monter à la main (tant que le maximum n'est pas atteint),
  * retire des personnes, décide des Demandes de groupe et place ou sort des
  * Participants d'un Groupe (dans la limite du maximum de chaque Groupe) ; un
- * passager suit son pilote, seul son retrait se fait à part ;
+ * passager suit son conducteur, seul son retrait se fait à part ;
  * personne ne monte automatiquement, ni dans l'Événement ni dans un Groupe.
  * Les deux listes se replient et une recherche les filtre ensemble, sans appel au serveur.
  */
@@ -109,7 +109,7 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
   ];
 
   const groupLine = (entry: RosterEntry) => {
-    const passager = entry.pilote ? passagerLabel(entry.pilote) : entry.passagers > 0 && `+ ${entry.passagers} passager(s)`;
+    const passager = entry.conducteur ? passagerLabel(entry.conducteur) : entry.passagers > 0 && `+ ${entry.passagers} passager(s)`;
     if (entry.group) return [passager, `${entry.leadsGroup ? "Chef de groupe" : "Groupe"} : ${entry.group.name}`].filter(Boolean).join(" · ");
     if (passager) return passager;
     if (entry.demande?.status === "en_attente") return `Demande : ${entry.demande.group.name}`;
@@ -151,7 +151,7 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
           />
         </>
       )}
-      {entry.group && !entry.pilote && !entry.leadsGroup && (
+      {entry.group && !entry.conducteur && !entry.leadsGroup && (
         <Button
           type="button"
           label="Sortir du groupe"
@@ -233,7 +233,7 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
         "Aucun participant.",
         (p) => (
           <>
-            {!p.group && !p.pilote && (
+            {!p.group && !p.conducteur && (
               <Select
                 label="Groupe"
                 value=""
@@ -249,7 +249,7 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
 
       {list(`Liste d'attente (${waiting.length})`, "Liste d'attente", waiting, "Personne en attente.", (w) => (
         <>
-          {!w.pilote && <Button type="button" label="Faire monter" disabled={pending || full} onClick={() => moveUp.mutate(w.personId)} />}
+          {!w.conducteur && <Button type="button" label="Faire monter" disabled={pending || full} onClick={() => moveUp.mutate(w.personId)} />}
           {groupActions(w)}
           {removeButton(w)}
         </>

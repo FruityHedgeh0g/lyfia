@@ -83,7 +83,7 @@ class RenameResourceTest {
             UserEntity rider = person(RIDER_ID, RoleEnum.BENEVOLE, null);
             person(STRANGER_ID, RoleEnum.BENEVOLE, null);
             person(ELSEWHERE_ID, RoleEnum.MEMBRE, other);
-            registrationRepository.persist(EventRegistrationEntity.pilote(event, rider, false));
+            registrationRepository.persist(EventRegistrationEntity.conducteur(event, rider, false));
         });
     }
 

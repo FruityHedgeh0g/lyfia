@@ -14,7 +14,7 @@ import styles from "./MyEventsPage.module.css";
 
 /** Où l'on en est côté Groupe : le Groupe rejoint, ou la dernière Demande et son état. */
 const groupLine = (registration: Registration) => {
-  const passager = registration.pilote && passagerLabel(registration.pilote);
+  const passager = registration.conducteur && passagerLabel(registration.conducteur);
   if (registration.group)
     return [passager, `${registration.leadsGroup ? "Chef de groupe" : "Groupe"} : ${registration.group.name}`].filter(Boolean).join(" · ");
   if (passager) return passager;

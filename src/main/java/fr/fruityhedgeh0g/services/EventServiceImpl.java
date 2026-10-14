@@ -152,7 +152,7 @@ public class EventServiceImpl implements EventService {
     }
 
     /**
-     * The Groupe's Chef rides with it at the Event as a pilote with a confirmed place, beyond any maximum and without
+     * The Groupe's Chef rides with it at the Event as a conducteur with a confirmed place, beyond any maximum and without
      * the phone number asked of a sign-up: they were signed up, not signing up (ADR 0010).
      */
     private void enrollChef(EventEntity event, GroupEntity group) {
@@ -213,37 +213,37 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public RegistrationDto signUpAsPassager(UUID eventId, UUID personId, UUID pilotePersonId) {
+    public RegistrationDto signUpAsPassager(UUID eventId, UUID personId, UUID conducteurPersonId) {
         EventEntity event = lockedEventOrThrow(eventId);
         UserEntity person = internalUserService.doGetEntityById(personId)
                 .orElseThrow(() -> new UnknownResourceException("User not found: " + personId));
 
         Optional<EventRegistrationEntity> existing = registrationRepository.findByEventAndPerson(eventId, personId);
         if (existing.isPresent()) {
-            EventRegistrationEntity pilote = existing.get().getPilote();
-            if (pilote == null || !pilote.getPerson().getUserId().equals(pilotePersonId))
+            EventRegistrationEntity conducteur = existing.get().getConducteur();
+            if (conducteur == null || !conducteur.getPerson().getUserId().equals(conducteurPersonId))
                 throw new InvalidResourceException(personId + " is already signed up for " + eventId + " otherwise.");
             return toDto(existing.get());
         }
         featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS, event.getSector());
         requireSignUpOpenTo(event, person);
 
-        EventRegistrationEntity pilote = registrationRepository.findByEventAndPerson(eventId, pilotePersonId)
-                .orElseThrow(() -> new InvalidResourceException("No pilote " + pilotePersonId + " signed up for " + eventId));
-        // The passager takes the pilote's placement: refused rather than separated when no place is left,
+        EventRegistrationEntity conducteur = registrationRepository.findByEventAndPerson(eventId, conducteurPersonId)
+                .orElseThrow(() -> new InvalidResourceException("No conducteur " + conducteurPersonId + " signed up for " + eventId));
+        // The passager takes the conducteur's placement: refused rather than separated when no place is left,
         // including while the Bureau has the Event marked Complet
-        if (!pilote.isWaiting()) {
+        if (!conducteur.isWaiting()) {
             if (event.currentStatus() != EventStatusEnum.OUVERT || !placeLeft(event, 1))
-                throw new InvalidResourceException("No place is left next to " + pilotePersonId + " at " + eventId);
-            if (pilote.getGroup() != null) requireRoomIn(event, pilote.getGroup(), 1);
+                throw new InvalidResourceException("No place is left next to " + conducteurPersonId + " at " + eventId);
+            if (conducteur.getGroup() != null) requireRoomIn(event, conducteur.getGroup(), 1);
         }
-        EventRegistrationEntity passager = EventRegistrationEntity.passager(pilote, person);
+        EventRegistrationEntity passager = EventRegistrationEntity.passager(conducteur, person);
         registrationRepository.persist(passager);
         return toDto(passager);
     }
 
     @Override
-    public List<NestedUserDto> pilotesOf(UUID eventId) {
+    public List<NestedUserDto> conducteursOf(UUID eventId) {
         eventOrThrow(eventId);
         return registrationRepository.listByEvent(eventId).stream()
                 .filter(r -> !r.isPassager())
@@ -464,7 +464,7 @@ public class EventServiceImpl implements EventService {
         UserEntity person = registration.getPerson();
         return new RosterEntryDto(person.getUserId(), person.getFirstName(), person.getLastName(), person.getPhone(),
                 registration.getMode(), registration.getSignedUpAt(),
-                GroupRefDto.of(registration.getGroup()), DemandeDto.of(registration), piloteOf(registration),
+                GroupRefDto.of(registration.getGroup()), DemandeDto.of(registration), conducteurOf(registration),
                 registration.getPassagers().size(), registration.isChefOfItsGroup());
     }
 
@@ -490,18 +490,18 @@ public class EventServiceImpl implements EventService {
             throw new PhoneRequiredException("A phone number is required to sign up: " + person.getUserId());
     }
 
-    /** A passager is moved only with their pilote. */
+    /** A passager is moved only with their conducteur. */
     private static void requireNotPassager(EventRegistrationEntity registration) {
         if (registration.isPassager())
-            throw new InvalidResourceException("A passager follows their pilote; act on the pilote instead.");
+            throw new InvalidResourceException("A passager follows their conducteur; act on the conducteur instead.");
     }
 
     private static NestedUserDto personRef(UserEntity person) {
         return new NestedUserDto(person.getUserId(), person.getFirstName(), person.getLastName());
     }
 
-    private static NestedUserDto piloteOf(EventRegistrationEntity registration) {
-        return registration.getPilote() == null ? null : personRef(registration.getPilote().getPerson());
+    private static NestedUserDto conducteurOf(EventRegistrationEntity registration) {
+        return registration.getConducteur() == null ? null : personRef(registration.getConducteur().getPerson());
     }
 
     private static void refuseOnFinal(EventEntity event) {
@@ -553,7 +553,7 @@ public class EventServiceImpl implements EventService {
 
     private static RegistrationDto toDto(EventRegistrationEntity registration) {
         return new RegistrationDto(registration.getEvent().getEventId(), registration.getMode(), registration.status(),
-                registration.getSignedUpAt(), GroupRefDto.of(registration.getGroup()), DemandeDto.of(registration), piloteOf(registration),
+                registration.getSignedUpAt(), GroupRefDto.of(registration.getGroup()), DemandeDto.of(registration), conducteurOf(registration),
                 registration.isChefOfItsGroup());
     }
 

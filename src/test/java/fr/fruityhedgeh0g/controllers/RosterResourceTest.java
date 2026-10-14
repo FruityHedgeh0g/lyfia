@@ -106,7 +106,7 @@ public class RosterResourceTest {
     private UUID signedUp(UUID eventId, String lastName, boolean waiting, int minutesAgo) {
         UUID person = persistPerson(UUID.randomUUID(), RoleEnum.BENEVOLE, lastName);
         QuarkusTransaction.requiringNew().run(() -> {
-            EventRegistrationEntity registration = EventRegistrationEntity.pilote(
+            EventRegistrationEntity registration = EventRegistrationEntity.conducteur(
                     eventRepository.findById(eventId), userRepository.findById(person), waiting);
             registration.setSignedUpAt(LocalDateTime.now(EventEntity.ZONE).minusMinutes(minutesAgo));
             registrationRepository.persist(registration);
@@ -134,7 +134,7 @@ public class RosterResourceTest {
                 .body("participants.lastName", contains("First", "Second"))
                 .body("waiting.lastName", contains("Earlier", "Later"))
                 .body("participants[0].phone", equalTo("06 00 00 00 00"))
-                .body("participants[0].mode", equalTo("pilote"));
+                .body("participants[0].mode", equalTo("conducteur"));
     }
 
     @Test

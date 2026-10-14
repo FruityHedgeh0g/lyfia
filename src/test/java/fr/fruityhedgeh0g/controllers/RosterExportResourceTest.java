@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @TestHTTPEndpoint(EventController.class)
 public class RosterExportResourceTest {
 
-    static final String HEADER = "Nom|Prénom|Téléphone|Pilote / passager|Pilote";
+    static final String HEADER = "Nom|Prénom|Téléphone|Conducteur / passager|Conducteur";
 
     static final String ANNE_ID = "00000000-0000-0000-0010-000000000001";
     static final String PAUL_ID = "00000000-0000-0000-0010-000000000002";
@@ -107,11 +107,11 @@ public class RosterExportResourceTest {
         });
 
         // Nord: Anne with her passager Paul; no Groupe: Claire; Liste d'attente: Denis with his passager Eve
-        EventRegistrationEntity anne = pilote(ANNE_ID, false);
+        EventRegistrationEntity anne = conducteur(ANNE_ID, false);
         QuarkusTransaction.requiringNew().run(() -> registrationRepository.findById(anne.getRegistrationId()).placeIn(groupRepository.findById(nord)));
         passager(PAUL_ID, ANNE_ID);
-        pilote(CLAIRE_ID, false);
-        pilote(DENIS_ID, true);
+        conducteur(CLAIRE_ID, false);
+        conducteur(DENIS_ID, true);
         passager(EVE_ID, DENIS_ID);
         SecteurFixtures.attachToSecteur(userRepository, sectorRepository, sector);
     }
@@ -120,7 +120,7 @@ public class RosterExportResourceTest {
     void cleanUp() {
         SecteurFixtures.detachFromSecteur(userRepository, sectorRepository, sector);
         QuarkusTransaction.requiringNew().run(() -> {
-            registrationRepository.delete("event.sector.sectorId = ?1 and pilote is not null", sector);
+            registrationRepository.delete("event.sector.sectorId = ?1 and conducteur is not null", sector);
             registrationRepository.delete("event.sector.sectorId", sector);
             eventRepository.list("sector.sectorId", sector).forEach(eventRepository::delete);
             groupRepository.delete("sector.sectorId", sector);
@@ -149,10 +149,10 @@ public class RosterExportResourceTest {
         return LocalDateTime.now(EventEntity.ZONE).minusHours(1).plusMinutes(signUps++);
     }
 
-    private EventRegistrationEntity pilote(String personId, boolean waiting) {
+    private EventRegistrationEntity conducteur(String personId, boolean waiting) {
         LocalDateTime at = nextSignUp();
         return QuarkusTransaction.requiringNew().call(() -> {
-            EventRegistrationEntity r = EventRegistrationEntity.pilote(
+            EventRegistrationEntity r = EventRegistrationEntity.conducteur(
                     eventRepository.findById(event), userRepository.findById(UUID.fromString(personId)), waiting);
             r.setSignedUpAt(at);
             registrationRepository.persist(r);
@@ -160,11 +160,11 @@ public class RosterExportResourceTest {
         });
     }
 
-    private void passager(String personId, String piloteId) {
+    private void passager(String personId, String conducteurId) {
         LocalDateTime at = nextSignUp();
         QuarkusTransaction.requiringNew().run(() -> {
             EventRegistrationEntity r = EventRegistrationEntity.passager(
-                    registrationRepository.findByEventAndPerson(event, UUID.fromString(piloteId)).orElseThrow(),
+                    registrationRepository.findByEventAndPerson(event, UUID.fromString(conducteurId)).orElseThrow(),
                     userRepository.findById(UUID.fromString(personId)));
             r.setSignedUpAt(at);
             registrationRepository.persist(r);
@@ -206,10 +206,10 @@ public class RosterExportResourceTest {
         String nordTab = groupName(nord);
         String sudTab = groupName(sud);
         assertEquals(List.of("Sans groupe (2)", nordTab, sudTab, "Sans groupe", "Liste d'attente"), List.copyOf(tabs.keySet()));
-        assertEquals(List.of(HEADER, "Martin|Anne|06 01 01 01 01|pilote", "Martin|Paul|06 02 02 02 02|passager|Anne Martin"), tabs.get(nordTab));
+        assertEquals(List.of(HEADER, "Martin|Anne|06 01 01 01 01|conducteur", "Martin|Paul|06 02 02 02 02|passager|Anne Martin"), tabs.get(nordTab));
         assertEquals(List.of(HEADER), tabs.get(sudTab), "an empty Groupe still gets its tab");
-        assertEquals(List.of(HEADER, "Weber|Claire|06 03 03 03 03|pilote"), tabs.get("Sans groupe"));
-        assertEquals(List.of(HEADER, "Klein|Denis|06 04 04 04 04|pilote", "Klein|Eve|06 05 05 05 05|passager|Denis Klein"), tabs.get("Liste d'attente"));
+        assertEquals(List.of(HEADER, "Weber|Claire|06 03 03 03 03|conducteur"), tabs.get("Sans groupe"));
+        assertEquals(List.of(HEADER, "Klein|Denis|06 04 04 04 04|conducteur", "Klein|Eve|06 05 05 05 05|passager|Denis Klein"), tabs.get("Liste d'attente"));
     }
 
     @Test

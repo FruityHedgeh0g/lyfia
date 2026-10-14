@@ -68,27 +68,27 @@ public class EventController {
     }
 
     /**
-     * As pilote, optional {@code ?groupId=} creates a Demande de groupe for that Groupe;
-     * {@code ?piloteId=} signs up as passager of that pilote, who chooses the Groupe.
+     * As conducteur, optional {@code ?groupId=} creates a Demande de groupe for that Groupe;
+     * {@code ?conducteurId=} signs up as passager of that conducteur, who chooses the Groupe.
      */
     @PUT
     @Path("/{eventId}/registration")
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("benevole")
     public RegistrationDto signUp(@PathParam("eventId") UUID eventId, @QueryParam("groupId") UUID groupId,
-                                  @QueryParam("piloteId") UUID piloteId){
-        if (piloteId == null) return eventService.signUp(eventId, me(), groupId);
-        if (groupId != null) throw new BadRequestException("A passager rides with their pilote's Groupe.");
-        return eventService.signUpAsPassager(eventId, me(), piloteId);
+                                  @QueryParam("conducteurId") UUID conducteurId){
+        if (conducteurId == null) return eventService.signUp(eventId, me(), groupId);
+        if (groupId != null) throw new BadRequestException("A passager rides with their conducteur's Groupe.");
+        return eventService.signUpAsPassager(eventId, me(), conducteurId);
     }
 
-    /** The pilotes signed up for the Event, for a passager to choose from (names only). */
+    /** The conducteurs signed up for the Event, for a passager to choose from (names only). */
     @GET
-    @Path("/{eventId}/pilotes")
+    @Path("/{eventId}/conducteurs")
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("benevole")
-    public List<NestedUserDto> getPilotes(@PathParam("eventId") UUID eventId){
-        return eventService.pilotesOf(eventId);
+    public List<NestedUserDto> getConducteurs(@PathParam("eventId") UUID eventId){
+        return eventService.conducteursOf(eventId);
     }
 
     @PUT

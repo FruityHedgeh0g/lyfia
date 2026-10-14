@@ -351,12 +351,12 @@ async function events(method: string, [eventId, ...rest]: string[], body: any, q
   if (signsUp && !isOn("inscription-evenements", event.sectorId)) return featureOff("inscription-evenements");
   if (path === "registration" && method === "PUT") {
     const groupId = query.get("groupId") ?? undefined;
-    const piloteId = query.get("piloteId") ?? undefined;
-    return answer(() => reg.signUp(eventId, me(), groupId, piloteId));
+    const conducteurId = query.get("conducteurId") ?? undefined;
+    return answer(() => reg.signUp(eventId, me(), groupId, conducteurId));
   }
   if (path === "registration" && method === "DELETE") return answer(() => reg.withdraw(eventId, state.viewer.userId));
   if (path === "registration/demande" && method === "PUT") return answer(() => reg.requestGroup(eventId, state.viewer.userId, body.groupId));
-  if (path === "pilotes" && method === "GET") return answer(() => reg.fetchPilotes(eventId));
+  if (path === "conducteurs" && method === "GET") return answer(() => reg.fetchConducteurs(eventId));
   if (path === "roster" && method === "GET") return answer(() => reg.fetchRoster(eventId));
 
   const [kind, personId, action, groupId] = rest;

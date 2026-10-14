@@ -29,8 +29,8 @@ interface StoredEntry {
   mode: RideMode;
   signedUpAt: string;
   waiting: boolean;
-  /** Pour un passager : son pilote, qu'il suit partout. */
-  piloteId?: string | null;
+  /** Pour un passager : son conducteur, qu'il suit partout. */
+  conducteurId?: string | null;
   groupId?: string | null;
   demandeGroupId?: string | null;
   demandeStatus?: DemandeStatus | null;
@@ -39,7 +39,7 @@ interface StoredEntry {
 /**
  * Client mocké, mêmes contrats que EventController : inscription (PUT/DELETE
  * /api/events/{eventId}/registration, ?groupId= pour une Demande de groupe,
- * ?piloteId= pour un passager), pilotes inscrits (GET .../pilotes),
+ * ?conducteurId= pour un passager), conducteurs inscrits (GET .../conducteurs),
  * nouvelle Demande (PUT .../registration/demande), décision (POST
  * .../demandes/{personId}/accept|refuse), liste du Bureau (GET .../roster,
  * POST .../roster/{personId}/promote, DELETE .../roster/{personId}, PUT et
@@ -64,22 +64,22 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
 
   const personRef = ({ personId, firstName, lastName }: StoredEntry): PersonRef => ({ userId: personId, firstName, lastName });
 
-  const piloteRef = (eventId: string, piloteId: string | null | undefined): PersonRef | null => {
-    const pilote = read(eventId).find((e) => e.personId === piloteId);
-    return pilote ? personRef(pilote) : null;
+  const conducteurRef = (eventId: string, conducteurId: string | null | undefined): PersonRef | null => {
+    const conducteur = read(eventId).find((e) => e.personId === conducteurId);
+    return conducteur ? personRef(conducteur) : null;
   };
 
   const toEntry = (
     all: Group[],
     eventId: string,
-    { waiting: _waiting, groupId, demandeGroupId, demandeStatus, piloteId, ...entry }: StoredEntry
+    { waiting: _waiting, groupId, demandeGroupId, demandeStatus, conducteurId, ...entry }: StoredEntry
   ): RosterEntry => {
     const demandeGroup = ref(all, demandeGroupId);
     return {
       ...entry,
       group: ref(all, groupId),
       demande: demandeStatus && demandeGroup ? { group: demandeGroup, status: demandeStatus } : null,
-      pilote: piloteRef(eventId, piloteId),
+      conducteur: conducteurRef(eventId, conducteurId),
       passagers: passagersOf(eventId, entry.personId).length,
       leadsGroup: leads(all, groupId, entry.personId),
     };
@@ -94,24 +94,24 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
   };
 
   const toRegistration = async (eventId: string, entry: StoredEntry): Promise<Registration> => {
-    const { group, demande, pilote, leadsGroup } = toEntry(await groups.fetchGroups(), eventId, entry);
-    return { eventId, mode: entry.mode, status: entry.waiting ? "en_attente" : "participant", signedUpAt: entry.signedUpAt, group, demande, pilote, leadsGroup };
+    const { group, demande, conducteur, leadsGroup } = toEntry(await groups.fetchGroups(), eventId, entry);
+    return { eventId, mode: entry.mode, status: entry.waiting ? "en_attente" : "participant", signedUpAt: entry.signedUpAt, group, demande, conducteur, leadsGroup };
   };
 
-  /** Les passagers d'un pilote, qui suivent chaque changement de sa place et de son Groupe. */
-  const passagersOf = (eventId: string, piloteId: string) => read(eventId).filter((e) => e.piloteId === piloteId);
-  /** Places que prennent un pilote et ses passagers face à un maximum. */
+  /** Les passagers d'un conducteur, qui suivent chaque changement de sa place et de son Groupe. */
+  const passagersOf = (eventId: string, conducteurId: string) => read(eventId).filter((e) => e.conducteurId === conducteurId);
+  /** Places que prennent un conducteur et ses passagers face à un maximum. */
   const placesTaken = (eventId: string, personId: string) => 1 + passagersOf(eventId, personId).length;
-  /** Applique un changement au pilote et à ses passagers. */
+  /** Applique un changement au conducteur et à ses passagers. */
   const updateWithPassagers = (eventId: string, personId: string, patch: Partial<StoredEntry>, passagerPatch: Partial<StoredEntry> = patch) =>
     write(
       eventId,
       read(eventId).map((e) =>
-        e.personId === personId ? { ...e, ...patch } : e.piloteId === personId ? { ...e, ...passagerPatch } : e
+        e.personId === personId ? { ...e, ...patch } : e.conducteurId === personId ? { ...e, ...passagerPatch } : e
       )
     );
   const requireNotPassager = (entry: StoredEntry) => {
-    if (entry.mode === "passager") throw new Error("Un passager suit son pilote : agissez sur le pilote.");
+    if (entry.mode === "passager") throw new Error("Un passager suit son conducteur : agissez sur le conducteur.");
   };
 
   const eventOrThrow = async (eventId: string) => {
@@ -185,7 +185,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
   const requestGroup = async (eventId: string, personId: string, groupId: string): Promise<Registration> => {
     await refuseOnArchived(eventId);
     const entry = entryOrThrow(eventId, personId);
-    if (entry.mode === "passager") throw new Error("Un passager roule avec le groupe de son pilote.");
+    if (entry.mode === "passager") throw new Error("Un passager roule avec le groupe de son conducteur.");
     if (entry.groupId) throw new Error("Vous roulez déjà avec un groupe à cet événement.");
     await groupOrThrow(groupId);
     update(eventId, personId, { demandeGroupId: groupId, demandeStatus: "en_attente" });
@@ -200,10 +200,10 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
         )
       ),
 
-    /** En pilote, `groupId` fait une Demande de groupe ; avec `piloteId`, en passager de ce pilote, dont on prend la place et le Groupe. */
-    signUp: async (eventId: string, person: SigningUpPerson, groupId?: string, piloteId?: string): Promise<Registration> => {
+    /** En conducteur, `groupId` fait une Demande de groupe ; avec `conducteurId`, en passager de ce conducteur, dont on prend la place et le Groupe. */
+    signUp: async (eventId: string, person: SigningUpPerson, groupId?: string, conducteurId?: string): Promise<Registration> => {
       const existing = read(eventId).find((e) => e.personId === person.userId);
-      if (existing && piloteId && existing.piloteId !== piloteId) throw new Error("Vous êtes déjà inscrit à cet événement.");
+      if (existing && conducteurId && existing.conducteurId !== conducteurId) throw new Error("Vous êtes déjà inscrit à cet événement.");
       if (existing) return toRegistration(eventId, existing);
 
       const event = await eventOrThrow(eventId);
@@ -213,14 +213,14 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       if (!person.phone?.trim()) throw new PhoneRequiredError();
       if (groupId) await groupOrThrow(groupId);
 
-      const pilote = piloteId ? read(eventId).find((e) => e.personId === piloteId) : undefined;
-      if (piloteId) {
-        if (groupId) throw new Error("Un passager roule avec le groupe de son pilote.");
-        if (!pilote || pilote.mode !== "pilote") throw new Error("Choisissez un pilote inscrit à cet événement.");
-        // Le passager prend la place du pilote : refusé plutôt que séparé s'il n'y a plus de place, y compris « Complet »
-        if (!pilote.waiting) {
-          if (event.status !== "ouvert" || !placeLeft(eventId, event.maxParticipants)) throw new Error("Plus de place à côté de ce pilote.");
-          if (pilote.groupId) requireRoomIn(eventId, pilote.groupId);
+      const conducteur = conducteurId ? read(eventId).find((e) => e.personId === conducteurId) : undefined;
+      if (conducteurId) {
+        if (groupId) throw new Error("Un passager roule avec le groupe de son conducteur.");
+        if (!conducteur || conducteur.mode !== "conducteur") throw new Error("Choisissez un conducteur inscrit à cet événement.");
+        // Le passager prend la place du conducteur : refusé plutôt que séparé s'il n'y a plus de place, y compris « Complet »
+        if (!conducteur.waiting) {
+          if (event.status !== "ouvert" || !placeLeft(eventId, event.maxParticipants)) throw new Error("Plus de place à côté de ce conducteur.");
+          if (conducteur.groupId) requireRoomIn(eventId, conducteur.groupId);
         }
       }
 
@@ -229,12 +229,12 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
         firstName: person.firstName,
         lastName: person.lastName,
         phone: person.phone.trim(),
-        mode: pilote ? "passager" : "pilote",
+        mode: conducteur ? "passager" : "conducteur",
         // Horodatage strictement croissant : l'ordre d'inscription départage la liste d'attente
         signedUpAt: new Date(Math.max(Date.now(), ...read(eventId).map((e) => Date.parse(e.signedUpAt) + 1))).toISOString(),
-        waiting: pilote ? pilote.waiting : !(event.status === "ouvert" && placeLeft(eventId, event.maxParticipants)),
-        piloteId: pilote?.personId ?? null,
-        groupId: pilote?.groupId ?? null,
+        waiting: conducteur ? conducteur.waiting : !(event.status === "ouvert" && placeLeft(eventId, event.maxParticipants)),
+        conducteurId: conducteur?.personId ?? null,
+        groupId: conducteur?.groupId ?? null,
         demandeGroupId: groupId ?? null,
         demandeStatus: groupId ? "en_attente" : null,
       };
@@ -242,15 +242,15 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       return toRegistration(eventId, entry);
     },
 
-    /** Se désinscrire ; un pilote emmène ses passagers. */
+    /** Se désinscrire ; un conducteur emmène ses passagers. */
     withdraw: async (eventId: string, personId: string): Promise<void> => {
       await refuseOnChef(entryOrThrow(eventId, personId));
       await refuseOnArchived(eventId);
-      write(eventId, read(eventId).filter((e) => e.personId !== personId && e.piloteId !== personId));
+      write(eventId, read(eventId).filter((e) => e.personId !== personId && e.conducteurId !== personId));
     },
 
-    fetchPilotes: async (eventId: string): Promise<PersonRef[]> =>
-      [...read(eventId)].sort(bySignUp).filter((e) => e.mode === "pilote").map(personRef),
+    fetchConducteurs: async (eventId: string): Promise<PersonRef[]> =>
+      [...read(eventId)].sort(bySignUp).filter((e) => e.mode === "conducteur").map(personRef),
 
     requestGroup,
 
@@ -350,7 +350,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
     remove: async (eventId: string, personId: string): Promise<Roster> => {
       await refuseOnChef(entryOrThrow(eventId, personId));
       await refuseOnArchived(eventId);
-      write(eventId, read(eventId).filter((e) => e.personId !== personId && e.piloteId !== personId));
+      write(eventId, read(eventId).filter((e) => e.personId !== personId && e.conducteurId !== personId));
       return fetchRoster(eventId);
     },
   };

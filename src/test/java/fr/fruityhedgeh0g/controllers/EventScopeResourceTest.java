@@ -47,7 +47,7 @@ public class EventScopeResourceTest {
     static final String SUPER_ADMIN_ID = "00000000-0000-0000-0015-000000000003";
     static final String MEMBRE_ID = "00000000-0000-0000-0015-000000000004";
     static final String BENEVOLE_ID = "00000000-0000-0000-0015-000000000005";
-    static final String PILOTE_ID = "00000000-0000-0000-0015-000000000006";
+    static final String CONDUCTEUR_ID = "00000000-0000-0000-0015-000000000006";
 
     @Inject
     UserRepository userRepository;
@@ -80,15 +80,15 @@ public class EventScopeResourceTest {
         persistPerson(SUPER_ADMIN_ID, RoleEnum.SUPER_ADMIN, null);
         persistPerson(MEMBRE_ID, RoleEnum.MEMBRE, algrange);
         persistPerson(BENEVOLE_ID, RoleEnum.BENEVOLE, null);
-        persistPerson(PILOTE_ID, RoleEnum.BENEVOLE, null);
+        persistPerson(CONDUCTEUR_ID, RoleEnum.BENEVOLE, null);
         ourEvent = persistEvent(algrange);
         theirEvent = persistEvent(thionville);
         QuarkusTransaction.requiringNew().run(() -> {
             GroupEntity g = GroupEntity.builder().name("Test Sud " + UUID.randomUUID()).sector(sectorRepository.findById(thionville)).build();
             groupRepository.persist(g);
             theirGroup = g.getGroupId();
-            EventRegistrationEntity r = EventRegistrationEntity.pilote(
-                    eventRepository.findById(theirEvent), userRepository.findById(UUID.fromString(PILOTE_ID)), false);
+            EventRegistrationEntity r = EventRegistrationEntity.conducteur(
+                    eventRepository.findById(theirEvent), userRepository.findById(UUID.fromString(CONDUCTEUR_ID)), false);
             r.requestGroup(g);
             registrationRepository.persist(r);
         });
@@ -98,7 +98,7 @@ public class EventScopeResourceTest {
     void cleanUp() {
         QuarkusTransaction.requiringNew().run(() -> {
             List<UUID> sectors = List.of(algrange, thionville);
-            registrationRepository.delete("event.sector.sectorId in ?1 and pilote is not null", sectors);
+            registrationRepository.delete("event.sector.sectorId in ?1 and conducteur is not null", sectors);
             registrationRepository.delete("event.sector.sectorId in ?1", sectors);
             eventRepository.list("sector.sectorId in ?1", sectors).forEach(eventRepository::delete);
             groupRepository.delete("sector.sectorId in ?1", sectors);
@@ -170,8 +170,8 @@ public class EventScopeResourceTest {
                 .when().put("/{id}/status", theirEvent).then().statusCode(403);
         given().contentType(ContentType.JSON).body(Map.of("maximum", 3))
                 .when().put("/{e}/groups/{g}/maximum", theirEvent, theirGroup).then().statusCode(403);
-        given().when().post("/{e}/demandes/{p}/accept", theirEvent, PILOTE_ID).then().statusCode(403);
-        given().when().delete("/{e}/roster/{p}", theirEvent, PILOTE_ID).then().statusCode(403);
+        given().when().post("/{e}/demandes/{p}/accept", theirEvent, CONDUCTEUR_ID).then().statusCode(403);
+        given().when().delete("/{e}/roster/{p}", theirEvent, CONDUCTEUR_ID).then().statusCode(403);
     }
 
     @Test
@@ -199,7 +199,7 @@ public class EventScopeResourceTest {
     @OidcSecurity(claims = @Claim(key = "sub", value = MEMBRE_ID))
     void aMembreRidesOnlyAtTheirOwnSecteursEvents() {
         signUp(theirEvent).statusCode(400);
-        given().queryParam("piloteId", PILOTE_ID).when().put("/{id}/registration", theirEvent).then().statusCode(400);
+        given().queryParam("conducteurId", CONDUCTEUR_ID).when().put("/{id}/registration", theirEvent).then().statusCode(400);
         signUp(ourEvent).statusCode(200);
     }
 

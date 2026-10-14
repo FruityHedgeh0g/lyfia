@@ -127,7 +127,7 @@ public class SecteurMembershipResourceTest {
             e.setEndDateTime(LocalDateTime.now(EventEntity.ZONE).minusDays(9));
             e.setSector(sectorRepository.findById(sectorId));
             eventRepository.persist(e);
-            registrationRepository.persist(EventRegistrationEntity.pilote(e, userRepository.findById(personId), false));
+            registrationRepository.persist(EventRegistrationEntity.conducteur(e, userRepository.findById(personId), false));
         });
     }
 

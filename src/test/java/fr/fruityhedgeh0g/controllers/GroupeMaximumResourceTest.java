@@ -137,7 +137,7 @@ public class GroupeMaximumResourceTest {
         LocalDateTime at = LocalDateTime.now(EventEntity.ZONE).minusHours(1).plusMinutes(signUps.size());
         signUps.put(personId, at);
         QuarkusTransaction.requiringNew().run(() -> {
-            EventRegistrationEntity r = EventRegistrationEntity.pilote(
+            EventRegistrationEntity r = EventRegistrationEntity.conducteur(
                     eventRepository.findById(event), userRepository.findById(UUID.fromString(personId)), false);
             r.setSignedUpAt(at);
             r.requestGroup(groupRepository.findById(nord));

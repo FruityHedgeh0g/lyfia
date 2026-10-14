@@ -119,7 +119,7 @@ public class PromotionResourceTest {
                         .build()
         ));
         if (role == RoleEnum.BENEVOLE)
-            QuarkusTransaction.requiringNew().run(() -> registrationRepository.persist(EventRegistrationEntity.pilote(
+            QuarkusTransaction.requiringNew().run(() -> registrationRepository.persist(EventRegistrationEntity.conducteur(
                     eventRepository.findById(ride), userRepository.findById(id), false)));
         return id;
     }

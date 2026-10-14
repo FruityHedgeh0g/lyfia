@@ -51,7 +51,7 @@ public class SecteurFermeResourceTest {
     static final String ADMIN_ID = "00000000-0000-0000-0012-000000000002";
     static final String BUREAU_ID = "00000000-0000-0000-0012-000000000003";
     static final String CHEF_ID = "00000000-0000-0000-0012-000000000004";
-    static final String PILOTE_ID = "00000000-0000-0000-0012-000000000005";
+    static final String CONDUCTEUR_ID = "00000000-0000-0000-0012-000000000005";
 
     @Inject
     UserRepository userRepository;
@@ -80,7 +80,7 @@ public class SecteurFermeResourceTest {
         persistPerson(ADMIN_ID, RoleEnum.ADMIN);
         persistPerson(BUREAU_ID, RoleEnum.BUREAU);
         persistPerson(CHEF_ID, RoleEnum.CHEF_DE_GROUPE);
-        persistPerson(PILOTE_ID, RoleEnum.BENEVOLE);
+        persistPerson(CONDUCTEUR_ID, RoleEnum.BENEVOLE);
         QuarkusTransaction.requiringNew().run(() -> {
             SectorEntity s = SectorEntity.builder().name("Test Secteur " + UUID.randomUUID()).description("Avant").build();
             sectorRepository.persist(s);
@@ -97,8 +97,8 @@ public class SecteurFermeResourceTest {
             running = persistEvent(s, EventStatusEnum.OUVERT, now.minusHours(1), now.plusHours(1));
             past = persistEvent(s, EventStatusEnum.OUVERT, now.minusDays(2), now.minusDays(1));
 
-            EventRegistrationEntity signUp = EventRegistrationEntity.pilote(
-                    eventRepository.findById(upcoming), userRepository.findById(UUID.fromString(PILOTE_ID)), false);
+            EventRegistrationEntity signUp = EventRegistrationEntity.conducteur(
+                    eventRepository.findById(upcoming), userRepository.findById(UUID.fromString(CONDUCTEUR_ID)), false);
             signUp.placeIn(group);
             registrationRepository.persist(signUp);
         });
@@ -110,7 +110,7 @@ public class SecteurFermeResourceTest {
             registrationRepository.delete("event.sector.sectorId", sector);
             eventRepository.list("sector.sectorId", sector).forEach(eventRepository::delete);
             groupRepository.delete("sector.sectorId", sector);
-            List.of(SUPER_ADMIN_ID, ADMIN_ID, BUREAU_ID, CHEF_ID, PILOTE_ID).forEach(id -> userRepository.deleteById(UUID.fromString(id)));
+            List.of(SUPER_ADMIN_ID, ADMIN_ID, BUREAU_ID, CHEF_ID, CONDUCTEUR_ID).forEach(id -> userRepository.deleteById(UUID.fromString(id)));
             // The bulk delete below does not flush the Event and person deletions first
             eventRepository.flush();
             sectorRepository.delete("sectorId = ?1 or name like ?2", sector, "Test Nouveau %");
@@ -214,7 +214,7 @@ public class SecteurFermeResourceTest {
         given().basePath("/api/events").when().get("/{id}", running).then().statusCode(200).body("status", equalTo("archive"));
         given().basePath("/api/events").when().get("/{id}", past).then().statusCode(200).body("status", equalTo("archive"));
         given().basePath("/api/events").when().get("/{id}/roster", upcoming).then().statusCode(200)
-                .body("participants[0].personId", equalTo(PILOTE_ID))
+                .body("participants[0].personId", equalTo(CONDUCTEUR_ID))
                 .body("participants[0].group.groupId", equalTo(nord.toString()));
         given().basePath("/api/groups").when().get().then().statusCode(200)
                 .body("find { it.groupId == '" + nord + "' }.chef", nullValue());
@@ -231,7 +231,7 @@ public class SecteurFermeResourceTest {
                 .body(Map.of("name", "Test Refusée", "sectorId", sector.toString(),
                         "startDateTime", "2030-01-01T10:00:00", "endDateTime", "2030-01-01T18:00:00"))
                 .when().post().then().statusCode(400);
-        given().basePath("/api/events").when().delete("/{e}/roster/{p}", upcoming, PILOTE_ID).then().statusCode(400);
+        given().basePath("/api/events").when().delete("/{e}/roster/{p}", upcoming, CONDUCTEUR_ID).then().statusCode(400);
     }
 
     @Test
@@ -257,8 +257,8 @@ public class SecteurFermeResourceTest {
     }
 
     @Test
-    @TestSecurity(user = "pilote", augmentors = DatabaseRoleAugmentor.class)
-    @OidcSecurity(claims = @Claim(key = "sub", value = PILOTE_ID))
+    @TestSecurity(user = "conducteur", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = CONDUCTEUR_ID))
     void aSecteurFermesEventsLeaveMesEvenements() {
         closedInDatabase();
         given().basePath("/api/events").when().get("/registrations").then().statusCode(200)

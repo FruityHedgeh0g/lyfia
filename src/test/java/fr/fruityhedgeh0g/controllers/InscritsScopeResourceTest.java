@@ -137,7 +137,7 @@ public class InscritsScopeResourceTest {
     }
 
     private void signedUp(String personId, UUID eventId) {
-        QuarkusTransaction.requiringNew().run(() -> registrationRepository.persist(EventRegistrationEntity.pilote(
+        QuarkusTransaction.requiringNew().run(() -> registrationRepository.persist(EventRegistrationEntity.conducteur(
                 eventRepository.findById(eventId), userRepository.findById(UUID.fromString(personId)), false)));
     }
 

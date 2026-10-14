@@ -199,9 +199,9 @@ public class EventLogDecorator implements EventService{
     }
 
     @Override
-    public RegistrationDto signUpAsPassager(UUID eventId, UUID personId, UUID pilotePersonId) {
-        Log.debugf("%s signs up for event %s as passager of %s...", personId, eventId, pilotePersonId);
-        return Try.of(() -> eventService.signUpAsPassager(eventId, personId, pilotePersonId))
+    public RegistrationDto signUpAsPassager(UUID eventId, UUID personId, UUID conducteurPersonId) {
+        Log.debugf("%s signs up for event %s as passager of %s...", personId, eventId, conducteurPersonId);
+        return Try.of(() -> eventService.signUpAsPassager(eventId, personId, conducteurPersonId))
                 .onSuccess(r -> Log.infof("%s signed up for event %s as passager: %s.", personId, eventId, r.status().id()))
                 .onFailure(t -> {
                     switch (t) {
@@ -215,8 +215,8 @@ public class EventLogDecorator implements EventService{
     }
 
     @Override
-    public List<NestedUserDto> pilotesOf(UUID eventId) {
-        return logged(() -> eventService.pilotesOf(eventId), "Pilotes of event " + eventId);
+    public List<NestedUserDto> conducteursOf(UUID eventId) {
+        return logged(() -> eventService.conducteursOf(eventId), "Conducteurs of event " + eventId);
     }
 
     @Override

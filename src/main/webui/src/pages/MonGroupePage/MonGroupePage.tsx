@@ -31,7 +31,7 @@ export const MonGroupePage: React.FC = () => {
       <span className={styles.person}>
         {entry.firstName} {entry.lastName}
         <span className={styles.phone}>
-          {[entry.phone, entry.pilote ? passagerLabel(entry.pilote) : entry.passagers > 0 && `+ ${entry.passagers} passager(s)`]
+          {[entry.phone, entry.conducteur ? passagerLabel(entry.conducteur) : entry.passagers > 0 && `+ ${entry.passagers} passager(s)`]
             .filter(Boolean)
             .join(" · ")}
         </span>
@@ -69,8 +69,8 @@ export const MonGroupePage: React.FC = () => {
                 {event.members.map((m) =>
                   person(
                     m,
-                    // Un passager sort du groupe avec son pilote ; le Chef reste avec le Groupe qu'il mène (ADR 0010)
-                    !m.pilote && !m.leadsGroup && (
+                    // Un passager sort du groupe avec son conducteur ; le Chef reste avec le Groupe qu'il mène (ADR 0010)
+                    !m.conducteur && !m.leadsGroup && (
                       <Button
                         type="button"
                         label="Sortir du groupe"

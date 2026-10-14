@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchMyRegistrations, fetchPilotes, requestGroup, signUp, withdraw } from "./registrationsApi";
+import { fetchMyRegistrations, fetchConducteurs, requestGroup, signUp, withdraw } from "./registrationsApi";
 import { queryKeys } from "../queryKeys";
 import { useAuth } from "../../auth/AuthContext";
 
@@ -12,26 +12,26 @@ export function useMyRegistrations() {
   });
 }
 
-/** Les pilotes inscrits à un Événement, parmi lesquels un passager choisit. */
-export function usePilotes(eventId: string | undefined) {
+/** Les conducteurs inscrits à un Événement, parmi lesquels un passager choisit. */
+export function useConducteurs(eventId: string | undefined) {
   return useQuery({
-    queryKey: queryKeys.myRegistrations.pilotes(eventId),
-    queryFn: () => fetchPilotes(eventId ?? ""),
+    queryKey: queryKeys.myRegistrations.conducteurs(eventId),
+    queryFn: () => fetchConducteurs(eventId ?? ""),
     enabled: Boolean(eventId),
   });
 }
 
-/** Inscription comme pilote ou passager, et désinscription de la personne connectée. */
+/** Inscription comme conducteur ou passager, et désinscription de la personne connectée. */
 export function useEventRegistration() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.myRegistrations.all });
 
   const register = useMutation({
-    /** `piloteId` : s'inscrire comme passager de ce pilote (sans Demande de groupe). L'API lit le téléphone au profil. */
-    mutationFn: (input: { eventId: string; phone?: string; groupId?: string; piloteId?: string }) => {
+    /** `conducteurId` : s'inscrire comme passager de ce conducteur (sans Demande de groupe). L'API lit le téléphone au profil. */
+    mutationFn: (input: { eventId: string; phone?: string; groupId?: string; conducteurId?: string }) => {
       if (!user) throw new Error("Connectez-vous pour vous inscrire.");
-      return signUp(input.eventId, { groupId: input.groupId || undefined, piloteId: input.piloteId || undefined });
+      return signUp(input.eventId, { groupId: input.groupId || undefined, conducteurId: input.conducteurId || undefined });
     },
     onSuccess: invalidate,
   });
