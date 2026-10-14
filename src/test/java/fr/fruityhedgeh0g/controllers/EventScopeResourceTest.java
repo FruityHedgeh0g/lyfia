@@ -198,7 +198,7 @@ public class EventScopeResourceTest {
     @OidcSecurity(claims = @Claim(key = "sub", value = MEMBRE_ID))
     void aMembreRidesOnlyAtTheirOwnSecteursEvents() {
         signUp(theirEvent).statusCode(400);
-        given().queryParam("conducteurId", CONDUCTEUR_ID).when().put("/{id}/registration", theirEvent).then().statusCode(400);
+        given().queryParam("poste", "passager").when().put("/{id}/registration", theirEvent).then().statusCode(400);
         signUp(ourEvent).statusCode(200);
     }
 

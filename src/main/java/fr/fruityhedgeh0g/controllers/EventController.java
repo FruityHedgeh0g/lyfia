@@ -1,6 +1,5 @@
 package fr.fruityhedgeh0g.controllers;
 
-import fr.fruityhedgeh0g.dtos.eventDtos.ConducteurDto;
 import jakarta.ws.rs.DefaultValue;
 import java.time.LocalDate;
 import fr.fruityhedgeh0g.dtos.eventDtos.PosteChangeDto;
@@ -75,29 +74,21 @@ public class EventController {
     /**
      * {@code ?poste=} conducteur (by default), passager, chauffeur_camionnette, point_fixe or service;
      * {@code ?journee=} each Journée signed up for (none: every one, "tout l'Événement"); {@code ?groupId=} creates a
-     * Demande de groupe for that Groupe; {@code ?conducteurId=} signs a passager up behind that conducteur
-     * ("je viens avec"), taking their Groupe. Signing up again adds Journées.
+     * Demande de groupe for that Groupe; {@code ?conducteur=} the first and last name of the conducteur a passager comes
+     * with ("je viens avec"), matched among those signed up, taking their Groupe. Signing up again adds Journées.
      */
     @PUT
     @Path("/{eventId}/registration")
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("benevole")
     public RegistrationDto signUp(@PathParam("eventId") UUID eventId, @QueryParam("poste") String poste,
-                                  @QueryParam("groupId") UUID groupId, @QueryParam("conducteurId") UUID conducteurId,
+                                  @QueryParam("groupId") UUID groupId, @QueryParam("conducteur") String conducteur,
                                   @QueryParam("journee") List<LocalDate> journees){
-        PosteEnum chosen = poste == null ? (conducteurId == null ? PosteEnum.CONDUCTEUR : PosteEnum.PASSAGER) : PosteEnum.of(poste);
-        if (conducteurId != null && chosen != PosteEnum.PASSAGER) throw new BadRequestException("Only a passager names a conducteur.");
-        if (conducteurId != null && groupId != null) throw new BadRequestException("A passager rides with their conducteur's Groupe.");
-        return eventService.signUp(eventId, me(), new PublicEventService.SignUp(chosen, groupId, conducteurId, journees));
-    }
-
-    /** The conducteurs signed up for the Event, for a passager to choose from: names and Journées without a passager. */
-    @GET
-    @Path("/{eventId}/conducteurs")
-    @Produces(MediaType.APPLICATION_JSON)
-    @RolesAllowed("benevole")
-    public List<ConducteurDto> getConducteurs(@PathParam("eventId") UUID eventId){
-        return eventService.conducteursOf(eventId);
+        boolean named = conducteur != null && !conducteur.isBlank();
+        PosteEnum chosen = poste == null ? (named ? PosteEnum.PASSAGER : PosteEnum.CONDUCTEUR) : PosteEnum.of(poste);
+        if (named && chosen != PosteEnum.PASSAGER) throw new BadRequestException("Only a passager names a conducteur.");
+        if (named && groupId != null) throw new BadRequestException("A passager rides with their conducteur's Groupe.");
+        return eventService.signUp(eventId, me(), new PublicEventService.SignUp(chosen, groupId, named ? conducteur : null, journees));
     }
 
     @PUT

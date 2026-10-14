@@ -178,8 +178,17 @@ public class PassagerResourceTest {
         QuarkusTransaction.requiringNew().run(() -> registrationOf(CONDUCTEUR_ID).acceptDemande());
     }
 
+    /** "Je viens avec": the passager types the conducteur's first and last name. */
     private ValidatableResponse signUpAsPassagerOf(String conducteurId) {
-        return given().queryParam("conducteurId", conducteurId).when().put("/{id}/registration", event).then();
+        String name = QuarkusTransaction.requiringNew().call(() -> {
+            UserEntity conducteur = userRepository.findById(UUID.fromString(conducteurId));
+            return conducteur.getFirstName() + " " + conducteur.getLastName();
+        });
+        return signUpBehind(name);
+    }
+
+    private ValidatableResponse signUpBehind(String typedName) {
+        return given().queryParam("conducteur", typedName).when().put("/{id}/registration", event).then();
     }
 
     private ValidatableResponse roster() {
@@ -220,10 +229,10 @@ public class PassagerResourceTest {
     @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
     void aPassagerNeedsAConducteurSignedUpForTheSameEvent() {
-        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(400);
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(422).body("error", equalTo("conducteur-introuvable"));
 
         conducteurSignedUp(CONDUCTEUR_ID, persistEvent(null), false);
-        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(400);
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(422);
         assertTrue(!signedUp(PASSAGER_ID));
     }
 
@@ -231,11 +240,12 @@ public class PassagerResourceTest {
     @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
     void aPassagerOfAPassagerIsRefused() {
+        // Only conducteurs are matched
         conducteurSignedUp(OTHER_ID, event, false);
         QuarkusTransaction.requiringNew().run(() -> registrationRepository.persist(EventRegistrationEntity.passager(
                 registrationOf(OTHER_ID), userRepository.findById(UUID.fromString(CONDUCTEUR_ID)))));
 
-        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(400);
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(422);
     }
 
     @Test
@@ -243,7 +253,7 @@ public class PassagerResourceTest {
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
     void aPassagerComingWithAConducteurNamesNoGroupe() {
         conducteurSignedUp(false);
-        given().queryParam("conducteurId", CONDUCTEUR_ID).queryParam("groupId", nord.toString())
+        given().queryParam("conducteur", "Test Conducteur").queryParam("groupId", nord.toString())
                 .when().put("/{id}/registration", event).then().statusCode(400);
     }
 
@@ -278,8 +288,8 @@ public class PassagerResourceTest {
         conducteurSignedUp(false);
         QuarkusTransaction.requiringNew().run(() -> registrationRepository.persist(EventRegistrationEntity.passager(
                 registrationOf(CONDUCTEUR_ID), userRepository.findById(UUID.fromString(OTHER_ID)))));
-        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(400);
-        given().when().get("/{id}/conducteurs", event).then().statusCode(200).body("[0].freeJournees", empty());
+        // Busy every Journée: no longer matched
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(422);
     }
 
     @Test
@@ -311,12 +321,32 @@ public class PassagerResourceTest {
     @Test
     @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
-    void anyBenevoleSeesTheConducteursOfAnEvent() {
+    void theConducteursAreNeverListed() {
         conducteurSignedUp(false);
-        given().when().get("/{id}/conducteurs", event).then().statusCode(200)
-                .body("userId", contains(CONDUCTEUR_ID))
-                .body("[0].lastName", equalTo("Conducteur"))
-                .body("[0].phone", nullValue());
+        given().when().get("/{id}/conducteurs", event).then().statusCode(org.hamcrest.Matchers.anyOf(equalTo(404), equalTo(405)));
+    }
+
+    @Test
+    @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
+    void aPassagerFindsTheirConducteurDespiteCaseAccentsOrderAndATypo() {
+        conducteurSignedUp(false);
+        signUpBehind("conductuer TEST").statusCode(200)
+                .body("conducteur.userId", equalTo(CONDUCTEUR_ID));
+    }
+
+    @Test
+    @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
+    void aNameTooFarOrTooCommonFindsNobody() {
+        conducteurSignedUp(false);
+        signUpBehind("Jean Dupont").statusCode(422).body("error", equalTo("conducteur-introuvable"));
+
+        // Two conducteurs about as alike as the name typed
+        QuarkusTransaction.requiringNew().run(() -> userRepository.findById(UUID.fromString(OTHER_ID)).setLastName("Conducteurs"));
+        conducteurSignedUp(OTHER_ID, event, false);
+        signUpBehind("Test Conduteur").statusCode(422).body("error", equalTo("conducteur-ambigu"));
+        assertTrue(!signedUp(PASSAGER_ID));
     }
 
     // --- Maximums ---

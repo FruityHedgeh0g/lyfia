@@ -220,8 +220,8 @@ public class PosteResourceTest {
     @OidcSecurity(claims = @Claim(key = "sub", value = RIDER_ID))
     void onlyAConducteurIsNamedAsSomeonesConducteur() {
         signedUp(OTHER_ID, PosteEnum.CHAUFFEUR_CAMIONNETTE, null);
-        given().when().get("/{id}/conducteurs", event).then().statusCode(200).body("size()", equalTo(0));
-        given().queryParam("conducteurId", OTHER_ID).when().put("/{id}/registration", event).then().statusCode(400);
+        given().queryParam("conducteur", "Test Autre").when().put("/{id}/registration", event).then().statusCode(422)
+                .body("error", equalTo("conducteur-introuvable"));
     }
 
     // --- The Bureau changes a Poste ---

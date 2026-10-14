@@ -1,6 +1,6 @@
 package fr.fruityhedgeh0g.services.decorators.logs;
 
-import fr.fruityhedgeh0g.dtos.eventDtos.ConducteurDto;
+import fr.fruityhedgeh0g.exceptions.ConducteurNotFoundException;
 import java.time.LocalDate;
 import fr.fruityhedgeh0g.enums.PosteEnum;
 import fr.fruityhedgeh0g.dtos.eventDtos.EventDto;
@@ -110,6 +110,7 @@ public class EventLogDecorator implements EventService{
                     switch (t) {
                         case InvalidResourceException ex -> Log.warnf("Sign-up refused: %s", ex.getMessage());
                         case PhoneRequiredException ex -> Log.debugf("Sign-up waiting for a phone number: %s", ex.getMessage());
+                        case ConducteurNotFoundException ex -> Log.debugf("Sign-up waiting for a clearer conducteur: %s", ex.getMessage());
                         case UnknownResourceException ex -> Log.warnf("Sign-up refused: %s", ex.getMessage());
                         default -> Log.errorf(t, "An error occurred during a sign-up.");
                     }
@@ -200,11 +201,6 @@ public class EventLogDecorator implements EventService{
     public RosterDto placeInGroup(UUID eventId, UUID personId, UUID groupId, boolean withPassager) {
         return logged(() -> eventService.placeInGroup(eventId, personId, groupId, withPassager),
                 "Placement of " + personId + " in group " + groupId + " at event " + eventId);
-    }
-
-    @Override
-    public List<ConducteurDto> conducteursOf(UUID eventId) {
-        return logged(() -> eventService.conducteursOf(eventId), "Conducteurs of event " + eventId);
     }
 
     @Override

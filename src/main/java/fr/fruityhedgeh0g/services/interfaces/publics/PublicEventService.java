@@ -1,6 +1,5 @@
 package fr.fruityhedgeh0g.services.interfaces.publics;
 
-import fr.fruityhedgeh0g.dtos.eventDtos.ConducteurDto;
 import fr.fruityhedgeh0g.dtos.eventDtos.EventDto;
 import fr.fruityhedgeh0g.dtos.eventDtos.MonGroupeDto;
 import fr.fruityhedgeh0g.dtos.eventDtos.RegistrationDto;
@@ -33,20 +32,19 @@ public interface PublicEventService {
 
     /**
      * What one signs up with: a Poste, the Journées (none: every Journée), and either a Demande de groupe or, for a
-     * passager, a conducteur to come with ("je viens avec").
+     * passager, the name of a conducteur to come with ("je viens avec"), typed freely: who is signed up is never listed.
      */
-    record SignUp(@NotNull PosteEnum poste, UUID groupId, UUID conducteurPersonId, List<LocalDate> journees) {
+    record SignUp(@NotNull PosteEnum poste, UUID groupId, String conducteurName, List<LocalDate> journees) {
     }
 
     /**
      * Signs the person up while the Event is Ouvert or Complet, each Journée a confirmed place while Ouvert and under
-     * that Journée's maximum, otherwise on its Liste d'attente. A passager naming a conducteur rides behind them on the
-     * Journées both are at and the conducteur has no passager yet, waiting as they do, and takes their Groupe or
-     * Demande. Signing up again at the same Poste adds the Journées not signed up for yet.
+     * that Journée's maximum, otherwise on its Liste d'attente. A passager naming a conducteur rides behind the one
+     * whose name matches (NameMatching), among those with no passager yet one of the chosen Journées, on the Journées
+     * both are at, waiting as they do, and takes their Groupe or Demande; without a clear match the sign-up is refused
+     * (ConducteurNotFoundException). Signing up again at the same Poste adds the Journées not signed up for yet.
      */
     RegistrationDto signUp(@NotNull UUID eventId, @NotNull UUID personId, @NotNull SignUp signUp);
-    /** The conducteurs signed up for the Event, with the Journées they have no passager yet. */
-    List<ConducteurDto> conducteursOf(@NotNull UUID eventId);
     /** A new Demande de groupe, for someone signed up and not yet with a Groupe. */
     RegistrationDto requestGroup(@NotNull UUID eventId, @NotNull UUID personId, @NotNull UUID groupId);
     /**

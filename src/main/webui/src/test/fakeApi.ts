@@ -10,7 +10,7 @@ import { assignableRoles, canLeadGroupe, RoleId, roleAtLeast } from "../auth/rol
 import { createMemoryJsonStore, JsonStore } from "./fakes/jsonStore";
 import { createEventsApi as fakeEventsOn } from "./fakes/fakeEvents";
 import { createRegistrationsApi as fakeRegistrationsOn } from "./fakes/fakeRegistrations";
-import { PhoneRequiredError } from "../features/events/registrationsApi";
+import { ConducteurNotFoundError, PhoneRequiredError } from "../features/events/registrationsApi";
 import { mockPosts } from "./fixtures/posts";
 import { Post } from "../features/posts/types";
 import { mockConfigurations } from "./fixtures/configurations";
@@ -319,6 +319,7 @@ async function answer(call: () => Promise<unknown>): Promise<Response> {
     return result === undefined ? empty(204) : json(result);
   } catch (error) {
     if (error instanceof PhoneRequiredError) return json({ error: "phone-required" }, 422);
+    if (error instanceof ConducteurNotFoundError) return json({ error: error.ambiguous ? "conducteur-ambigu" : "conducteur-introuvable" }, 422);
     return empty(400);
   }
 }
@@ -357,15 +358,14 @@ async function events(method: string, [eventId, ...rest]: string[], body: any, q
   if (signsUp && !isOn("inscription-evenements", event.sectorId)) return featureOff("inscription-evenements");
   if (path === "registration" && method === "PUT") {
     const groupId = query.get("groupId") ?? undefined;
-    const conducteurId = query.get("conducteurId") ?? undefined;
-    const poste = (query.get("poste") ?? (conducteurId ? "passager" : "conducteur")) as Poste;
-    return answer(() => reg.signUp(eventId, me(), groupId, conducteurId, poste, query.getAll("journee")));
+    const conducteur = query.get("conducteur") ?? undefined;
+    const poste = (query.get("poste") ?? (conducteur ? "passager" : "conducteur")) as Poste;
+    return answer(() => reg.signUp(eventId, me(), groupId, conducteur, poste, query.getAll("journee")));
   }
   const withPassager = query.get("withPassager") !== "false";
   if (path === "registration" && method === "DELETE")
     return answer(() => reg.withdraw(eventId, state.viewer.userId, query.getAll("journee"), withPassager));
   if (path === "registration/demande" && method === "PUT") return answer(() => reg.requestGroup(eventId, state.viewer.userId, body.groupId));
-  if (path === "conducteurs" && method === "GET") return answer(() => reg.fetchConducteurs(eventId));
   if (path === "roster" && method === "GET") return answer(() => reg.fetchRoster(eventId, query.get("journee") ?? undefined));
 
   const [kind, personId, action, groupId, , conducteurId] = rest;

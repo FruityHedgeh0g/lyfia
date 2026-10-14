@@ -8,6 +8,7 @@ import fr.fruityhedgeh0g.exceptions.InvalidResourceException;
 import fr.fruityhedgeh0g.exceptions.KeycloakUnavailableException;
 import fr.fruityhedgeh0g.exceptions.NotImplementedYetException;
 import fr.fruityhedgeh0g.exceptions.PhoneRequiredException;
+import fr.fruityhedgeh0g.exceptions.ConducteurNotFoundException;
 import fr.fruityhedgeh0g.exceptions.UnknownResourceException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
@@ -56,6 +57,13 @@ public class GlobalExceptionHandler {
     @ServerExceptionMapper
     public RestResponse<Map<String, String>> mapPhoneRequiredException(PhoneRequiredException x) {
         return RestResponse.ResponseBuilder.<Map<String, String>>create(422).entity(Map.of("error", "phone-required")).build();
+    }
+
+    /** The front end reads {@code error} to ask for a more precise name; who is signed up is never shown. */
+    @ServerExceptionMapper
+    public RestResponse<Map<String, String>> mapConducteurNotFoundException(ConducteurNotFoundException x) {
+        return RestResponse.ResponseBuilder.<Map<String, String>>create(422)
+                .entity(Map.of("error", x.isAmbiguous() ? "conducteur-ambigu" : "conducteur-introuvable")).build();
     }
 
     /** The front end reads {@code feature} to say what is suspended (ADR 0009). */

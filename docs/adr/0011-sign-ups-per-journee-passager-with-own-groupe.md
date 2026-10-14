@@ -13,3 +13,4 @@ An Event spanning several days takes sign-ups per Journée (each calendar date b
 - A Demande de groupe is accepted only if the Groupe has room every Journée the person is signed up for.
 - Shortening an Event removes the sign-ups of the Journées it no longer has.
 - A passager may stand without a conducteur on a Journée; the Bureau and the Chef de groupe see it and pair them again.
+- The conducteur a passager comes with is named by typing their first and last name, matched on the server among the conducteurs signed up: the list of who is signed up is never served to the people signing up. A name matching nobody, or several people about as well, is refused, and the passager corrects it or signs up without a conducteur.
