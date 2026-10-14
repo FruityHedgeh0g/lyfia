@@ -10,6 +10,8 @@ import ButtonLink from "../../components/atoms/ButtonLink/ButtonLink";
 import FormField from "../../components/molecules/FormField/FormField";
 import Spinner from "../../components/atoms/Spinner/Spinner";
 import FeatureNotice from "../../components/molecules/FeatureNotice/FeatureNotice";
+import Collapsible from "../../components/molecules/Collapsible/Collapsible";
+import { matchesSearch } from "../../lib/textSearch";
 import { useFeature, useFeatureOff } from "../../features/featureFlags/useFeatureFlags";
 import styles from "./EventRoster.module.css";
 
@@ -19,24 +21,28 @@ interface EventRosterProps {
   sectorId: string;
   /** false une fois l'Événement archivé : la liste est figée. */
   editable: boolean;
+  /** Maximums des Groupes saisis, par groupId, envoyés par « Enregistrer » avec la fiche de l'Événement. */
+  maxima: Record<string, string>;
+  onMaximum: (groupId: string, maximum: string) => void;
+  /** Refus d'un maximum à l'enregistrement. */
+  maximumError?: Error | null;
 }
 
 interface GroupRowProps {
   entry: GroupRoster;
   editable: boolean;
-  disabled: boolean;
-  onMaximum: (maximum: number | null) => void;
+  /** Saisie en cours, absente tant que le maximum enregistré n'est pas touché. */
+  maximum: string | undefined;
+  onMaximum: (maximum: string) => void;
 }
 
 /**
  * Un Groupe à l'Événement : membres sur son maximum, maximum modifiable (vide :
- * sans limite) et Demandes en attente dans l'ordre d'inscription, parmi
+ * sans limite, enregistré avec la fiche de l'Événement) et Demandes en attente dans l'ordre d'inscription, parmi
  * lesquelles on choisit quand une place se libère.
  */
-const GroupRow: React.FC<GroupRowProps> = ({ entry, editable, disabled, onMaximum }) => {
-  const [maximum, setMaximum] = useState(entry.maximum ? String(entry.maximum) : "");
+const GroupRow: React.FC<GroupRowProps> = ({ entry, editable, maximum, onMaximum }) => {
   const { group, members, demandes } = entry;
-  const apply = () => onMaximum(Number(maximum) || null);
 
   return (
     <li className={styles.row}>
@@ -62,17 +68,9 @@ const GroupRow: React.FC<GroupRowProps> = ({ entry, editable, disabled, onMaximu
             label="Maximum"
             type="number"
             min={0}
-            value={maximum}
-            onChange={(e) => setMaximum(e.target.value)}
-            onKeyDown={(e) => {
-              // Le roster est dans le formulaire de l'Événement : Entrée applique le maximum sans l'enregistrer
-              if (e.key === "Enter") {
-                e.preventDefault();
-                apply();
-              }
-            }}
+            value={maximum ?? (entry.maximum ? String(entry.maximum) : "")}
+            onChange={(e) => onMaximum(e.target.value)}
           />
-          <Button type="button" label="Appliquer" variant="outline" disabled={disabled} onClick={apply} />
         </span>
       )}
     </li>
@@ -86,23 +84,25 @@ const GroupRow: React.FC<GroupRowProps> = ({ entry, editable, disabled, onMaximu
  * Participants d'un Groupe (dans la limite du maximum de chaque Groupe) ; un
  * passager suit son pilote, seul son retrait se fait à part ;
  * personne ne monte automatiquement, ni dans l'Événement ni dans un Groupe.
+ * Les deux listes se replient et une recherche les filtre ensemble, sans appel au serveur.
  */
-export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, editable }) => {
-  const { roster, moveUp, removePerson, place, setMaximum } = useRoster(eventId);
+export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, editable, maxima, onMaximum, maximumError }) => {
+  const { roster, moveUp, removePerson, place } = useRoster(eventId);
   const { decide, takeOut } = useGroupActions();
   const { confirm, dialog } = useConfirm();
+  const [search, setSearch] = useState("");
   const { data: groups } = useGroups();
   const exportOn = useFeature("export-liste", sectorId);
   const exportOff = useFeatureOff("export-liste", sectorId);
   const pending =
-    moveUp.isPending || removePerson.isPending || place.isPending || setMaximum.isPending || decide.isPending || takeOut.isPending;
+    moveUp.isPending || removePerson.isPending || place.isPending || decide.isPending || takeOut.isPending;
 
   if (roster.isLoading) return <Spinner label="Chargement des inscrits..." />;
   if (!roster.data) return null;
 
   const { participants, waiting, maxParticipants } = roster.data;
   const full = maxParticipants !== null && participants.length >= maxParticipants;
-  const error = moveUp.error ?? removePerson.error ?? place.error ?? setMaximum.error ?? decide.error ?? takeOut.error;
+  const error = moveUp.error ?? removePerson.error ?? place.error ?? maximumError ?? decide.error ?? takeOut.error;
   const groupOptions = [
     { value: "", label: "Sans groupe" },
     ...(groups ?? []).filter((g) => g.sectorId === sectorId).map((g) => ({ value: g.groupId, label: g.name })),
@@ -165,15 +165,45 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
     </>
   );
 
+  const details = (entry: RosterEntry) => [entry.phone, groupLine(entry)].filter(Boolean).join(" · ");
+
   const row = (entry: RosterEntry, actions: React.ReactNode) => (
     <li key={entry.personId} className={styles.row}>
       <span className={styles.person}>
         {entry.firstName} {entry.lastName}
-        <span className={styles.phone}>{[entry.phone, groupLine(entry)].filter(Boolean).join(" · ")}</span>
+        <span className={styles.phone}>{details(entry)}</span>
       </span>
       {editable && <span className={styles.actions}>{actions}</span>}
     </li>
   );
+
+  /**
+   * Une liste repliable, filtrée par la recherche sur tout le texte de ses lignes ;
+   * le titre garde le vrai total et compte les résultats quand on cherche.
+   */
+  const list = (
+    title: string,
+    label: string,
+    entries: RosterEntry[],
+    empty: string,
+    actions: (entry: RosterEntry) => React.ReactNode
+  ) => {
+    const shown = entries.filter((e) => matchesSearch(`${e.firstName} ${e.lastName} ${details(e)}`, search));
+    const searching = search.trim() !== "";
+    return (
+      <Collapsible title={<h3 className={styles.title}>{searching ? `${title} · ${shown.length} résultat(s)` : title}</h3>}>
+        {entries.length === 0 ? (
+          <p className={styles.empty}>{empty}</p>
+        ) : shown.length === 0 ? (
+          <p className={styles.empty}>Aucun résultat pour « {search.trim()} ».</p>
+        ) : (
+          <ul className={styles.list} aria-label={label}>
+            {shown.map((entry) => row(entry, actions(entry)))}
+          </ul>
+        )}
+      </Collapsible>
+    );
+  };
 
   return (
     <section className={styles.roster} aria-label="Inscrits">
@@ -183,53 +213,47 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
       ) : (
         exportOff && <FeatureNotice feature="export-liste" message="Le téléchargement de la liste est temporairement suspendu." />
       )}
-      <h3 className={styles.title}>
-        Participants ({participants.length}
-        {maxParticipants !== null ? ` / ${maxParticipants}` : ""})
-      </h3>
-      {participants.length === 0 ? (
-        <p className={styles.empty}>Aucun participant.</p>
-      ) : (
-        <ul className={styles.list} aria-label="Participants">
-          {participants.map((p) =>
-            row(
-              p,
-              <>
-                {!p.group && !p.pilote && (
-                  <Select
-                    label="Groupe"
-                    value=""
-                    onChange={(groupId) => groupId && place.mutate({ personId: p.personId, groupId })}
-                    options={groupOptions}
-                  />
-                )}
-                {groupActions(p)}
-                {removeButton(p)}
-              </>
-            )
-          )}
-        </ul>
+      {participants.length + waiting.length > 0 && (
+        <FormField
+          label="Rechercher un inscrit"
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => {
+            // Le roster est dans le formulaire de l'Événement : Entrée ne l'enregistre pas
+            if (e.key === "Enter") e.preventDefault();
+          }}
+        />
       )}
 
-      <h3 className={styles.title}>Liste d'attente ({waiting.length})</h3>
-      {waiting.length === 0 ? (
-        <p className={styles.empty}>Personne en attente.</p>
-      ) : (
-        <ul className={styles.list} aria-label="Liste d'attente">
-          {waiting.map((w) =>
-            row(
-              w,
-              <>
-                {!w.pilote && (
-                  <Button type="button" label="Faire monter" disabled={pending || full} onClick={() => moveUp.mutate(w.personId)} />
-                )}
-                {groupActions(w)}
-                {removeButton(w)}
-              </>
-            )
-          )}
-        </ul>
+      {list(
+        `Participants (${participants.length}${maxParticipants !== null ? ` / ${maxParticipants}` : ""})`,
+        "Participants",
+        participants,
+        "Aucun participant.",
+        (p) => (
+          <>
+            {!p.group && !p.pilote && (
+              <Select
+                label="Groupe"
+                value=""
+                onChange={(groupId) => groupId && place.mutate({ personId: p.personId, groupId })}
+                options={groupOptions}
+              />
+            )}
+            {groupActions(p)}
+            {removeButton(p)}
+          </>
+        )
       )}
+
+      {list(`Liste d'attente (${waiting.length})`, "Liste d'attente", waiting, "Personne en attente.", (w) => (
+        <>
+          {!w.pilote && <Button type="button" label="Faire monter" disabled={pending || full} onClick={() => moveUp.mutate(w.personId)} />}
+          {groupActions(w)}
+          {removeButton(w)}
+        </>
+      ))}
       {full && waiting.length > 0 && editable && <p className={styles.empty}>Maximum atteint : libérez une place pour faire monter quelqu'un.</p>}
 
       {roster.data.groups.length > 0 && (
@@ -241,8 +265,8 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
                 key={g.group.groupId}
                 entry={g}
                 editable={editable}
-                disabled={pending}
-                onMaximum={(maximum) => setMaximum.mutate({ groupId: g.group.groupId, maximum })}
+                maximum={maxima[g.group.groupId]}
+                onMaximum={(maximum) => onMaximum(g.group.groupId, maximum)}
               />
             ))}
           </ul>
