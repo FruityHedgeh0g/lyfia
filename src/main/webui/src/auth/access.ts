@@ -20,6 +20,8 @@ export interface AccessEntry {
   section: AccessSection;
   /** Menu déroulant du Header qui regroupe l'entrée (section "main"). */
   menu?: string;
+  /** Onglet déroulant de l'espace qui regroupe l'entrée, par thème, pour que tous les onglets tiennent sur une ligne. */
+  group?: "Organisation" | "Contenu" | "Site";
   /** L'entrée n'est accessible que si cette fonctionnalité est active. */
   feature?: FeatureName;
   /** Lien actif uniquement sur le chemin exact (NavLink `end`). */
@@ -67,16 +69,16 @@ export const ACCESS = {
   accountGroup: { path: "/mon-compte/groupe", label: "Mon groupe", minRole: "chef_de_groupe", maxRole: "admin", section: "account" },
   accountSector: { path: "/mon-compte/secteur", label: "Mon secteur", minRole: "bureau", maxRole: "admin", section: "account" },
 
-  adminMembers: { path: "/administration/membres", label: "Inscrits", minRole: "bureau", section: "admin" },
-  adminSectors: { path: "/administration/secteurs", label: "Secteurs", minRole: "super_admin", section: "admin" },
-  adminGroups: { path: "/administration/groupes", label: "Groupes", minRole: "bureau", section: "admin" },
-  adminEvents: { path: "/administration/evenements", label: "Gestion événements", minRole: "bureau", section: "admin" },
-  adminPosts: { path: "/administration/actualites", label: "Actualités", minRole: "bureau", section: "admin" },
-  adminCarousel: { path: "/administration/carrousel", label: "Carrousel", minRole: "bureau", section: "admin" },
-  adminMedias: { path: "/administration/medias", label: "Médiathèque", minRole: "bureau", section: "admin" },
-  adminConfiguration: { path: "/administration/configuration", label: "Configuration", minRole: "super_admin", section: "admin" },
-  adminFeatureFlags: { path: "/administration/fonctionnalites", label: "Fonctionnalités", minRole: "super_admin", section: "admin" },
-  adminJournal: { path: "/administration/journal", label: "Journal", minRole: "super_admin", section: "admin" },
+  adminMembers: { path: "/administration/membres", label: "Inscrits", minRole: "bureau", section: "admin", group: "Organisation" },
+  adminSectors: { path: "/administration/secteurs", label: "Secteurs", minRole: "super_admin", section: "admin", group: "Organisation" },
+  adminGroups: { path: "/administration/groupes", label: "Groupes", minRole: "bureau", section: "admin", group: "Organisation" },
+  adminEvents: { path: "/administration/evenements", label: "Gestion événements", minRole: "bureau", section: "admin", group: "Organisation" },
+  adminPosts: { path: "/administration/actualites", label: "Actualités", minRole: "bureau", section: "admin", group: "Contenu" },
+  adminCarousel: { path: "/administration/carrousel", label: "Carrousel", minRole: "bureau", section: "admin", group: "Contenu" },
+  adminMedias: { path: "/administration/medias", label: "Médiathèque", minRole: "bureau", section: "admin", group: "Contenu" },
+  adminConfiguration: { path: "/administration/configuration", label: "Configuration", minRole: "super_admin", section: "admin", group: "Site" },
+  adminFeatureFlags: { path: "/administration/fonctionnalites", label: "Fonctionnalités", minRole: "super_admin", section: "admin", group: "Site" },
+  adminJournal: { path: "/administration/journal", label: "Journal", minRole: "super_admin", section: "admin", group: "Site" },
 } satisfies Record<string, AccessEntry>;
 
 export type AccessId = keyof typeof ACCESS;
