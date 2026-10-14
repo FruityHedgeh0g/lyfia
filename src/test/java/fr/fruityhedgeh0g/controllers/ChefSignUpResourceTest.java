@@ -47,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The Chef leading a Groupe rides with it at every Event of its Secteur from its Planification on, until the Event
- * is under way: a confirmed pilote place beyond any maximum, which only a change of Affectation takes away (ADR 0010).
+ * is under way: a confirmed conducteur place beyond any maximum, which only a change of Affectation takes away (ADR 0010).
  */
 @QuarkusTest
 @TestHTTPEndpoint(EventController.class)
@@ -58,7 +58,7 @@ public class ChefSignUpResourceTest {
     static final String NEW_CHEF_ID = "00000000-0000-0000-0017-000000000003";
     static final String BUREAU_ID = "00000000-0000-0000-0017-000000000004";
     static final String MEMBRE_ID = "00000000-0000-0000-0017-000000000005";
-    static final String PILOTE_ID = "00000000-0000-0000-0017-000000000006";
+    static final String CONDUCTEUR_ID = "00000000-0000-0000-0017-000000000006";
 
     @Inject
     UserRepository userRepository;
@@ -90,7 +90,7 @@ public class ChefSignUpResourceTest {
         persistPerson(NEW_CHEF_ID, RoleEnum.CHEF_DE_GROUPE, "Nouveau");
         persistPerson(BUREAU_ID, RoleEnum.BUREAU, "Bureau");
         persistPerson(MEMBRE_ID, RoleEnum.MEMBRE, "Membre");
-        persistPerson(PILOTE_ID, RoleEnum.BENEVOLE, "Pilote");
+        persistPerson(CONDUCTEUR_ID, RoleEnum.BENEVOLE, "Conducteur");
         QuarkusTransaction.requiringNew().run(() -> {
             SectorEntity s = SectorEntity.builder().name("Test Secteur " + UUID.randomUUID()).build();
             sectorRepository.persist(s);
@@ -105,7 +105,7 @@ public class ChefSignUpResourceTest {
     void cleanUp() {
         SecteurFixtures.detachFromSecteur(userRepository, sectorRepository, sector);
         QuarkusTransaction.requiringNew().run(() -> {
-            registrationRepository.delete("pilote is not null and event.sector.sectorId = ?1", sector);
+            registrationRepository.delete("conducteur is not null and event.sector.sectorId = ?1", sector);
             registrationRepository.delete("event.sector.sectorId", sector);
             eventRepository.delete("sector.sectorId", sector);
             groupRepository.delete("sector.sectorId", sector);
@@ -173,7 +173,7 @@ public class ChefSignUpResourceTest {
         given().when().get("/{id}/roster", event).then().statusCode(200)
                 .body("participants.personId", hasItems(CHEF_ID, OTHER_CHEF_ID))
                 .body("waiting.size()", equalTo(0))
-                .body("participants.find { it.personId == '" + CHEF_ID + "' }.mode", equalTo("pilote"))
+                .body("participants.find { it.personId == '" + CHEF_ID + "' }.mode", equalTo("conducteur"))
                 .body("participants.find { it.personId == '" + CHEF_ID + "' }.group.groupId", equalTo(nord.toString()))
                 .body("participants.find { it.personId == '" + CHEF_ID + "' }.leadsGroup", equalTo(true));
     }
@@ -255,23 +255,23 @@ public class ChefSignUpResourceTest {
     @Test
     @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
-    void aNewChefAlreadyRidingAsPassagerBecomesThePilote() {
+    void aNewChefAlreadyRidingAsPassagerBecomesTheConducteur() {
         UUID event = eventIn(EventStatusEnum.OUVERT);
         QuarkusTransaction.requiringNew().run(() -> {
-            EventRegistrationEntity pilote = EventRegistrationEntity.pilote(
-                    eventRepository.findById(event), userRepository.findById(UUID.fromString(PILOTE_ID)), true);
-            registrationRepository.persist(pilote);
-            registrationRepository.persist(EventRegistrationEntity.passager(pilote, userRepository.findById(UUID.fromString(NEW_CHEF_ID))));
+            EventRegistrationEntity conducteur = EventRegistrationEntity.conducteur(
+                    eventRepository.findById(event), userRepository.findById(UUID.fromString(CONDUCTEUR_ID)), true);
+            registrationRepository.persist(conducteur);
+            registrationRepository.persist(EventRegistrationEntity.passager(conducteur, userRepository.findById(UUID.fromString(NEW_CHEF_ID))));
         });
 
         given().basePath("/api/groups").when().put("/{g}/chef/{p}", nord, NEW_CHEF_ID).then().statusCode(200);
 
         EventRegistrationEntity chef = registrationOf(event, NEW_CHEF_ID).orElseThrow();
-        assertEquals(RideModeEnum.PILOTE, chef.getMode());
+        assertEquals(RideModeEnum.CONDUCTEUR, chef.getMode());
         assertFalse(chef.isWaiting());
         assertEquals(nord, groupOf(event, NEW_CHEF_ID));
         assertEquals(0, QuarkusTransaction.requiringNew().call(() ->
-                registrationRepository.findByEventAndPerson(event, UUID.fromString(PILOTE_ID)).orElseThrow().getPassagers().size()));
+                registrationRepository.findByEventAndPerson(event, UUID.fromString(CONDUCTEUR_ID)).orElseThrow().getPassagers().size()));
     }
 
     @Test

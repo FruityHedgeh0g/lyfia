@@ -39,12 +39,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** A passager signs up with a pilote of the same Event, counts towards every maximum and always follows their pilote. */
+/** A passager signs up with a conducteur of the same Event, counts towards every maximum and always follows their conducteur. */
 @QuarkusTest
 @TestHTTPEndpoint(EventController.class)
 public class PassagerResourceTest {
 
-    static final String PILOTE_ID = "00000000-0000-0000-0009-000000000001";
+    static final String CONDUCTEUR_ID = "00000000-0000-0000-0009-000000000001";
     static final String PASSAGER_ID = "00000000-0000-0000-0009-000000000002";
     static final String OTHER_ID = "00000000-0000-0000-0009-000000000003";
     static final String CHEF_ID = "00000000-0000-0000-0009-000000000004";
@@ -72,7 +72,7 @@ public class PassagerResourceTest {
 
     @BeforeEach
     void seed() {
-        persistPerson(PILOTE_ID, RoleEnum.BENEVOLE, "Pilote");
+        persistPerson(CONDUCTEUR_ID, RoleEnum.BENEVOLE, "Conducteur");
         persistPerson(PASSAGER_ID, RoleEnum.BENEVOLE, "Passager");
         persistPerson(OTHER_ID, RoleEnum.BENEVOLE, "Autre");
         persistPerson(CHEF_ID, RoleEnum.CHEF_DE_GROUPE, "Chef");
@@ -94,8 +94,8 @@ public class PassagerResourceTest {
     void cleanUp() {
         SecteurFixtures.detachFromSecteur(userRepository, sectorRepository, sector);
         QuarkusTransaction.requiringNew().run(() -> {
-            // Passagers first: they point at their pilote's sign-up
-            registrationRepository.delete("event.sector.sectorId = ?1 and pilote is not null", sector);
+            // Passagers first: they point at their conducteur's sign-up
+            registrationRepository.delete("event.sector.sectorId = ?1 and conducteur is not null", sector);
             registrationRepository.delete("event.sector.sectorId", sector);
             eventRepository.list("sector.sectorId", sector).forEach(eventRepository::delete);
             groupRepository.delete("sector.sectorId", sector);
@@ -135,37 +135,37 @@ public class PassagerResourceTest {
         QuarkusTransaction.requiringNew().run(() -> eventRepository.findById(event).getGroupMaximums().put(nord, max));
     }
 
-    /** Signs a pilote up directly in the database. */
-    private void piloteSignedUp(String personId, UUID eventId, boolean waiting) {
-        QuarkusTransaction.requiringNew().run(() -> registrationRepository.persist(EventRegistrationEntity.pilote(
+    /** Signs a conducteur up directly in the database. */
+    private void conducteurSignedUp(String personId, UUID eventId, boolean waiting) {
+        QuarkusTransaction.requiringNew().run(() -> registrationRepository.persist(EventRegistrationEntity.conducteur(
                 eventRepository.findById(eventId), userRepository.findById(UUID.fromString(personId)), waiting)));
     }
 
-    private void piloteSignedUp(boolean waiting) {
-        piloteSignedUp(PILOTE_ID, event, waiting);
+    private void conducteurSignedUp(boolean waiting) {
+        conducteurSignedUp(CONDUCTEUR_ID, event, waiting);
     }
 
-    /** Signs the passager up with the pilote directly in the database, mirroring the pilote. */
+    /** Signs the passager up with the conducteur directly in the database, mirroring the conducteur. */
     private void passagerSignedUp() {
         QuarkusTransaction.requiringNew().run(() -> registrationRepository.persist(EventRegistrationEntity.passager(
-                registrationOf(PILOTE_ID), userRepository.findById(UUID.fromString(PASSAGER_ID)))));
+                registrationOf(CONDUCTEUR_ID), userRepository.findById(UUID.fromString(PASSAGER_ID)))));
     }
 
     private EventRegistrationEntity registrationOf(String personId) {
         return registrationRepository.findByEventAndPerson(event, UUID.fromString(personId)).orElseThrow();
     }
 
-    private void piloteAsksForNord() {
-        QuarkusTransaction.requiringNew().run(() -> registrationOf(PILOTE_ID).requestGroup(groupRepository.findById(nord)));
+    private void conducteurAsksForNord() {
+        QuarkusTransaction.requiringNew().run(() -> registrationOf(CONDUCTEUR_ID).requestGroup(groupRepository.findById(nord)));
     }
 
-    private void piloteRidesWithNord() {
-        piloteAsksForNord();
-        QuarkusTransaction.requiringNew().run(() -> registrationOf(PILOTE_ID).acceptDemande());
+    private void conducteurRidesWithNord() {
+        conducteurAsksForNord();
+        QuarkusTransaction.requiringNew().run(() -> registrationOf(CONDUCTEUR_ID).acceptDemande());
     }
 
-    private ValidatableResponse signUpAsPassagerOf(String piloteId) {
-        return given().queryParam("piloteId", piloteId).when().put("/{id}/registration", event).then();
+    private ValidatableResponse signUpAsPassagerOf(String conducteurId) {
+        return given().queryParam("conducteurId", conducteurId).when().put("/{id}/registration", event).then();
     }
 
     private ValidatableResponse roster() {
@@ -186,26 +186,26 @@ public class PassagerResourceTest {
     @Test
     @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
-    void aPassagerSignsUpWithTheirPiloteAndFollowsTheirGroupe() {
-        piloteSignedUp(false);
-        piloteRidesWithNord();
+    void aPassagerSignsUpWithTheirConducteurAndFollowsTheirGroupe() {
+        conducteurSignedUp(false);
+        conducteurRidesWithNord();
 
-        signUpAsPassagerOf(PILOTE_ID).statusCode(200)
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(200)
                 .body("mode", equalTo("passager"))
                 .body("status", equalTo("participant"))
-                .body("pilote.userId", equalTo(PILOTE_ID))
-                .body("pilote.lastName", equalTo("Pilote"))
+                .body("conducteur.userId", equalTo(CONDUCTEUR_ID))
+                .body("conducteur.lastName", equalTo("Conducteur"))
                 .body("group.groupId", equalTo(nord.toString()));
     }
 
     @Test
     @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
-    void aPassagerNeedsAPiloteSignedUpForTheSameEvent() {
-        signUpAsPassagerOf(PILOTE_ID).statusCode(400);
+    void aPassagerNeedsAConducteurSignedUpForTheSameEvent() {
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(400);
 
-        piloteSignedUp(PILOTE_ID, persistEvent(null), false);
-        signUpAsPassagerOf(PILOTE_ID).statusCode(400);
+        conducteurSignedUp(CONDUCTEUR_ID, persistEvent(null), false);
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(400);
         assertTrue(!signedUp(PASSAGER_ID));
     }
 
@@ -213,22 +213,22 @@ public class PassagerResourceTest {
     @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
     void aPassagerOfAPassagerIsRefused() {
-        piloteSignedUp(OTHER_ID, event, false);
+        conducteurSignedUp(OTHER_ID, event, false);
         QuarkusTransaction.requiringNew().run(() -> registrationRepository.persist(EventRegistrationEntity.passager(
-                registrationOf(OTHER_ID), userRepository.findById(UUID.fromString(PILOTE_ID)))));
+                registrationOf(OTHER_ID), userRepository.findById(UUID.fromString(CONDUCTEUR_ID)))));
 
-        signUpAsPassagerOf(PILOTE_ID).statusCode(400);
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(400);
     }
 
     @Test
     @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
     void aPassagerCannotAlsoAskForAGroupe() {
-        piloteSignedUp(false);
-        given().queryParam("piloteId", PILOTE_ID).queryParam("groupId", nord.toString())
+        conducteurSignedUp(false);
+        given().queryParam("conducteurId", CONDUCTEUR_ID).queryParam("groupId", nord.toString())
                 .when().put("/{id}/registration", event).then().statusCode(400);
 
-        signUpAsPassagerOf(PILOTE_ID).statusCode(200);
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(200);
         given().contentType(ContentType.JSON).body(Map.of("groupId", nord.toString()))
                 .when().put("/{id}/registration/demande", event).then().statusCode(400);
     }
@@ -236,19 +236,19 @@ public class PassagerResourceTest {
     @Test
     @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
-    void thePassagerOfAWaitingPiloteWaitsToo() {
-        piloteSignedUp(true);
-        signUpAsPassagerOf(PILOTE_ID).statusCode(200).body("status", equalTo("en_attente"));
+    void thePassagerOfAWaitingConducteurWaitsToo() {
+        conducteurSignedUp(true);
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(200).body("status", equalTo("en_attente"));
     }
 
     @Test
     @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
-    void anyBenevoleSeesThePilotesOfAnEvent() {
-        piloteSignedUp(false);
-        given().when().get("/{id}/pilotes", event).then().statusCode(200)
-                .body("userId", contains(PILOTE_ID))
-                .body("[0].lastName", equalTo("Pilote"))
+    void anyBenevoleSeesTheConducteursOfAnEvent() {
+        conducteurSignedUp(false);
+        given().when().get("/{id}/conducteurs", event).then().statusCode(200)
+                .body("userId", contains(CONDUCTEUR_ID))
+                .body("[0].lastName", equalTo("Conducteur"))
                 .body("[0].phone", nullValue());
     }
 
@@ -257,38 +257,38 @@ public class PassagerResourceTest {
     @Test
     @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
-    void aPassagerCannotJoinAPiloteWhenTheEventIsAtItsMaximum() {
+    void aPassagerCannotJoinAConducteurWhenTheEventIsAtItsMaximum() {
         maximumIs(1);
-        piloteSignedUp(false);
-        signUpAsPassagerOf(PILOTE_ID).statusCode(400);
+        conducteurSignedUp(false);
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(400);
     }
 
     @Test
     @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
-    void aPassagerCannotJoinAParticipantPiloteWhileTheEventIsComplet() {
-        piloteSignedUp(false);
+    void aPassagerCannotJoinAParticipantConducteurWhileTheEventIsComplet() {
+        conducteurSignedUp(false);
         QuarkusTransaction.requiringNew().run(() -> eventRepository.findById(event).setStatus(EventStatusEnum.COMPLET));
-        signUpAsPassagerOf(PILOTE_ID).statusCode(400);
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(400);
     }
 
     @Test
     @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
-    void someoneSignedUpAsPiloteCannotTurnPassager() {
-        piloteSignedUp(false);
-        piloteSignedUp(PASSAGER_ID, event, false);
-        signUpAsPassagerOf(PILOTE_ID).statusCode(400);
+    void someoneSignedUpAsConducteurCannotTurnPassager() {
+        conducteurSignedUp(false);
+        conducteurSignedUp(PASSAGER_ID, event, false);
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(400);
     }
 
     @Test
     @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
-    void aPassagerCannotJoinAPiloteWhoseGroupeIsAtItsMaximum() {
-        piloteSignedUp(false);
-        piloteRidesWithNord();
+    void aPassagerCannotJoinAConducteurWhoseGroupeIsAtItsMaximum() {
+        conducteurSignedUp(false);
+        conducteurRidesWithNord();
         nordMaximumIs(1);
-        signUpAsPassagerOf(PILOTE_ID).statusCode(400);
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(400);
     }
 
     @Test
@@ -296,9 +296,9 @@ public class PassagerResourceTest {
     @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
     void aPassagerCountsTowardsTheEventMaximum() {
         maximumIs(2);
-        piloteSignedUp(false);
+        conducteurSignedUp(false);
         passagerSignedUp();
-        piloteSignedUp(OTHER_ID, event, true);
+        conducteurSignedUp(OTHER_ID, event, true);
 
         given().when().post("/{e}/roster/{p}/promote", event, OTHER_ID).then().statusCode(400);
     }
@@ -308,86 +308,86 @@ public class PassagerResourceTest {
     @OidcSecurity(claims = @Claim(key = "sub", value = CHEF_ID))
     void aPassagerCountsTowardsTheGroupeMaximum() {
         nordMaximumIs(2);
-        piloteSignedUp(false);
+        conducteurSignedUp(false);
         passagerSignedUp();
-        piloteAsksForNord();
-        piloteSignedUp(OTHER_ID, event, false);
+        conducteurAsksForNord();
+        conducteurSignedUp(OTHER_ID, event, false);
         QuarkusTransaction.requiringNew().run(() -> registrationOf(OTHER_ID).placeIn(groupRepository.findById(nord)));
 
-        // Pilote and passager need two places; only one is left
-        given().when().post("/{e}/demandes/{p}/accept", event, PILOTE_ID).then().statusCode(400);
+        // Conducteur and passager need two places; only one is left
+        given().when().post("/{e}/demandes/{p}/accept", event, CONDUCTEUR_ID).then().statusCode(400);
     }
 
-    // --- Following the pilote ---
+    // --- Following the conducteur ---
 
     @Test
     @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
-    void movingThePiloteUpMovesThePassagerUp() {
+    void movingTheConducteurUpMovesThePassagerUp() {
         maximumIs(2);
-        piloteSignedUp(true);
+        conducteurSignedUp(true);
         passagerSignedUp();
 
-        given().when().post("/{e}/roster/{p}/promote", event, PILOTE_ID).then().statusCode(200)
-                .body("participants.personId", containsInAnyOrder(PILOTE_ID, PASSAGER_ID));
+        given().when().post("/{e}/roster/{p}/promote", event, CONDUCTEUR_ID).then().statusCode(200)
+                .body("participants.personId", containsInAnyOrder(CONDUCTEUR_ID, PASSAGER_ID));
     }
 
     @Test
     @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
-    void thePiloteIsNotMovedUpWithoutRoomForTheirPassagers() {
+    void theConducteurIsNotMovedUpWithoutRoomForTheirPassagers() {
         maximumIs(1);
-        piloteSignedUp(true);
+        conducteurSignedUp(true);
         passagerSignedUp();
 
-        given().when().post("/{e}/roster/{p}/promote", event, PILOTE_ID).then().statusCode(400);
+        given().when().post("/{e}/roster/{p}/promote", event, CONDUCTEUR_ID).then().statusCode(400);
     }
 
     @Test
     @TestSecurity(user = "chef", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = CHEF_ID))
-    void acceptingThePilotesDemandeTakesThePassagerIntoTheGroupe() {
-        piloteSignedUp(false);
+    void acceptingTheConducteursDemandeTakesThePassagerIntoTheGroupe() {
+        conducteurSignedUp(false);
         passagerSignedUp();
-        piloteAsksForNord();
+        conducteurAsksForNord();
 
-        given().when().post("/{e}/demandes/{p}/accept", event, PILOTE_ID).then().statusCode(200);
+        given().when().post("/{e}/demandes/{p}/accept", event, CONDUCTEUR_ID).then().statusCode(200);
         given().when().get("/mon-groupe").then().statusCode(200)
-                .body("events.find { it.eventId == '" + event + "' }.members.personId", containsInAnyOrder(PILOTE_ID, PASSAGER_ID));
+                .body("events.find { it.eventId == '" + event + "' }.members.personId", containsInAnyOrder(CONDUCTEUR_ID, PASSAGER_ID));
     }
 
     @Test
     @TestSecurity(user = "chef", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = CHEF_ID))
-    void refusingThePilotesDemandeLeavesThePassagerWithoutAGroupe() {
-        piloteSignedUp(false);
+    void refusingTheConducteursDemandeLeavesThePassagerWithoutAGroupe() {
+        conducteurSignedUp(false);
         passagerSignedUp();
-        piloteAsksForNord();
+        conducteurAsksForNord();
 
-        given().when().post("/{e}/demandes/{p}/refuse", event, PILOTE_ID).then().statusCode(200);
+        given().when().post("/{e}/demandes/{p}/refuse", event, CONDUCTEUR_ID).then().statusCode(200);
         assertTrue(QuarkusTransaction.requiringNew().call(() -> registrationOf(PASSAGER_ID).getGroup() == null));
     }
 
     @Test
     @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
-    void placingThePiloteInAGroupePlacesThePassager() {
-        piloteSignedUp(false);
+    void placingTheConducteurInAGroupePlacesThePassager() {
+        conducteurSignedUp(false);
         passagerSignedUp();
 
-        given().when().put("/{e}/roster/{p}/group/{g}", event, PILOTE_ID, nord).then().statusCode(200)
+        given().when().put("/{e}/roster/{p}/group/{g}", event, CONDUCTEUR_ID, nord).then().statusCode(200)
                 .body(entryOf("participants", PASSAGER_ID) + ".group.groupId", equalTo(nord.toString()));
     }
 
     @Test
     @TestSecurity(user = "chef", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = CHEF_ID))
-    void takingThePiloteOutOfTheGroupeTakesThePassagerOut() {
-        piloteSignedUp(false);
-        piloteRidesWithNord();
+    void takingTheConducteurOutOfTheGroupeTakesThePassagerOut() {
+        conducteurSignedUp(false);
+        conducteurRidesWithNord();
         passagerSignedUp();
 
-        given().when().delete("/{e}/roster/{p}/group", event, PILOTE_ID).then().statusCode(200);
+        given().when().delete("/{e}/roster/{p}/group", event, CONDUCTEUR_ID).then().statusCode(200);
         given().when().get("/mon-groupe").then().statusCode(200)
                 .body("events.find { it.eventId == '" + event + "' }.members", org.hamcrest.Matchers.empty());
     }
@@ -395,32 +395,32 @@ public class PassagerResourceTest {
     @Test
     @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
-    void aPassagerIsNotMovedWithoutTheirPilote() {
+    void aPassagerIsNotMovedWithoutTheirConducteur() {
         maximumIs(5);
-        piloteSignedUp(true);
+        conducteurSignedUp(true);
         passagerSignedUp();
         given().when().post("/{e}/roster/{p}/promote", event, PASSAGER_ID).then().statusCode(400);
 
-        QuarkusTransaction.requiringNew().run(() -> registrationOf(PILOTE_ID).moveUp());
+        QuarkusTransaction.requiringNew().run(() -> registrationOf(CONDUCTEUR_ID).moveUp());
         given().when().put("/{e}/roster/{p}/group/{g}", event, PASSAGER_ID, nord).then().statusCode(400);
     }
 
     @Test
     @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
-    void removingThePiloteRemovesThePassager() {
-        piloteSignedUp(false);
+    void removingTheConducteurRemovesThePassager() {
+        conducteurSignedUp(false);
         passagerSignedUp();
 
-        given().when().delete("/{e}/roster/{p}", event, PILOTE_ID).then().statusCode(200)
+        given().when().delete("/{e}/roster/{p}", event, CONDUCTEUR_ID).then().statusCode(200)
                 .body("participants", org.hamcrest.Matchers.empty());
     }
 
     @Test
-    @TestSecurity(user = "pilote", augmentors = DatabaseRoleAugmentor.class)
-    @OidcSecurity(claims = @Claim(key = "sub", value = PILOTE_ID))
-    void thePilotesWithdrawalWithdrawsThePassager() {
-        piloteSignedUp(false);
+    @TestSecurity(user = "conducteur", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = CONDUCTEUR_ID))
+    void theConducteursWithdrawalWithdrawsThePassager() {
+        conducteurSignedUp(false);
         passagerSignedUp();
 
         given().when().delete("/{id}/registration", event).then().statusCode(204);
@@ -430,24 +430,24 @@ public class PassagerResourceTest {
     @Test
     @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
-    void aPassagerWithdrawsAloneAndThePiloteStays() {
-        piloteSignedUp(false);
+    void aPassagerWithdrawsAloneAndTheConducteurStays() {
+        conducteurSignedUp(false);
         passagerSignedUp();
 
         given().when().delete("/{id}/registration", event).then().statusCode(204);
-        assertTrue(signedUp(PILOTE_ID));
+        assertTrue(signedUp(CONDUCTEUR_ID));
         assertTrue(!signedUp(PASSAGER_ID));
     }
 
     @Test
     @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
-    void theRosterNamesEachPassagersPilote() {
-        piloteSignedUp(false);
+    void theRosterNamesEachPassagersConducteur() {
+        conducteurSignedUp(false);
         passagerSignedUp();
         roster().body(entryOf("participants", PASSAGER_ID) + ".mode", equalTo("passager"))
-                .body(entryOf("participants", PILOTE_ID) + ".passagers", equalTo(1))
-                .body(entryOf("participants", PASSAGER_ID) + ".pilote.userId", equalTo(PILOTE_ID))
-                .body(entryOf("participants", PILOTE_ID) + ".pilote", nullValue());
+                .body(entryOf("participants", CONDUCTEUR_ID) + ".passagers", equalTo(1))
+                .body(entryOf("participants", PASSAGER_ID) + ".conducteur.userId", equalTo(CONDUCTEUR_ID))
+                .body(entryOf("participants", CONDUCTEUR_ID) + ".conducteur", nullValue());
     }
 }

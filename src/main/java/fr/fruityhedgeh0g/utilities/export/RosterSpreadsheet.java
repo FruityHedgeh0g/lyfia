@@ -22,8 +22,8 @@ import java.util.Set;
 /**
  * An Event's roster as an .xlsx file: one tab per Groupe of its Secteur with the Participants riding
  * with it, one for Participants without a Groupe, and one for the Liste d'attente, whose people are
- * left out of the other tabs. Each row gives name, phone and pilote/passager (with a passager's
- * pilote), in sign-up order.
+ * left out of the other tabs. Each row gives name, phone and conducteur/passager (with a passager's
+ * conducteur), in sign-up order.
  */
 public final class RosterSpreadsheet {
 
@@ -31,7 +31,7 @@ public final class RosterSpreadsheet {
 
     static final String WITHOUT_GROUPE = "Sans groupe";
     static final String LISTE_D_ATTENTE = "Liste d'attente";
-    private static final List<String> HEADER = List.of("Nom", "Prénom", "Téléphone", "Pilote / passager", "Pilote");
+    private static final List<String> HEADER = List.of("Nom", "Prénom", "Téléphone", "Conducteur / passager", "Conducteur");
     /** Excel caps tab names at 31 characters and forbids these ones. */
     private static final int MAX_TAB_NAME = 31;
     private static final String FORBIDDEN_IN_TAB_NAME = "[\\[\\]:*?/\\\\]";
@@ -102,8 +102,8 @@ public final class RosterSpreadsheet {
                     sheet.value(r + 1, 1, person.firstName());
                     sheet.value(r + 1, 2, Objects.requireNonNullElse(person.phone(), ""));
                     sheet.value(r + 1, 3, person.mode().id());
-                    if (person.pilote() != null)
-                        sheet.value(r + 1, 4, person.pilote().firstName() + " " + person.pilote().lastName());
+                    if (person.conducteur() != null)
+                        sheet.value(r + 1, 4, person.conducteur().firstName() + " " + person.conducteur().lastName());
                 }
             });
             workbook.finish();

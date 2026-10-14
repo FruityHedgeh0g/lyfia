@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-/** Signing up for an Event as pilote, the Event Liste d'attente, withdrawal, and the phone number it needs. */
+/** Signing up for an Event as conducteur, the Event Liste d'attente, withdrawal, and the phone number it needs. */
 @QuarkusTest
 @TestHTTPEndpoint(EventController.class)
 public class RegistrationResourceTest {
@@ -138,7 +138,7 @@ public class RegistrationResourceTest {
         UUID event = futureEvent(EventStatusEnum.OUVERT, null);
         signUp(event).statusCode(200)
                 .body("eventId", equalTo(event.toString()))
-                .body("mode", equalTo("pilote"))
+                .body("mode", equalTo("conducteur"))
                 .body("status", equalTo("participant"));
     }
 

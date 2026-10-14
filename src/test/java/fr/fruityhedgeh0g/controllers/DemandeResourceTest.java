@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.nullValue;
 @TestHTTPEndpoint(EventController.class)
 public class DemandeResourceTest {
 
-    static final String PILOTE_ID = "00000000-0000-0000-0007-000000000002";
+    static final String CONDUCTEUR_ID = "00000000-0000-0000-0007-000000000002";
     static final String CHEF_ID = "00000000-0000-0000-0007-000000000004";
     static final String OTHER_CHEF_ID = "00000000-0000-0000-0007-000000000014";
     static final String IDLE_CHEF_ID = "00000000-0000-0000-0007-000000000024";
@@ -72,7 +72,7 @@ public class DemandeResourceTest {
 
     @BeforeEach
     void seed() {
-        persistPerson(UUID.fromString(PILOTE_ID), RoleEnum.BENEVOLE, "Pilote");
+        persistPerson(UUID.fromString(CONDUCTEUR_ID), RoleEnum.BENEVOLE, "Conducteur");
         persistPerson(UUID.fromString(CHEF_ID), RoleEnum.CHEF_DE_GROUPE, "Chef");
         persistPerson(UUID.fromString(OTHER_CHEF_ID), RoleEnum.CHEF_DE_GROUPE, "Autre");
         persistPerson(UUID.fromString(IDLE_CHEF_ID), RoleEnum.CHEF_DE_GROUPE, "Libre");
@@ -123,18 +123,18 @@ public class DemandeResourceTest {
         return id;
     }
 
-    /** Signs the pilote up directly in the database, optionally with a pending Demande. */
-    private void pilotSignedUp(UUID demandeGroup) {
+    /** Signs the conducteur up directly in the database, optionally with a pending Demande. */
+    private void conducteurSignedUp(UUID demandeGroup) {
         QuarkusTransaction.requiringNew().run(() -> {
-            EventRegistrationEntity r = EventRegistrationEntity.pilote(
-                    eventRepository.findById(event), userRepository.findById(UUID.fromString(PILOTE_ID)), false);
+            EventRegistrationEntity r = EventRegistrationEntity.conducteur(
+                    eventRepository.findById(event), userRepository.findById(UUID.fromString(CONDUCTEUR_ID)), false);
             if (demandeGroup != null) r.requestGroup(groupRepository.findById(demandeGroup));
             registrationRepository.persist(r);
         });
     }
 
     private ValidatableResponse decide(String decision) {
-        return given().when().post("/{e}/demandes/{p}/{d}", event, PILOTE_ID, decision).then();
+        return given().when().post("/{e}/demandes/{p}/{d}", event, CONDUCTEUR_ID, decision).then();
     }
 
     private ValidatableResponse myRegistration() {
@@ -144,8 +144,8 @@ public class DemandeResourceTest {
     // --- Demande at sign-up ---
 
     @Test
-    @TestSecurity(user = "pilote", augmentors = DatabaseRoleAugmentor.class)
-    @OidcSecurity(claims = @Claim(key = "sub", value = PILOTE_ID))
+    @TestSecurity(user = "conducteur", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = CONDUCTEUR_ID))
     void signUpWithAGroupeCreatesAPendingDemande() {
         given().queryParam("groupId", nord.toString())
                 .when().put("/{id}/registration", event).then().statusCode(200)
@@ -158,8 +158,8 @@ public class DemandeResourceTest {
     }
 
     @Test
-    @TestSecurity(user = "pilote", augmentors = DatabaseRoleAugmentor.class)
-    @OidcSecurity(claims = @Claim(key = "sub", value = PILOTE_ID))
+    @TestSecurity(user = "conducteur", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = CONDUCTEUR_ID))
     void signUpWithoutAGroupeMakesNoDemande() {
         given().when().put("/{id}/registration", event).then().statusCode(200).body("demande", nullValue());
     }
@@ -170,7 +170,7 @@ public class DemandeResourceTest {
     @TestSecurity(user = "chef", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = CHEF_ID))
     void theGroupesChefAcceptsTheDemande() {
-        pilotSignedUp(nord);
+        conducteurSignedUp(nord);
         decide("accept").statusCode(200)
                 .body("group.groupId", equalTo(nord.toString()))
                 .body("demande.status", equalTo("acceptee"));
@@ -180,7 +180,7 @@ public class DemandeResourceTest {
     @TestSecurity(user = "other-chef", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = OTHER_CHEF_ID))
     void aChefOfAnotherGroupeCannotDecide() {
-        pilotSignedUp(nord);
+        conducteurSignedUp(nord);
         decide("accept").statusCode(403);
         decide("refuse").statusCode(403);
     }
@@ -189,15 +189,15 @@ public class DemandeResourceTest {
     @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
     void theBureauDecidesForAnyGroupe() {
-        pilotSignedUp(sud);
+        conducteurSignedUp(sud);
         decide("accept").statusCode(200).body("group.groupId", equalTo(sud.toString()));
     }
 
     @Test
-    @TestSecurity(user = "pilote", augmentors = DatabaseRoleAugmentor.class)
-    @OidcSecurity(claims = @Claim(key = "sub", value = PILOTE_ID))
-    void aPiloteCannotDecideTheirOwnDemande() {
-        pilotSignedUp(nord);
+    @TestSecurity(user = "conducteur", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = CONDUCTEUR_ID))
+    void aConducteurCannotDecideTheirOwnDemande() {
+        conducteurSignedUp(nord);
         decide("accept").statusCode(403);
     }
 
@@ -205,7 +205,7 @@ public class DemandeResourceTest {
     @TestSecurity(user = "chef", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = CHEF_ID))
     void refusalLeavesAParticipantWithoutAGroupe() {
-        pilotSignedUp(nord);
+        conducteurSignedUp(nord);
         decide("refuse").statusCode(200)
                 .body("group", nullValue())
                 .body("demande.status", equalTo("refusee"));
@@ -213,12 +213,12 @@ public class DemandeResourceTest {
     }
 
     @Test
-    @TestSecurity(user = "pilote", augmentors = DatabaseRoleAugmentor.class)
-    @OidcSecurity(claims = @Claim(key = "sub", value = PILOTE_ID))
+    @TestSecurity(user = "conducteur", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = CONDUCTEUR_ID))
     void afterARefusalANewDemandeCanBeMade() {
-        pilotSignedUp(nord);
+        conducteurSignedUp(nord);
         QuarkusTransaction.requiringNew().run(() ->
-                registrationRepository.findByEventAndPerson(event, UUID.fromString(PILOTE_ID)).orElseThrow().refuseDemande());
+                registrationRepository.findByEventAndPerson(event, UUID.fromString(CONDUCTEUR_ID)).orElseThrow().refuseDemande());
 
         given().contentType(ContentType.JSON).body(Map.of("groupId", sud.toString()))
                 .when().put("/{id}/registration/demande", event).then().statusCode(200)
@@ -233,8 +233,8 @@ public class DemandeResourceTest {
     @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
     void theBureauPlacesAParticipantDirectly() {
-        pilotSignedUp(null);
-        given().when().put("/{e}/roster/{p}/group/{g}", event, PILOTE_ID, nord).then().statusCode(200)
+        conducteurSignedUp(null);
+        given().when().put("/{e}/roster/{p}/group/{g}", event, CONDUCTEUR_ID, nord).then().statusCode(200)
                 .body("participants[0].group.groupId", equalTo(nord.toString()));
     }
 
@@ -242,18 +242,18 @@ public class DemandeResourceTest {
     @TestSecurity(user = "chef", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = CHEF_ID))
     void aChefCannotPlaceDirectly() {
-        pilotSignedUp(null);
-        given().when().put("/{e}/roster/{p}/group/{g}", event, PILOTE_ID, nord).then().statusCode(403);
+        conducteurSignedUp(null);
+        given().when().put("/{e}/roster/{p}/group/{g}", event, CONDUCTEUR_ID, nord).then().statusCode(403);
     }
 
     @Test
     @TestSecurity(user = "chef", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = CHEF_ID))
     void theChefTakesAParticipantOutOfTheGroupe() {
-        pilotSignedUp(nord);
+        conducteurSignedUp(nord);
         decide("accept").statusCode(200);
 
-        given().when().delete("/{e}/roster/{p}/group", event, PILOTE_ID).then().statusCode(200)
+        given().when().delete("/{e}/roster/{p}/group", event, CONDUCTEUR_ID).then().statusCode(200)
                 .body("group", nullValue())
                 .body("status", equalTo("participant"));
     }
@@ -262,10 +262,10 @@ public class DemandeResourceTest {
     @TestSecurity(user = "other-chef", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = OTHER_CHEF_ID))
     void aChefOfAnotherGroupeCannotTakeOut() {
-        pilotSignedUp(nord);
+        conducteurSignedUp(nord);
         QuarkusTransaction.requiringNew().run(() ->
-                registrationRepository.findByEventAndPerson(event, UUID.fromString(PILOTE_ID)).orElseThrow().acceptDemande());
-        given().when().delete("/{e}/roster/{p}/group", event, PILOTE_ID).then().statusCode(403);
+                registrationRepository.findByEventAndPerson(event, UUID.fromString(CONDUCTEUR_ID)).orElseThrow().acceptDemande());
+        given().when().delete("/{e}/roster/{p}/group", event, CONDUCTEUR_ID).then().statusCode(403);
     }
 
     // --- Mon groupe ---
@@ -274,15 +274,15 @@ public class DemandeResourceTest {
     @TestSecurity(user = "chef", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = CHEF_ID))
     void monGroupeShowsParticipantsAndPendingDemandesPerEvent() {
-        pilotSignedUp(nord);
+        conducteurSignedUp(nord);
         given().when().get("/mon-groupe").then().statusCode(200)
                 .body("group.groupId", equalTo(nord.toString()))
                 .body("events.find { it.eventId == '" + event + "' }.members", empty())
-                .body("events.find { it.eventId == '" + event + "' }.demandes.lastName", contains("Pilote"));
+                .body("events.find { it.eventId == '" + event + "' }.demandes.lastName", contains("Conducteur"));
 
         decide("accept").statusCode(200);
         given().when().get("/mon-groupe").then().statusCode(200)
-                .body("events.find { it.eventId == '" + event + "' }.members.lastName", contains("Pilote"))
+                .body("events.find { it.eventId == '" + event + "' }.members.lastName", contains("Conducteur"))
                 .body("events.find { it.eventId == '" + event + "' }.demandes", empty());
     }
 
@@ -305,8 +305,8 @@ public class DemandeResourceTest {
     }
 
     @Test
-    @TestSecurity(user = "pilote", augmentors = DatabaseRoleAugmentor.class)
-    @OidcSecurity(claims = @Claim(key = "sub", value = PILOTE_ID))
+    @TestSecurity(user = "conducteur", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = CONDUCTEUR_ID))
     void monGroupeNeedsChefDeGroupe() {
         given().when().get("/mon-groupe").then().statusCode(403);
     }
