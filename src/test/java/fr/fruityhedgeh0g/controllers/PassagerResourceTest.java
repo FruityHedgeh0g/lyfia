@@ -1,5 +1,17 @@
 package fr.fruityhedgeh0g.controllers;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
+import static org.junit.jupiter.api.Assertions.assertNull;
+
+import static org.hamcrest.Matchers.empty;
+
+import static org.hamcrest.Matchers.everyItem;
+
+import fr.fruityhedgeh0g.enums.PosteEnum;
+
+import java.time.LocalDate;
+
 import fr.fruityhedgeh0g.entities.EventEntity;
 import fr.fruityhedgeh0g.entities.EventRegistrationEntity;
 import fr.fruityhedgeh0g.entities.GroupEntity;
@@ -39,7 +51,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** A passager signs up with a conducteur of the same Event, counts towards every maximum and always follows their conducteur. */
+/**
+ * A passager has a sign-up and a Groupe of their own (ADR 0011): they may come with a conducteur ("je viens avec"),
+ * riding behind them the Journées both are at; a conducteur takes at most one passager per Journée; a pair waits and
+ * moves up together; whoever withdraws, removes or moves a conducteur chooses whether the passager goes along.
+ */
 @QuarkusTest
 @TestHTTPEndpoint(EventController.class)
 public class PassagerResourceTest {
@@ -94,8 +110,6 @@ public class PassagerResourceTest {
     void cleanUp() {
         SecteurFixtures.detachFromSecteur(userRepository, sectorRepository, sector);
         QuarkusTransaction.requiringNew().run(() -> {
-            // Passagers first: they point at their conducteur's sign-up
-            registrationRepository.delete("event.sector.sectorId = ?1 and conducteur is not null", sector);
             registrationRepository.delete("event.sector.sectorId", sector);
             eventRepository.list("sector.sectorId", sector).forEach(eventRepository::delete);
             groupRepository.delete("sector.sectorId", sector);
@@ -176,6 +190,10 @@ public class PassagerResourceTest {
         return list + ".find { it.personId == '" + personId + "' }";
     }
 
+    private List<LocalDate> journees() {
+        return QuarkusTransaction.requiringNew().call(() -> eventRepository.findById(event).journees());
+    }
+
     private boolean signedUp(String personId) {
         return QuarkusTransaction.requiringNew().call(() ->
                 registrationRepository.findByEventAndPerson(event, UUID.fromString(personId)).isPresent());
@@ -223,14 +241,63 @@ public class PassagerResourceTest {
     @Test
     @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
-    void aPassagerCannotAlsoAskForAGroupe() {
+    void aPassagerComingWithAConducteurNamesNoGroupe() {
         conducteurSignedUp(false);
         given().queryParam("conducteurId", CONDUCTEUR_ID).queryParam("groupId", nord.toString())
                 .when().put("/{id}/registration", event).then().statusCode(400);
+    }
 
-        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(200);
+    @Test
+    @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
+    void aPassagerSignsUpWithoutAConducteurAndAsksForTheirOwnGroupe() {
+        given().queryParam("poste", "passager").when().put("/{id}/registration", event).then().statusCode(200)
+                .body("poste", equalTo("passager"))
+                .body("conducteur", nullValue())
+                .body("journees.conducteur", everyItem(nullValue()));
         given().contentType(ContentType.JSON).body(Map.of("groupId", nord.toString()))
-                .when().put("/{id}/registration/demande", event).then().statusCode(400);
+                .when().put("/{id}/registration/demande", event).then().statusCode(200)
+                .body("demande.group.groupId", equalTo(nord.toString()));
+    }
+
+    @Test
+    @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
+    void aPassagerComingWithAConducteurMakesTheSameDemande() {
+        conducteurSignedUp(false);
+        conducteurAsksForNord();
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(200)
+                .body("demande.group.groupId", equalTo(nord.toString()))
+                .body("demande.status", equalTo("en_attente"));
+    }
+
+    @Test
+    @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
+    void aConducteurTakesAtMostOnePassagerPerJournee() {
+        conducteurSignedUp(false);
+        QuarkusTransaction.requiringNew().run(() -> registrationRepository.persist(EventRegistrationEntity.passager(
+                registrationOf(CONDUCTEUR_ID), userRepository.findById(UUID.fromString(OTHER_ID)))));
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(400);
+        given().when().get("/{id}/conducteurs", event).then().statusCode(200).body("[0].freeJournees", empty());
+    }
+
+    @Test
+    @TestSecurity(user = "passager", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = PASSAGER_ID))
+    void aPassagerRidesBehindTheirConducteurOnlyTheJourneesBothAreAt() {
+        List<LocalDate> journees = journees();
+        QuarkusTransaction.requiringNew().run(() -> {
+            EventRegistrationEntity conducteur = EventRegistrationEntity.of(eventRepository.findById(event),
+                    userRepository.findById(UUID.fromString(CONDUCTEUR_ID)), PosteEnum.CONDUCTEUR);
+            conducteur.addJournee(journees.getFirst(), false);
+            registrationRepository.persist(conducteur);
+        });
+
+        signUpAsPassagerOf(CONDUCTEUR_ID).statusCode(200)
+                .body("journees.journee", contains(journees.get(0).toString(), journees.get(1).toString()))
+                .body("journees[0].conducteur.userId", equalTo(CONDUCTEUR_ID))
+                .body("journees[1].conducteur", nullValue());
     }
 
     @Test
@@ -309,16 +376,16 @@ public class PassagerResourceTest {
     void aPassagerCountsTowardsTheGroupeMaximum() {
         nordMaximumIs(2);
         conducteurSignedUp(false);
+        conducteurRidesWithNord();
         passagerSignedUp();
-        conducteurAsksForNord();
         conducteurSignedUp(OTHER_ID, event, false);
-        QuarkusTransaction.requiringNew().run(() -> registrationOf(OTHER_ID).placeIn(groupRepository.findById(nord)));
+        QuarkusTransaction.requiringNew().run(() -> registrationOf(OTHER_ID).requestGroup(groupRepository.findById(nord)));
 
-        // Conducteur and passager need two places; only one is left
-        given().when().post("/{e}/demandes/{p}/accept", event, CONDUCTEUR_ID).then().statusCode(400);
+        // The conducteur and their passager take both places
+        given().when().post("/{e}/demandes/{p}/accept", event, OTHER_ID).then().statusCode(400);
     }
 
-    // --- Following the conducteur ---
+    // --- A pair, and the passager's own sign-up ---
 
     @Test
     @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
@@ -346,14 +413,14 @@ public class PassagerResourceTest {
     @Test
     @TestSecurity(user = "chef", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = CHEF_ID))
-    void acceptingTheConducteursDemandeTakesThePassagerIntoTheGroupe() {
+    void theConducteursDemandeIsDecidedApartFromThePassagers() {
         conducteurSignedUp(false);
         passagerSignedUp();
         conducteurAsksForNord();
+        QuarkusTransaction.requiringNew().run(() -> registrationOf(PASSAGER_ID).requestGroup(groupRepository.findById(nord)));
 
         given().when().post("/{e}/demandes/{p}/accept", event, CONDUCTEUR_ID).then().statusCode(200);
-        given().when().get("/mon-groupe").then().statusCode(200)
-                .body("events.find { it.eventId == '" + event + "' }.members.personId", containsInAnyOrder(CONDUCTEUR_ID, PASSAGER_ID));
+        assertTrue(QuarkusTransaction.requiringNew().call(() -> registrationOf(PASSAGER_ID).hasPendingDemande()));
     }
 
     @Test
@@ -395,14 +462,127 @@ public class PassagerResourceTest {
     @Test
     @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
-    void aPassagerIsNotMovedWithoutTheirConducteur() {
+    void movingThePassagerUpMovesTheirConducteurUp() {
         maximumIs(5);
         conducteurSignedUp(true);
         passagerSignedUp();
-        given().when().post("/{e}/roster/{p}/promote", event, PASSAGER_ID).then().statusCode(400);
+        given().when().post("/{e}/roster/{p}/promote", event, PASSAGER_ID).then().statusCode(200)
+                .body("participants.personId", containsInAnyOrder(CONDUCTEUR_ID, PASSAGER_ID));
+    }
 
-        QuarkusTransaction.requiringNew().run(() -> registrationOf(CONDUCTEUR_ID).moveUp());
-        given().when().put("/{e}/roster/{p}/group/{g}", event, PASSAGER_ID, nord).then().statusCode(400);
+    @Test
+    @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
+    void placingThePassagerInAnotherGroupeThanTheirConducteursEndsThePairing() {
+        conducteurSignedUp(false);
+        passagerSignedUp();
+        given().when().put("/{e}/roster/{p}/group/{g}", event, PASSAGER_ID, nord).then().statusCode(200)
+                .body(entryOf("participants", PASSAGER_ID) + ".group.groupId", equalTo(nord.toString()))
+                .body(entryOf("participants", PASSAGER_ID) + ".conducteur", nullValue());
+    }
+
+    @Test
+    @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
+    void placingTheConducteurAloneEndsThePairing() {
+        conducteurSignedUp(false);
+        passagerSignedUp();
+        given().queryParam("withPassager", false).when().put("/{e}/roster/{p}/group/{g}", event, CONDUCTEUR_ID, nord).then().statusCode(200)
+                .body(entryOf("participants", PASSAGER_ID) + ".group", nullValue())
+                .body(entryOf("participants", CONDUCTEUR_ID) + ".passager", nullValue());
+    }
+
+    @Test
+    @TestSecurity(user = "chef", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = CHEF_ID))
+    void takingTheConducteurOutAloneLeavesThePassagerInTheGroupe() {
+        conducteurSignedUp(false);
+        conducteurRidesWithNord();
+        passagerSignedUp();
+
+        given().queryParam("withPassager", false).when().delete("/{e}/roster/{p}/group", event, CONDUCTEUR_ID).then().statusCode(200);
+        given().when().get("/mon-groupe").then().statusCode(200)
+                .body("events.find { it.eventId == '" + event + "' }.members.personId", contains(PASSAGER_ID))
+                .body("events.find { it.eventId == '" + event + "' }.journees[0].members[0].conducteur", nullValue());
+    }
+
+    @Test
+    @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
+    void removingTheConducteurAloneLeavesThePassagerWithoutAConducteur() {
+        conducteurSignedUp(false);
+        passagerSignedUp();
+
+        given().queryParam("withPassager", false).when().delete("/{e}/roster/{p}", event, CONDUCTEUR_ID).then().statusCode(200)
+                .body("participants.personId", contains(PASSAGER_ID))
+                .body("participants[0].conducteur", nullValue());
+    }
+
+    @Test
+    @TestSecurity(user = "conducteur", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = CONDUCTEUR_ID))
+    void aConducteurWithdrawsFromOneJourneeAloneAndThePassagerStays() {
+        conducteurSignedUp(false);
+        passagerSignedUp();
+        LocalDate first = journees().getFirst();
+        LocalDate second = journees().get(1);
+
+        given().queryParam("journee", first.toString()).queryParam("withPassager", false)
+                .when().delete("/{id}/registration", event).then().statusCode(204);
+        QuarkusTransaction.requiringNew().run(() -> {
+            assertTrue(registrationOf(CONDUCTEUR_ID).journee(first).isEmpty());
+            assertNull(registrationOf(PASSAGER_ID).journee(first).orElseThrow().getConducteur());
+            assertNotNull(registrationOf(PASSAGER_ID).journee(second).orElseThrow().getConducteur());
+        });
+    }
+
+    // --- Pairing a passager again ---
+
+    @Test
+    @TestSecurity(user = "chef", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = CHEF_ID))
+    void theChefPairsAPassagerWithAnotherConducteurOfTheGroupe() {
+        conducteurSignedUp(false);
+        conducteurRidesWithNord();
+        passagerSignedUp();
+        conducteurSignedUp(OTHER_ID, event, false);
+        QuarkusTransaction.requiringNew().run(() -> registrationOf(OTHER_ID).placeIn(groupRepository.findById(nord)));
+        LocalDate first = journees().getFirst();
+
+        given().when().put("/{e}/roster/{p}/journees/{d}/conducteur/{c}", event, PASSAGER_ID, first.toString(), OTHER_ID).then().statusCode(200)
+                .body("journees[0].conducteur.userId", equalTo(OTHER_ID))
+                .body("journees[1].conducteur.userId", equalTo(CONDUCTEUR_ID));
+        given().when().delete("/{e}/roster/{p}/journees/{d}/conducteur", event, PASSAGER_ID, first.toString()).then().statusCode(200)
+                .body("journees[0].conducteur", nullValue());
+    }
+
+    @Test
+    @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
+    void aPassagerIsPairedOnlyWithAConducteurOfTheirGroupeWaitingAsTheyDo() {
+        conducteurSignedUp(false);
+        passagerSignedUp();
+        LocalDate first = journees().getFirst();
+        conducteurSignedUp(OTHER_ID, event, false);
+        QuarkusTransaction.requiringNew().run(() -> registrationOf(OTHER_ID).placeIn(groupRepository.findById(nord)));
+        // Another Groupe
+        given().when().put("/{e}/roster/{p}/journees/{d}/conducteur/{c}", event, PASSAGER_ID, first.toString(), OTHER_ID).then().statusCode(400);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            registrationOf(OTHER_ID).leaveGroup();
+            registrationOf(OTHER_ID).journee(first).orElseThrow().setWaiting(true);
+        });
+        // Waiting while the passager rides
+        given().when().put("/{e}/roster/{p}/journees/{d}/conducteur/{c}", event, PASSAGER_ID, first.toString(), OTHER_ID).then().statusCode(400);
+    }
+
+    @Test
+    @TestSecurity(user = "chef", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = CHEF_ID))
+    void aChefPairsOnlyThePassagersOfTheGroupeTheyLead() {
+        conducteurSignedUp(false);
+        passagerSignedUp();
+        given().when().delete("/{e}/roster/{p}/journees/{d}/conducteur", event, PASSAGER_ID, journees().getFirst().toString()).then().statusCode(403);
     }
 
     @Test
@@ -446,7 +626,7 @@ public class PassagerResourceTest {
         conducteurSignedUp(false);
         passagerSignedUp();
         roster().body(entryOf("participants", PASSAGER_ID) + ".poste", equalTo("passager"))
-                .body(entryOf("participants", CONDUCTEUR_ID) + ".passagers", equalTo(1))
+                .body(entryOf("participants", CONDUCTEUR_ID) + ".passager.userId", equalTo(PASSAGER_ID))
                 .body(entryOf("participants", PASSAGER_ID) + ".conducteur.userId", equalTo(CONDUCTEUR_ID))
                 .body(entryOf("participants", CONDUCTEUR_ID) + ".conducteur", nullValue());
     }

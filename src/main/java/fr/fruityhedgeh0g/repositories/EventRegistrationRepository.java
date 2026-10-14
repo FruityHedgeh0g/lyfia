@@ -18,15 +18,6 @@ public class EventRegistrationRepository implements PanacheRepositoryBase<EventR
         return find("event.eventId = ?1 and person.userId = ?2", eventId, personId).firstResultOptional();
     }
 
-    public long countParticipants(UUID eventId) {
-        return count("event.eventId = ?1 and waiting = false", eventId);
-    }
-
-    /** Everyone riding with the Groupe at the Event. */
-    public long countInGroup(UUID eventId, UUID groupId) {
-        return count("event.eventId = ?1 and group.groupId = ?2", eventId, groupId);
-    }
-
     /** Every sign-up for the Event, oldest first. */
     public List<EventRegistrationEntity> listByEvent(UUID eventId) {
         return list("event.eventId = ?1 order by signedUpAt, registrationId", eventId);
@@ -59,6 +50,7 @@ public class EventRegistrationRepository implements PanacheRepositoryBase<EventR
     }
 
     private EventRegistrationEntity persistSignUp(EventEntity event, UserEntity person, PosteEnum poste, boolean waiting) {
+        // Every Journée of the Event
         EventRegistrationEntity registration = EventRegistrationEntity.signUp(event, person, poste, waiting);
         persist(registration);
         return registration;

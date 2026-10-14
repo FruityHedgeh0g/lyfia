@@ -1,5 +1,7 @@
 package fr.fruityhedgeh0g.controllers;
 
+import fr.fruityhedgeh0g.enums.RegistrationStatusEnum;
+
 import fr.fruityhedgeh0g.entities.EventEntity;
 import fr.fruityhedgeh0g.entities.SectorEntity;
 import fr.fruityhedgeh0g.entities.UserEntity;
@@ -217,7 +219,7 @@ public class RegistrationResourceTest {
         withdraw(event).statusCode(204);
 
         assertEquals(List.of(true), QuarkusTransaction.requiringNew().call(() ->
-                registrationRepository.list("event.eventId", event).stream().map(r -> r.isWaiting()).toList()));
+                registrationRepository.list("event.eventId", event).stream().map(r -> r.status() == RegistrationStatusEnum.EN_ATTENTE).toList()));
     }
 
     @Test

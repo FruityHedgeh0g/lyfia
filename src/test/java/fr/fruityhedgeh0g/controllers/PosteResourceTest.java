@@ -100,7 +100,6 @@ public class PosteResourceTest {
     void cleanUp() {
         SecteurFixtures.detachFromSecteur(userRepository, sectorRepository, sector);
         QuarkusTransaction.requiringNew().run(() -> {
-            registrationRepository.delete("event.sector.sectorId = ?1 and conducteur is not null", sector);
             registrationRepository.delete("event.sector.sectorId", sector);
             eventRepository.list("sector.sectorId", sector).forEach(eventRepository::delete);
             groupRepository.delete("sector.sectorId", sector);
@@ -244,9 +243,12 @@ public class PosteResourceTest {
     @Test
     @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
-    void theBureauMakesNobodyAPassager() {
-        signedUp(RIDER_ID, PosteEnum.CONDUCTEUR, null);
-        changePoste(RIDER_ID, "passager").statusCode(400);
+    void theBureauMakesSomeoneAPassagerWithoutAConducteur() {
+        signedUp(RIDER_ID, PosteEnum.CONDUCTEUR, motards);
+        changePoste(RIDER_ID, "passager").statusCode(200)
+                .body(entryOf(RIDER_ID) + ".poste", equalTo("passager"))
+                .body(entryOf(RIDER_ID) + ".group.groupId", equalTo(motards.toString()))
+                .body(entryOf(RIDER_ID) + ".conducteur", nullValue());
     }
 
     @Test

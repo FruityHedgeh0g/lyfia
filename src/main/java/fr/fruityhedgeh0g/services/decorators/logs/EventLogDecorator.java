@@ -1,5 +1,7 @@
 package fr.fruityhedgeh0g.services.decorators.logs;
 
+import fr.fruityhedgeh0g.dtos.eventDtos.ConducteurDto;
+import java.time.LocalDate;
 import fr.fruityhedgeh0g.enums.PosteEnum;
 import fr.fruityhedgeh0g.dtos.eventDtos.EventDto;
 import fr.fruityhedgeh0g.dtos.eventDtos.MonGroupeDto;
@@ -100,9 +102,9 @@ public class EventLogDecorator implements EventService{
     }
 
     @Override
-    public RegistrationDto signUp(UUID eventId, UUID personId, PosteEnum poste, UUID groupId) {
-        Log.debugf("%s signs up for event %s as %s...", personId, eventId, poste.id());
-        return Try.of(() -> eventService.signUp(eventId, personId, poste, groupId))
+    public RegistrationDto signUp(UUID eventId, UUID personId, SignUp signUp) {
+        Log.debugf("%s signs up for event %s as %s...", personId, eventId, signUp.poste().id());
+        return Try.of(() -> eventService.signUp(eventId, personId, signUp))
                 .onSuccess(r -> Log.infof("%s signed up for event %s: %s.", personId, eventId, r.status().id()))
                 .onFailure(t -> {
                     switch (t) {
@@ -116,9 +118,9 @@ public class EventLogDecorator implements EventService{
     }
 
     @Override
-    public void withdraw(UUID eventId, UUID personId) {
+    public void withdraw(UUID eventId, UUID personId, List<LocalDate> journees, boolean withPassager) {
         Log.debugf("%s withdraws from event %s...", personId, eventId);
-        Try.run(() -> eventService.withdraw(eventId, personId))
+        Try.run(() -> eventService.withdraw(eventId, personId, journees, withPassager))
                 .onSuccess(v -> Log.infof("%s withdrew from event %s.", personId, eventId))
                 .onFailure(t -> {
                     switch (t) {
@@ -139,12 +141,13 @@ public class EventLogDecorator implements EventService{
     }
 
     @Override
-    public RosterDto roster(UUID eventId) {
+    public RosterDto roster(UUID eventId, LocalDate journee) {
         Log.debugf("Retrieving the roster of event %s...", eventId);
-        return Try.of(() -> eventService.roster(eventId))
+        return Try.of(() -> eventService.roster(eventId, journee))
                 .onFailure(t -> {
                     switch (t) {
                         case UnknownResourceException ex -> Log.warnf("Event %s not found.", eventId);
+                        case InvalidResourceException ex -> Log.warnf("Roster refused: %s", ex.getMessage());
                         default -> Log.errorf(t, "An error occurred while retrieving a roster.");
                     }
                 })
@@ -152,9 +155,9 @@ public class EventLogDecorator implements EventService{
     }
 
     @Override
-    public RosterDto promote(UUID eventId, UUID personId) {
+    public RosterDto promote(UUID eventId, UUID personId, List<LocalDate> journees) {
         Log.debugf("Moving %s up on event %s...", personId, eventId);
-        return Try.of(() -> eventService.promote(eventId, personId))
+        return Try.of(() -> eventService.promote(eventId, personId, journees))
                 .onSuccess(r -> Log.infof("%s moved up to Participant of event %s.", personId, eventId))
                 .onFailure(t -> {
                     switch (t) {
@@ -167,9 +170,9 @@ public class EventLogDecorator implements EventService{
     }
 
     @Override
-    public RosterDto removeFromRoster(UUID eventId, UUID personId) {
+    public RosterDto removeFromRoster(UUID eventId, UUID personId, List<LocalDate> journees, boolean withPassager) {
         Log.debugf("Removing %s from event %s...", personId, eventId);
-        return Try.of(() -> eventService.removeFromRoster(eventId, personId))
+        return Try.of(() -> eventService.removeFromRoster(eventId, personId, journees, withPassager))
                 .onSuccess(r -> Log.infof("%s removed from event %s.", personId, eventId))
                 .onFailure(t -> {
                     switch (t) {
@@ -194,29 +197,13 @@ public class EventLogDecorator implements EventService{
     }
 
     @Override
-    public RosterDto placeInGroup(UUID eventId, UUID personId, UUID groupId) {
-        return logged(() -> eventService.placeInGroup(eventId, personId, groupId),
+    public RosterDto placeInGroup(UUID eventId, UUID personId, UUID groupId, boolean withPassager) {
+        return logged(() -> eventService.placeInGroup(eventId, personId, groupId, withPassager),
                 "Placement of " + personId + " in group " + groupId + " at event " + eventId);
     }
 
     @Override
-    public RegistrationDto signUpAsPassager(UUID eventId, UUID personId, UUID conducteurPersonId) {
-        Log.debugf("%s signs up for event %s as passager of %s...", personId, eventId, conducteurPersonId);
-        return Try.of(() -> eventService.signUpAsPassager(eventId, personId, conducteurPersonId))
-                .onSuccess(r -> Log.infof("%s signed up for event %s as passager: %s.", personId, eventId, r.status().id()))
-                .onFailure(t -> {
-                    switch (t) {
-                        case InvalidResourceException ex -> Log.warnf("Sign-up refused: %s", ex.getMessage());
-                        case PhoneRequiredException ex -> Log.debugf("Sign-up waiting for a phone number: %s", ex.getMessage());
-                        case UnknownResourceException ex -> Log.warnf("Sign-up refused: %s", ex.getMessage());
-                        default -> Log.errorf(t, "An error occurred during a sign-up.");
-                    }
-                })
-                .get();
-    }
-
-    @Override
-    public List<NestedUserDto> conducteursOf(UUID eventId) {
+    public List<ConducteurDto> conducteursOf(UUID eventId) {
         return logged(() -> eventService.conducteursOf(eventId), "Conducteurs of event " + eventId);
     }
 
@@ -246,9 +233,21 @@ public class EventLogDecorator implements EventService{
     }
 
     @Override
-    public RegistrationDto takeOutOfGroup(UUID eventId, UUID personId, Actor actor) {
-        return logged(() -> eventService.takeOutOfGroup(eventId, personId, actor),
+    public RegistrationDto takeOutOfGroup(UUID eventId, UUID personId, Actor actor, boolean withPassager) {
+        return logged(() -> eventService.takeOutOfGroup(eventId, personId, actor, withPassager),
                 "Removal of " + personId + " from their group at event " + eventId + " by " + actor.personId());
+    }
+
+    @Override
+    public RegistrationDto pair(UUID eventId, UUID passagerId, LocalDate journee, UUID conducteurId, Actor actor) {
+        return logged(() -> eventService.pair(eventId, passagerId, journee, conducteurId, actor),
+                "Pairing of passager " + passagerId + " with " + conducteurId + " on " + journee + " at event " + eventId + " by " + actor.personId());
+    }
+
+    @Override
+    public RegistrationDto unpair(UUID eventId, UUID passagerId, LocalDate journee, Actor actor) {
+        return logged(() -> eventService.unpair(eventId, passagerId, journee, actor),
+                "End of the pairing of passager " + passagerId + " on " + journee + " at event " + eventId + " by " + actor.personId());
     }
 
     @Override

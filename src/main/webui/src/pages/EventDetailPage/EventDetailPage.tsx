@@ -20,7 +20,16 @@ import ButtonLink from "../../components/atoms/ButtonLink/ButtonLink";
 import { useSectors } from "../../features/sectors/useSector";
 import Icon from "../../components/atoms/Icon/Icon";
 import FeatureNotice from "../../components/molecules/FeatureNotice/FeatureNotice";
+import Checkbox from "../../components/atoms/Checkbox/Checkbox";
+import { askWithPassager } from "../../features/events/confirmations";
+import { eventJournees, Journee, journeeLabel } from "../../lib/journees";
 import styles from "./EventDetailPage.module.css";
+
+/** « Samedi 9 mai ». */
+const capitalized = (journee: Journee) => {
+  const label = journeeLabel(journee);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
 
 /** Ce que la personne est à cet Événement : son Poste, ou passager de son conducteur. */
 const registeredAs = ({ status, poste, conducteur }: Registration) => {
@@ -41,6 +50,10 @@ export const EventDetailPage: React.FC = () => {
   const [groupId, setGroupId] = useState("");
   const [poste, setPoste] = useState<Poste>("conducteur");
   const [conducteurId, setConducteurId] = useState("");
+  /** Les Journées choisies ; null : tout l'Événement (ADR 0011). */
+  const [chosen, setChosen] = useState<Journee[] | null>(null);
+  /** Les Journées à ajouter à son inscription. */
+  const [added, setAdded] = useState<Journee[]>([]);
   const { data: conducteurs } = useConducteurs(poste === "passager" ? eventId : undefined);
   const registrationOpen = useFeature("inscription-evenements", event?.sectorId);
   const registrationOff = useFeatureOff("inscription-evenements", event?.sectorId);
@@ -54,10 +67,11 @@ export const EventDetailPage: React.FC = () => {
   /** Sans téléphone, l'API refuse l'inscription : on le demande, on l'enregistre au profil, puis on réessaie. */
   const signUp = (withPhone?: string) => {
     if (!eventId) return;
+    const journees = chosen ?? undefined;
     register.mutate(
-      poste === "passager"
-        ? { eventId, poste, phone: withPhone, conducteurId }
-        : { eventId, poste, phone: withPhone, groupId: groupKindOf(poste) ? groupId : undefined },
+      poste === "passager" && conducteurId
+        ? { eventId, poste, phone: withPhone, conducteurId, journees }
+        : { eventId, poste, phone: withPhone, groupId: groupKindOf(poste) ? groupId : undefined, journees },
       {
         onSuccess: () => setAskPhone(false),
         onError: (error) => setAskPhone(error instanceof PhoneRequiredError),
@@ -91,6 +105,31 @@ export const EventDetailPage: React.FC = () => {
   }
 
   const signUpsOpen = acceptsSignUps(event.status);
+  const allJournees = eventJournees(event.startDateTime, event.endDateTime);
+  const picked = chosen ?? allJournees;
+  /** Cocher toutes les Journées revient à s'inscrire à tout l'Événement. */
+  const pick = (journee: Journee, on: boolean) => {
+    const next = allJournees.filter((j) => (j === journee ? on : picked.includes(j)));
+    setChosen(next.length === allJournees.length ? null : next);
+  };
+  const missing = registration ? allJournees.filter((j) => !registration.journees.some((r) => r.journee === j)) : [];
+
+  /**
+   * Se retirer de Journées (aucune : de tout l'Événement). Qui a un passager ces Journées-là choisit s'il se retire
+   * aussi ; laissé, il reste inscrit, sans conducteur.
+   */
+  const leave = async (journees?: Journee[]) => {
+    if (!registration) return;
+    const confirmed = await confirm({
+      title: journees ? `Vous retirer du ${journeeLabel(journees[0])} ?` : "Se désinscrire ?",
+      message: journees ? "Votre place ce jour-là sera libérée." : `Votre place à « ${event.name} » sera libérée.`,
+      confirmLabel: journees ? "Me retirer" : "Me désinscrire",
+    });
+    if (!confirmed) return;
+    const passager = registration.journees.find((j) => j.passager && (!journees || journees.includes(j.journee)))?.passager ?? null;
+    const withPassager = await askWithPassager(confirm, "vous", passager, "Le désinscrire aussi ?");
+    unregister.mutate({ eventId: event.eventId, journees, withPassager });
+  };
   /** À partir de Membre, on ne roule qu'aux Événements de son Secteur (ADR 0004). */
   const reservedToItsSecteur = Boolean(user?.sector) && user?.sector?.sectorId !== event.sectorId;
   /** Les Groupes du Secteur de l'Événement de la sorte qui va avec le Poste, pour la Demande de groupe. */
@@ -109,15 +148,19 @@ export const EventDetailPage: React.FC = () => {
   );
   const canAskGroup =
     registration !== undefined &&
-    registration.poste !== "passager" &&
     groupKindOf(registration.poste) !== null &&
     !registration.group &&
     registration.demande?.status !== "en_attente" &&
     event.status !== "archive";
-  /** Un passager choisit un conducteur déjà inscrit ; il roulera avec son Groupe. */
+  /**
+   * « Je viens avec » : un conducteur inscrit qui n'a pas encore de passager l'une des Journées choisies ; le
+   * passager prend son Groupe. Sans conducteur, le Bureau ou le Chef l'associera à un autre.
+   */
   const conducteurOptions = [
-    { value: "", label: "Choisissez votre conducteur" },
-    ...(conducteurs ?? []).filter((p) => p.userId !== user?.userId).map((p) => ({ value: p.userId, label: `${p.firstName} ${p.lastName}` })),
+    { value: "", label: "Sans conducteur pour l'instant" },
+    ...(conducteurs ?? [])
+      .filter((c) => c.userId !== user?.userId && c.freeJournees.some((j) => picked.includes(j)))
+      .map((c) => ({ value: c.userId, label: `${c.firstName} ${c.lastName}` })),
   ];
   const signUpLabel =
     event.status === "complet" ? "Rejoindre la liste d'attente" : `M'inscrire comme ${POSTE_LABELS[poste].toLowerCase()}`;
@@ -167,6 +210,52 @@ export const EventDetailPage: React.FC = () => {
                   <Icon name="check" size={18} strokeWidth={3} />
                   {registeredAs(registration)}
                 </p>
+                {allJournees.length > 1 ? (
+                  <ul className={styles.journees} aria-label="Mes journées">
+                    {registration.journees.map((j) => (
+                      <li key={j.journee}>
+                        <span>
+                          {capitalized(j.journee)} : {j.status === "participant" ? "participant" : "liste d'attente"}
+                          {j.conducteur ? ` · derrière ${j.conducteur.firstName} ${j.conducteur.lastName}` : registration.poste === "passager" ? " · sans conducteur" : ""}
+                          {j.passager && ` · votre passager : ${j.passager.firstName} ${j.passager.lastName}`}
+                        </span>
+                        {registration.journees.length > 1 && event.status !== "archive" && !registration.leadsGroup && (
+                          <Button label="Me retirer" variant="outline" disabled={isPending} onClick={() => leave([j.journee])} />
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  registration.journees[0]?.passager && (
+                    <p>
+                      Votre passager : {registration.journees[0].passager.firstName} {registration.journees[0].passager.lastName}
+                    </p>
+                  )
+                )}
+                {missing.length > 0 && signUpsOpen && registrationOpen && !registration.leadsGroup && (
+                  <fieldset className={styles.journeesPicker}>
+                    <legend>Ajouter des journées</legend>
+                    {missing.map((j) => (
+                      <Checkbox
+                        key={j}
+                        label={capitalized(j)}
+                        checked={added.includes(j)}
+                        onChange={(on) => setAdded(on ? [...added, j] : added.filter((a) => a !== j))}
+                      />
+                    ))}
+                    <Button
+                      label="Ajouter ces journées"
+                      variant="outline"
+                      disabled={isPending || added.length === 0}
+                      onClick={() =>
+                        register.mutate(
+                          { eventId: event.eventId, poste: registration.poste, journees: added },
+                          { onSuccess: () => setAdded([]) }
+                        )
+                      }
+                    />
+                  </fieldset>
+                )}
                 {registration.group &&
                   (registration.leadsGroup ? (
                     <p>Vous menez {registration.group.name} : votre place vous est réservée tant que vous menez ce groupe.</p>
@@ -197,17 +286,7 @@ export const EventDetailPage: React.FC = () => {
                     label="Me désinscrire"
                     variant="outline"
                     disabled={isPending}
-                    onClick={async () => {
-                      const confirmed = await confirm({
-                        title: "Se désinscrire ?",
-                        message:
-                          registration.poste === "conducteur"
-                            ? `Votre place à « ${event.name} » sera libérée, et vos éventuels passagers seront désinscrits avec vous.`
-                            : `Votre place à « ${event.name} » sera libérée.`,
-                        confirmLabel: "Me désinscrire",
-                      });
-                      if (confirmed) unregister.mutate(event.eventId);
-                    }}
+                    onClick={() => leave()}
                   />
                 )}
               </div>
@@ -247,15 +326,23 @@ export const EventDetailPage: React.FC = () => {
                         }}
                         options={POSTES.map((p) => ({ value: p, label: POSTE_LABELS[p] }))}
                       />
-                      {poste === "passager" ? (
-                        <Select label="Conducteur" value={conducteurId} onChange={setConducteurId} options={conducteurOptions} />
-                      ) : (
-                        groupKindOf(poste) && groupSelect(poste)
+                      {allJournees.length > 1 && (
+                        <fieldset className={styles.journeesPicker}>
+                          <legend>Journées</legend>
+                          <Checkbox label="Tout l'événement" checked={chosen === null} onChange={(all) => setChosen(all ? null : [])} />
+                          {allJournees.map((j) => (
+                            <Checkbox key={j} label={capitalized(j)} checked={picked.includes(j)} onChange={(on) => pick(j, on)} />
+                          ))}
+                        </fieldset>
                       )}
+                      {poste === "passager" && (
+                        <Select label="Conducteur" value={conducteurId} onChange={setConducteurId} options={conducteurOptions} />
+                      )}
+                      {groupKindOf(poste) && !(poste === "passager" && conducteurId) && groupSelect(poste)}
                       <Button
                         label={signUpLabel}
                         variant="accent"
-                        disabled={isPending || (poste === "passager" && !conducteurId)}
+                        disabled={isPending || picked.length === 0}
                         onClick={() => signUp()}
                       />
                       {register.isError && !askPhone && <p className={styles.error}>{register.error.message}</p>}

@@ -7,7 +7,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
@@ -104,6 +106,18 @@ public class EventEntity extends AuditTemplate {
     /** true while the Event's Secteur is fermé. */
     public boolean isInClosedSector() {
         return sector != null && sector.isClosed();
+    }
+
+    /** Its Journées: each calendar date from its start to its end (ADR 0011). */
+    public List<LocalDate> journees() {
+        if (startDateTime == null) return List.of();
+        LocalDate last = endDateTime == null ? startDateTime.toLocalDate() : endDateTime.toLocalDate();
+        return startDateTime.toLocalDate().datesUntil(last.plusDays(1)).toList();
+    }
+
+    /** true when that date is one of its Journées. */
+    public boolean hasJournee(LocalDate journee) {
+        return journees().contains(journee);
     }
 
     /** Status as of now: an Ouvert or Complet Event reads En cours, then Archivé, from its dates. */

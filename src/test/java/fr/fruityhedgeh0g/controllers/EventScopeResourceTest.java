@@ -98,7 +98,6 @@ public class EventScopeResourceTest {
     void cleanUp() {
         QuarkusTransaction.requiringNew().run(() -> {
             List<UUID> sectors = List.of(algrange, thionville);
-            registrationRepository.delete("event.sector.sectorId in ?1 and conducteur is not null", sectors);
             registrationRepository.delete("event.sector.sectorId in ?1", sectors);
             eventRepository.list("sector.sectorId in ?1", sectors).forEach(eventRepository::delete);
             groupRepository.delete("sector.sectorId in ?1", sectors);

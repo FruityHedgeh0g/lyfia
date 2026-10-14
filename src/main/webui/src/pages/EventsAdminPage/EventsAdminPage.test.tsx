@@ -7,6 +7,7 @@ import { testUser } from "../../test/testUser";
 import { createEventsApi, createRegistrationsApi, seedGroup, setFakeFeature } from "../../test/fakeApi";
 import EventsAdminPage from "./EventsAdminPage";
 import { confirmIn } from "../../test/confirm";
+import { eventJournees } from "../../lib/journees";
 
 const inDays = (days: number, hour: number) => {
   const d = new Date();
@@ -134,6 +135,44 @@ describe("EventsAdminPage", () => {
     expect(section).not.toHaveAttribute("open");
   });
 
+  it("shows the roster Journée by Journée", async () => {
+    const api = createEventsApi();
+    const weekEnd = await api.createEvent({ description: "", sectorId: "sector-1", name: "Test Week-end", startDateTime: inDays(50, 9), endDateTime: inDays(51, 18) });
+    await api.changeStatus(weekEnd.eventId, "ouvert");
+    const [samedi, dimanche] = eventJournees(inDays(50, 9), inDays(51, 18));
+    await createRegistrationsApi().signUp(weekEnd.eventId, { userId: "p-5", firstName: "Test", lastName: "Samedi", phone: "06 00 00 00 00" }, undefined, undefined, "conducteur", [samedi]);
+    await createRegistrationsApi().signUp(weekEnd.eventId, { userId: "p-6", firstName: "Test", lastName: "Dimanche", phone: "06 00 00 00 00" }, undefined, undefined, "service", [dimanche]);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /Test Week-end/ }));
+
+    const participants = await screen.findByRole("list", { name: "Participants" });
+    expect(within(participants).getByText(/Samedi/)).toBeInTheDocument();
+    expect(within(participants).queryByText(/Dimanche/)).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText("Journée"), dimanche);
+    await waitFor(() => expect(within(screen.getByRole("list", { name: "Participants" })).getByText(/Dimanche/)).toBeInTheDocument());
+  });
+
+  it("asks whether a conducteur's passager is removed too", async () => {
+    const eventId = (await createEventsApi().fetchEvents(true)).find((e) => e.name === "Test Ouvert")!.eventId;
+    await createRegistrationsApi().signUp(eventId, { userId: "p-3", firstName: "Test", lastName: "Meyer", phone: "06 00 00 00 00" }, undefined, undefined, "passager");
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /Test Ouvert/ }));
+
+    // Meyer, en attente, est associé à Kremer, en attente aussi
+    const waiting = await screen.findByRole("list", { name: "Liste d'attente" });
+    const meyer = () => within(screen.getByRole("list", { name: "Liste d'attente" })).getByText("Test Meyer").closest("li") as HTMLElement;
+    expect(meyer()).toHaveTextContent("sans conducteur");
+    await userEvent.selectOptions(within(meyer()).getByLabelText("Conducteur"), "p-2");
+    await waitFor(() => expect(meyer()).toHaveTextContent("Passager de Test Kremer"));
+
+    const kremer = within(waiting).getByText("Test Kremer", { selector: "span" }).closest("li") as HTMLElement;
+    await userEvent.click(within(kremer).getByRole("button", { name: "Retirer" }));
+    await confirmIn("Retirer");
+    await confirmIn("Sans son passager");
+    await waitFor(() => expect(meyer()).toHaveTextContent("sans conducteur"));
+    expect(within(screen.getByRole("list", { name: "Liste d'attente" })).queryByText("Test Kremer", { selector: "span" })).not.toBeInTheDocument();
+  });
+
   it("removes a Participant, then moves someone up by hand", async () => {
     renderPage();
     await userEvent.click(await screen.findByRole("button", { name: /Test Ouvert/ }));
@@ -178,7 +217,7 @@ describe("EventsAdminPage", () => {
     expect(within(weber).queryByRole("button", { name: "Sortir du groupe" })).not.toBeInTheDocument();
   });
 
-  it("lets the Bureau change a Poste, never to passager, leaving a Groupe of another kind", async () => {
+  it("lets the Bureau change a Poste, leaving a Groupe of another kind", async () => {
     renderPage();
     await userEvent.click(await screen.findByRole("button", { name: /Test Ouvert/ }));
     const participants = await screen.findByRole("list", { name: "Participants" });
@@ -186,7 +225,6 @@ describe("EventsAdminPage", () => {
     await waitFor(() => expect(within(participants).getByText(/Weber/).closest("li")).toHaveTextContent("Conducteur · Groupe : Groupe Algrange Centre"));
 
     const poste = within(participants).getByLabelText("Poste") as HTMLSelectElement;
-    expect([...poste.options].map((o) => o.value)).not.toContain("passager");
     await userEvent.selectOptions(poste, "service");
     await waitFor(() => expect(within(participants).getByText(/Weber/).closest("li")).toHaveTextContent("Service"));
     expect(within(participants).getByText(/Weber/).closest("li")).not.toHaveTextContent("Groupe Algrange Centre");
