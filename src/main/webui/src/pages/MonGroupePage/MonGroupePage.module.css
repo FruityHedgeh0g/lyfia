@@ -93,3 +93,101 @@
   flex-direction: column;
   gap: 8px;
 }
+
+/* Les Demandes à valider, en tête de chaque Événement, à part des membres */
+.pending {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--color-bg-soft);
+  box-shadow: inset 4px 0 0 var(--color-accent);
+}
+
+.pendingRow {
+  composes: row;
+  background: var(--color-surface);
+}
+
+.pendingSummary {
+  margin: 0;
+  padding: 10px 14px;
+  font-weight: 700;
+  color: var(--color-accent);
+  box-shadow: inset 4px 0 0 var(--color-accent);
+  background: var(--color-bg-soft);
+}
+
+.members {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.journeeTitle {
+  font-size: var(--text-sm);
+  text-transform: capitalize;
+}
+
+.blockTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--text-base);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+/*
+ * Une couleur par Poste, pour sortir du bleu de la charte : l'étiquette du Poste et le liseré de la ligne.
+ * Chaque teinte a sa variante sombre.
+ */
+.poste {
+  padding: 1px 6px;
+  font-weight: 700;
+  color: var(--poste-ink);
+  background: var(--poste-soft);
+}
+
+.conducteur, .row_conducteur { --poste-ink: #9a4a00; --poste-soft: #fdebd3; }
+.passager, .row_passager { --poste-ink: #6b2fb8; --poste-soft: #efe5fb; }
+.chauffeur_camionnette, .row_chauffeur_camionnette { --poste-ink: #0b6e66; --poste-soft: #d6f3ef; }
+.service, .row_service { --poste-ink: #4d6600; --poste-soft: #eaf3c9; }
+.point_fixe, .row_point_fixe { --poste-ink: #5c636a; --poste-soft: #e9ecef; }
+
+:global(:root[data-theme="dark"]) .conducteur, :global(:root[data-theme="dark"]) .row_conducteur { --poste-ink: #ffb870; --poste-soft: rgba(255,163,72,.16); }
+:global(:root[data-theme="dark"]) .passager, :global(:root[data-theme="dark"]) .row_passager { --poste-ink: #d2b4ff; --poste-soft: rgba(180,140,255,.16); }
+:global(:root[data-theme="dark"]) .chauffeur_camionnette, :global(:root[data-theme="dark"]) .row_chauffeur_camionnette { --poste-ink: #6ee2d4; --poste-soft: rgba(80,210,195,.16); }
+:global(:root[data-theme="dark"]) .service, :global(:root[data-theme="dark"]) .row_service { --poste-ink: #c9dc3a; --poste-soft: rgba(201,220,58,.16); }
+:global(:root[data-theme="dark"]) .point_fixe, :global(:root[data-theme="dark"]) .row_point_fixe { --poste-ink: #a3b3c6; --poste-soft: rgba(163,179,198,.16); }
+
+.row_conducteur, .row_passager, .row_chauffeur_camionnette, .row_service, .row_point_fixe {
+  box-shadow: inset 4px 0 0 var(--poste-ink);
+}
+
+/* Un passager sans conducteur attend d'être associé : à régler */
+.alone {
+  font-weight: 700;
+  color: var(--color-accent);
+}
+
+/* Le compteur du Groupe : vert tant qu'il reste de la place, rouge au maximum */
+.room, .full {
+  padding: 1px 6px;
+  font-weight: 800;
+}
+
+.room {
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+}
+
+.full {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}

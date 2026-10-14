@@ -54,7 +54,12 @@ describe("MonGroupePage", () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: /Test Nord/ })).toBeInTheDocument();
+    expect(await screen.findByText("1 demande à valider")).toBeInTheDocument();
     const balade = await screen.findByRole("region", { name: "Test Balade" });
+    // Les Demandes à valider passent avant les membres, sous leur propre titre
+    const [aValider, membres] = within(balade).getAllByRole("heading", { level: 4 });
+    expect(aValider).toHaveTextContent("À valider 1");
+    expect(membres).toHaveTextContent("Membres");
     await userEvent.click(within(within(balade).getByRole("list", { name: "Demandes en attente" })).getByRole("button", { name: "Accepter" }));
 
     await waitFor(() => expect(within(within(balade).getByRole("list", { name: "Membres du groupe" })).getByText(/Kremer/)).toBeInTheDocument());
@@ -72,7 +77,7 @@ describe("MonGroupePage", () => {
     renderPage();
 
     const balade = await screen.findByRole("region", { name: "Test Balade" });
-    expect(within(balade).getByText("Dans le groupe : 1 / 1")).toBeInTheDocument();
+    expect(within(balade).getByText("1 / 1")).toBeInTheDocument();
     const demandes = within(balade).getByRole("list", { name: "Demandes en attente" });
     expect(within(demandes).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
       expect.stringContaining("Kremer"),
@@ -83,7 +88,7 @@ describe("MonGroupePage", () => {
 
     await userEvent.click(within(within(balade).getByRole("list", { name: "Membres du groupe" })).getByRole("button", { name: "Sortir du groupe" }));
     await confirmIn("Sortir du groupe");
-    await waitFor(() => expect(within(balade).getByText("Dans le groupe : 0 / 1")).toBeInTheDocument());
+    await waitFor(() => expect(within(balade).getByText("0 / 1")).toBeInTheDocument());
     expect(within(within(balade).getByRole("list", { name: "Demandes en attente" })).getAllByRole("listitem")).toHaveLength(2);
   });
 
@@ -130,6 +135,27 @@ describe("MonGroupePage", () => {
     expect(within(within(weekEnd).getAllByRole("list", { name: /Membres du groupe — / })[1]).getByText("Sophie Kremer").closest("li")).toHaveTextContent(
       "sans conducteur"
     );
+  });
+
+  it("folds each Journée of a longer Event", async () => {
+    seedGroup({ name: "Test Nord", sectorId: "sector-1", chef: { userId: "mock-user", firstName: "Jean", lastName: "Dupont" } });
+    const events = createEventsApi();
+    const event = await events.createEvent({
+      name: "Test Week-end",
+      description: "",
+      sectorId: "sector-1",
+      startDateTime: `${inDays(10)}T09:00:00`,
+      endDateTime: `${inDays(11)}T18:00:00`,
+    });
+    await events.changeStatus(event.eventId, "ouvert");
+    renderPage();
+
+    const weekEnd = await screen.findByRole("region", { name: "Test Week-end" });
+    const journees = weekEnd.querySelectorAll("details");
+    expect(journees).toHaveLength(2);
+    expect(journees[0]).toHaveAttribute("open");
+    await userEvent.click(journees[0].querySelector("summary")!);
+    expect(journees[0]).not.toHaveAttribute("open");
   });
 
   it("takes a member out of the Groupe", async () => {
