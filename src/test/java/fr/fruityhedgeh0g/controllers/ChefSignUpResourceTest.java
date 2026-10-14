@@ -1,5 +1,7 @@
 package fr.fruityhedgeh0g.controllers;
 
+import fr.fruityhedgeh0g.enums.RegistrationStatusEnum;
+
 import fr.fruityhedgeh0g.entities.EventEntity;
 import fr.fruityhedgeh0g.entities.EventRegistrationEntity;
 import fr.fruityhedgeh0g.entities.GroupEntity;
@@ -105,7 +107,6 @@ public class ChefSignUpResourceTest {
     void cleanUp() {
         SecteurFixtures.detachFromSecteur(userRepository, sectorRepository, sector);
         QuarkusTransaction.requiringNew().run(() -> {
-            registrationRepository.delete("conducteur is not null and event.sector.sectorId = ?1", sector);
             registrationRepository.delete("event.sector.sectorId", sector);
             eventRepository.delete("sector.sectorId", sector);
             groupRepository.delete("sector.sectorId", sector);
@@ -268,10 +269,10 @@ public class ChefSignUpResourceTest {
 
         EventRegistrationEntity chef = registrationOf(event, NEW_CHEF_ID).orElseThrow();
         assertEquals(PosteEnum.CONDUCTEUR, chef.getPoste());
-        assertFalse(chef.isWaiting());
+        assertEquals(RegistrationStatusEnum.PARTICIPANT, chef.status());
         assertEquals(nord, groupOf(event, NEW_CHEF_ID));
-        assertEquals(0, QuarkusTransaction.requiringNew().call(() ->
-                registrationRepository.findByEventAndPerson(event, UUID.fromString(CONDUCTEUR_ID)).orElseThrow().getPassagers().size()));
+        assertFalse(QuarkusTransaction.requiringNew().call(() ->
+                registrationRepository.findByEventAndPerson(event, UUID.fromString(CONDUCTEUR_ID)).orElseThrow().hasPassager()));
     }
 
     @Test

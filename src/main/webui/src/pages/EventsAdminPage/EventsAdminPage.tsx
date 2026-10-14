@@ -13,6 +13,8 @@ import Spinner from "../../components/atoms/Spinner/Spinner";
 import { useConfirm } from "../../components/molecules/ConfirmDialog/useConfirm";
 import { useGroupMaximum } from "../../features/events/useRoster";
 import EventRoster from "./EventRoster";
+import { fetchRoster } from "../../features/events/registrationsApi";
+import { eventJournees, journeeLabel } from "../../lib/journees";
 
 /** Le statut n'est modifiable qu'à l'édition, vers les seules transitions permises. */
 /** `maxParticipants` vide : pas de maximum. `groupMaxima` : maximums des Groupes touchés, par groupId (vide : sans limite). */
@@ -73,6 +75,24 @@ export const EventsAdminPage: React.FC = () => {
         cancelLabel: "Garder l'événement",
       });
       if (!confirmed) throw new Error("Annulation abandonnée");
+    }
+    // Raccourcir l'Événement retire les inscriptions des Journées qu'il n'a plus (ADR 0011) : on prévient d'abord
+    const event = events?.find((e) => e.eventId === eventId);
+    const kept = eventJournees(patch.startDateTime, patch.endDateTime);
+    const dropped = event ? eventJournees(event.startDateTime, event.endDateTime).filter((j) => !kept.includes(j)) : [];
+    if (dropped.length > 0) {
+      const counts = (await fetchRoster(eventId)).journees.filter((j) => dropped.includes(j.journee));
+      const signUps = counts.reduce((total, j) => total + j.participants + j.waiting, 0);
+      if (
+        signUps > 0 &&
+        !(await confirm({
+          title: "Retirer des journées ?",
+          message: `${signUps} inscription(s) aux journées du ${dropped.map(journeeLabel).join(", du ")} seront retirées. Personne n'en est averti automatiquement.`,
+          confirmLabel: "Enregistrer les nouvelles dates",
+          cancelLabel: "Garder les dates",
+        }))
+      )
+        throw new Error("Nouvelles dates abandonnées");
     }
     await update.mutateAsync({ eventId, ...patch, maxParticipants: Number(maxParticipants) || 0 });
     // Avant le statut : un Événement archivé n'accepte plus de maximum

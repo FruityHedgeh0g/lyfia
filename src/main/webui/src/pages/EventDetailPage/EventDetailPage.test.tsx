@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -83,12 +83,48 @@ describe("EventDetailPage sign-up", () => {
     renderPage();
 
     await userEvent.selectOptions(await screen.findByLabelText("Poste"), "passager");
-    expect(screen.queryByLabelText("Groupe (facultatif)")).not.toBeInTheDocument();
+    // Sans conducteur, le passager peut demander son propre Groupe ; avec un conducteur, il prend le sien
+    expect(screen.getByLabelText("Groupe (facultatif)")).toBeInTheDocument();
     await userEvent.selectOptions(await screen.findByLabelText("Conducteur"), "p-1");
+    expect(screen.queryByLabelText("Groupe (facultatif)")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "M'inscrire comme passager" }));
 
     expect(await screen.findByText("Vous êtes inscrit comme passager de Marc Weber")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Demander ce groupe" })).not.toBeInTheDocument();
+  });
+
+  it("signs up as passager without a conducteur for now", async () => {
+    renderPage();
+    await userEvent.selectOptions(await screen.findByLabelText("Poste"), "passager");
+    await userEvent.click(screen.getByRole("button", { name: "M'inscrire comme passager" }));
+
+    expect(await screen.findByText("Vous êtes inscrit comme passager")).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Mes journées" })).toHaveTextContent("sans conducteur");
+  });
+
+  it("signs up for one Journée, then adds the other", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByLabelText("Tout l'événement"));
+    const [first, second] = screen.getAllByRole("checkbox").slice(1);
+    await userEvent.click(first);
+    await userEvent.click(screen.getByRole("button", { name: "M'inscrire comme conducteur" }));
+
+    const mine = await screen.findByRole("list", { name: "Mes journées" });
+    expect(within(mine).getAllByRole("listitem")).toHaveLength(1);
+    expect(second).not.toBeInTheDocument();
+    await userEvent.click(within(screen.getByRole("group", { name: "Ajouter des journées" })).getByRole("checkbox"));
+    await userEvent.click(screen.getByRole("button", { name: "Ajouter ces journées" }));
+    await waitFor(() => expect(within(screen.getByRole("list", { name: "Mes journées" })).getAllByRole("listitem")).toHaveLength(2));
+  });
+
+  it("withdraws from one Journée and keeps the other", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "M'inscrire comme conducteur" }));
+    const mine = await screen.findByRole("list", { name: "Mes journées" });
+    await userEvent.click(within(mine).getAllByRole("button", { name: "Me retirer" })[0]);
+    await confirmIn("Me retirer");
+
+    await waitFor(() => expect(within(screen.getByRole("list", { name: "Mes journées" })).getAllByRole("listitem")).toHaveLength(1));
+    expect(screen.getByRole("button", { name: "Me désinscrire" })).toBeInTheDocument();
   });
 
   it("says sign-ups are suspended while Inscription aux événements is off (ADR 0009)", async () => {

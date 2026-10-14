@@ -1,5 +1,7 @@
 package fr.fruityhedgeh0g.controllers;
 
+import fr.fruityhedgeh0g.enums.RegistrationStatusEnum;
+
 import fr.fruityhedgeh0g.entities.EventEntity;
 import fr.fruityhedgeh0g.entities.EventRegistrationEntity;
 import fr.fruityhedgeh0g.entities.SectorEntity;
@@ -109,6 +111,7 @@ public class RosterResourceTest {
             EventRegistrationEntity registration = EventRegistrationEntity.conducteur(
                     eventRepository.findById(eventId), userRepository.findById(person), waiting);
             registration.setSignedUpAt(LocalDateTime.now(EventEntity.ZONE).minusMinutes(minutesAgo));
+            registration.getJournees().forEach(j -> j.setSignedUpAt(registration.getSignedUpAt()));
             registrationRepository.persist(registration);
         });
         return person;
@@ -116,7 +119,7 @@ public class RosterResourceTest {
 
     private boolean isWaiting(UUID eventId, UUID personId) {
         return QuarkusTransaction.requiringNew().call(() ->
-                registrationRepository.findByEventAndPerson(eventId, personId).orElseThrow().isWaiting());
+                registrationRepository.findByEventAndPerson(eventId, personId).orElseThrow().status() == RegistrationStatusEnum.EN_ATTENTE);
     }
 
     @Test

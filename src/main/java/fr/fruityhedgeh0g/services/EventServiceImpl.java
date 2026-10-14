@@ -2,6 +2,7 @@ package fr.fruityhedgeh0g.services;
 
 import fr.fruityhedgeh0g.utilities.logging.Logged;
 
+import fr.fruityhedgeh0g.dtos.eventDtos.ConducteurDto;
 import fr.fruityhedgeh0g.dtos.eventDtos.EventDto;
 import fr.fruityhedgeh0g.dtos.eventDtos.DemandeDto;
 import fr.fruityhedgeh0g.dtos.eventDtos.GroupRosterDto;
@@ -15,11 +16,13 @@ import fr.fruityhedgeh0g.dtos.eventDtos.RosterExportDto;
 import fr.fruityhedgeh0g.entities.EventEntity;
 import fr.fruityhedgeh0g.entities.EventRegistrationEntity;
 import fr.fruityhedgeh0g.entities.GroupEntity;
+import fr.fruityhedgeh0g.entities.JourneeRegistrationEntity;
 import fr.fruityhedgeh0g.entities.UserEntity;
 import fr.fruityhedgeh0g.entities.SectorEntity;
 import fr.fruityhedgeh0g.enums.EventStatusEnum;
 import fr.fruityhedgeh0g.enums.FeatureEnum;
 import fr.fruityhedgeh0g.enums.PosteEnum;
+import fr.fruityhedgeh0g.enums.RegistrationStatusEnum;
 import fr.fruityhedgeh0g.enums.RoleEnum;
 import fr.fruityhedgeh0g.exceptions.ForbiddenActionException;
 import fr.fruityhedgeh0g.exceptions.InvalidResourceException;
@@ -27,6 +30,7 @@ import fr.fruityhedgeh0g.exceptions.PhoneRequiredException;
 import fr.fruityhedgeh0g.exceptions.UnknownResourceException;
 import fr.fruityhedgeh0g.repositories.EventRegistrationRepository;
 import fr.fruityhedgeh0g.repositories.EventRepository;
+import fr.fruityhedgeh0g.repositories.JourneeRegistrationRepository;
 import fr.fruityhedgeh0g.security.Viewer;
 import fr.fruityhedgeh0g.services.interfaces.EventService;
 import fr.fruityhedgeh0g.services.interfaces.internals.InternalGroupService;
@@ -42,11 +46,16 @@ import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.Optional;
 import java.util.UUID;
@@ -70,6 +79,9 @@ public class EventServiceImpl implements EventService {
     EventRegistrationRepository registrationRepository;
 
     @Inject
+    JourneeRegistrationRepository journeeRepository;
+
+    @Inject
     InternalUserService internalUserService;
 
     @Inject
@@ -80,6 +92,12 @@ public class EventServiceImpl implements EventService {
 
     @Inject
     FeatureLevers featureLevers;
+
+    /** A Journée's sign-ups in the order they were taken: the order of its Liste d'attente. */
+    private static final Comparator<JourneeRegistrationEntity> BY_SIGN_UP = Comparator
+            .comparing(JourneeRegistrationEntity::getSignedUpAt)
+            .thenComparing(j -> j.getRegistration().getSignedUpAt())
+            .thenComparing(j -> j.getRegistration().getRegistrationId());
 
     @Override
     public List<EventDto> listAll(boolean seesPlanification, UUID viewerId) {
@@ -146,24 +164,6 @@ public class EventServiceImpl implements EventService {
                 });
     }
 
-    /** Until an Event is under way (En cours, Archivé) or Annulé, its Groupes' Chefs ride with them. */
-    private static boolean followsAffectations(EventEntity event) {
-        EventStatusEnum current = event.currentStatus();
-        return !event.isInClosedSector() && (current == EventStatusEnum.PLANIFICATION || current.acceptsSignUps());
-    }
-
-    /**
-     * The Groupe's Chef rides with it at the Event as a conducteur with a confirmed place, beyond any maximum and without
-     * the phone number asked of a sign-up: they were signed up, not signing up (ADR 0010).
-     */
-    private void enrollChef(EventEntity event, GroupEntity group) {
-        UserEntity chef = group.getChef();
-        if (chef == null) return;
-        EventRegistrationEntity registration = registrationRepository.findByEventAndPerson(event.getEventId(), chef.getUserId())
-                .orElseGet(() -> registrationRepository.persistConfirmed(event, chef, group.getKind().chefPoste()));
-        registration.leadGroup(group);
-    }
-
     /**
      * A Groupe changes kind only while nobody but its Chef is with it, or asks for it, at an Event still to come;
      * the Chef then holds the Poste of the new kind there (ADR 0010).
@@ -176,7 +176,29 @@ public class EventServiceImpl implements EventService {
                 .toList();
         if (concerned.stream().anyMatch(r -> !r.isChefOfItsGroup()))
             throw new InvalidResourceException("A Groupe changes kind only while nobody but its Chef is with it at an Event to come.");
-        concerned.forEach(chef -> chef.setPoste(group.getKind().chefPoste()));
+        concerned.forEach(chef -> chef.leadGroup(group, chef.getEvent().journees()));
+    }
+
+    /** Until an Event is under way (En cours, Archivé) or Annulé, its Groupes' Chefs ride with them. */
+    private static boolean followsAffectations(EventEntity event) {
+        EventStatusEnum current = event.currentStatus();
+        return !event.isInClosedSector() && (current == EventStatusEnum.PLANIFICATION || current.acceptsSignUps());
+    }
+
+    /**
+     * The Groupe's Chef is at every Journée of the Event with it, at the Poste of its kind, with a confirmed place
+     * beyond any maximum and without the phone number asked of a sign-up: they were signed up, not signing up (ADR 0010).
+     */
+    private void enrollChef(EventEntity event, GroupEntity group) {
+        UserEntity chef = group.getChef();
+        if (chef == null) return;
+        EventRegistrationEntity registration = registrationRepository.findByEventAndPerson(event.getEventId(), chef.getUserId())
+                .orElseGet(() -> {
+                    EventRegistrationEntity created = EventRegistrationEntity.of(event, chef, group.getKind().chefPoste());
+                    registrationRepository.persist(created);
+                    return created;
+                });
+        registration.leadGroup(group, event.journees());
     }
 
     /** The Chef leading the Groupe rides with it: only a change of Affectation takes them out (ADR 0010). */
@@ -193,6 +215,15 @@ public class EventServiceImpl implements EventService {
         eventMapper.partialDtoToEntity(event, eventDto);
         normalizeMaximum(event);
         validate(event);
+        // The sign-ups of Journées the Event no longer has go; its Chefs are at the new ones
+        Set<LocalDate> kept = new HashSet<>(event.journees());
+        registrationRepository.listByEvent(event.getEventId()).forEach(registration -> {
+            registration.getJournees().stream().filter(j -> !kept.contains(j.getJournee())).toList()
+                    .forEach(registration::removeJournee);
+            dropIfWithoutJournee(registration);
+        });
+        if (followsAffectations(event) && event.getSector() != null)
+            internalGroupService.doListEntitiesOfSector(event.getSector().getSectorId()).forEach(group -> enrollChef(event, group));
         return eventMapper.toDto(event);
     }
 
@@ -210,62 +241,104 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public RegistrationDto signUp(UUID eventId, UUID personId, PosteEnum poste, UUID groupId) {
-        if (poste == PosteEnum.PASSAGER)
-            throw new InvalidResourceException("A passager signs up behind a conducteur.");
+    public RegistrationDto signUp(UUID eventId, UUID personId, SignUp signUp) {
         EventEntity event = lockedEventOrThrow(eventId);
         UserEntity person = internalUserService.doGetEntityById(personId)
                 .orElseThrow(() -> new UnknownResourceException("User not found: " + personId));
+        if (signUp.conducteurPersonId() != null && signUp.poste() != PosteEnum.PASSAGER)
+            throw new InvalidResourceException("Only a passager names a conducteur.");
+        if (signUp.conducteurPersonId() != null && signUp.groupId() != null)
+            throw new InvalidResourceException("A passager coming with a conducteur takes their Groupe.");
+        List<LocalDate> chosen = journeesOf(event, signUp.journees());
 
         Optional<EventRegistrationEntity> existing = registrationRepository.findByEventAndPerson(eventId, personId);
-        if (existing.isPresent()) return toDto(existing.get());
+        if (existing.isPresent() && existing.get().getPoste() != signUp.poste())
+            throw new InvalidResourceException(personId + " is already signed up for " + eventId + " as " + existing.get().getPoste().id());
+        List<LocalDate> added = existing.map(r -> chosen.stream().filter(d -> r.journee(d).isEmpty()).toList()).orElse(chosen);
+        if (existing.isPresent() && added.isEmpty()) return toDto(existing.get());
         featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS, event.getSector());
         requireSignUpOpenTo(event, person);
 
-        EventRegistrationEntity registration = event.currentStatus() == EventStatusEnum.OUVERT && placeLeft(event, 1)
-                ? registrationRepository.persistConfirmed(event, person, poste)
-                : registrationRepository.persistWaiting(event, person, poste);
-        if (groupId != null) registration.requestGroup(groupOrThrow(groupId));
+        EventRegistrationEntity conducteur = signUp.conducteurPersonId() == null ? null
+                : conducteurOrThrow(eventId, signUp.conducteurPersonId(), personId);
+        if (conducteur != null && added.stream().noneMatch(d -> conducteur.journee(d).filter(j -> j.getPassager() == null).isPresent()))
+            throw new InvalidResourceException(signUp.conducteurPersonId() + " has no Journée left without a passager among those chosen.");
+        GroupEntity asked = signUp.groupId() == null || existing.isPresent() ? null : groupOrThrow(signUp.groupId());
+
+        EventRegistrationEntity registration = existing.orElseGet(() -> {
+            EventRegistrationEntity created = EventRegistrationEntity.of(event, person, signUp.poste());
+            registrationRepository.persist(created);
+            return created;
+        });
+        if (asked != null) registration.requestGroup(asked);
+        addJournees(event, registration, added, conducteur);
+        if (existing.isEmpty() && conducteur != null) comeWith(event, registration, conducteur);
         return toDto(registration);
     }
 
-    @Override
-    @Transactional
-    public RegistrationDto signUpAsPassager(UUID eventId, UUID personId, UUID conducteurPersonId) {
-        EventEntity event = lockedEventOrThrow(eventId);
-        UserEntity person = internalUserService.doGetEntityById(personId)
-                .orElseThrow(() -> new UnknownResourceException("User not found: " + personId));
-
-        Optional<EventRegistrationEntity> existing = registrationRepository.findByEventAndPerson(eventId, personId);
-        if (existing.isPresent()) {
-            EventRegistrationEntity conducteur = existing.get().getConducteur();
-            if (conducteur == null || !conducteur.getPerson().getUserId().equals(conducteurPersonId))
-                throw new InvalidResourceException(personId + " is already signed up for " + eventId + " otherwise.");
-            return toDto(existing.get());
+    /**
+     * Each Journée a confirmed place while Ouvert and under its maximum, otherwise on its Liste d'attente; behind a
+     * conducteur free that Journée, the passager waits as they do, and is refused rather than separated from a
+     * confirmed conducteur when no place is left (including while Complet).
+     */
+    private void addJournees(EventEntity event, EventRegistrationEntity registration, List<LocalDate> journees,
+                             EventRegistrationEntity conducteur) {
+        boolean ouvert = event.currentStatus() == EventStatusEnum.OUVERT;
+        for (LocalDate journee : journees) {
+            JourneeRegistrationEntity behind = conducteur == null ? null
+                    : conducteur.journee(journee).filter(j -> j.getPassager() == null).orElse(null);
+            boolean placeLeft = ouvert && placeLeft(event, journee, 1);
+            if (behind != null && !behind.isWaiting() && !placeLeft)
+                throw new InvalidResourceException("No place is left next to " + conducteur.getPerson().getUserId() + " on " + journee);
+            JourneeRegistrationEntity added = registration.addJournee(journee, behind == null ? !placeLeft : behind.isWaiting());
+            if (behind != null) added.pairWith(behind);
+            // Counted by the checks of the next Journées and sign-ups
+            journeeRepository.persist(added);
         }
-        featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS, event.getSector());
-        requireSignUpOpenTo(event, person);
+    }
 
-        EventRegistrationEntity conducteur = registrationRepository.findByEventAndPerson(eventId, conducteurPersonId)
-                .orElseThrow(() -> new InvalidResourceException("No conducteur " + conducteurPersonId + " signed up for " + eventId));
-        // The passager takes the conducteur's placement: refused rather than separated when no place is left,
-        // including while the Bureau has the Event marked Complet
-        if (!conducteur.isWaiting()) {
-            if (event.currentStatus() != EventStatusEnum.OUVERT || !placeLeft(event, 1))
-                throw new InvalidResourceException("No place is left next to " + conducteurPersonId + " at " + eventId);
-            if (conducteur.getGroup() != null) requireRoomIn(event, conducteur.getGroup(), 1);
-        }
-        EventRegistrationEntity passager = EventRegistrationEntity.passager(conducteur, person);
-        registrationRepository.persist(passager);
-        return toDto(passager);
+    /** "Je viens avec": the passager takes the conducteur's Groupe (within its maximum) or pending Demande. */
+    private void comeWith(EventEntity event, EventRegistrationEntity passager, EventRegistrationEntity conducteur) {
+        if (conducteur.getGroup() != null) {
+            requireRoomIn(event, conducteur.getGroup(), confirmedJournees(passager), 1);
+            passager.setGroup(conducteur.getGroup());
+        } else if (conducteur.hasPendingDemande()) passager.requestGroup(conducteur.getDemandeGroup());
+    }
+
+    /** The Journées asked for, all of them when none: each must be one of the Event's. */
+    private static List<LocalDate> journeesOf(EventEntity event, List<LocalDate> asked) {
+        if (asked == null || asked.isEmpty()) return event.journees();
+        List<LocalDate> journees = asked.stream().distinct().sorted().toList();
+        journees.stream().filter(d -> !event.hasJournee(d)).findFirst().ifPresent(d -> {
+            throw new InvalidResourceException("The Event has no Journée on " + d);
+        });
+        return journees;
+    }
+
+    /** The Journées of the sign-up asked for, all of them when none: each must be signed up for. */
+    private static List<JourneeRegistrationEntity> journeesOf(EventRegistrationEntity registration, List<LocalDate> asked) {
+        if (asked == null || asked.isEmpty()) return List.copyOf(registration.getJournees());
+        return asked.stream().distinct().map(registration::journeeOrThrow).toList();
+    }
+
+    private static List<LocalDate> confirmedJournees(EventRegistrationEntity registration) {
+        return registration.getJournees().stream().filter(j -> !j.isWaiting()).map(JourneeRegistrationEntity::getJournee).toList();
+    }
+
+    /** A conducteur signed up for the Event, other than the passager themselves. */
+    private EventRegistrationEntity conducteurOrThrow(UUID eventId, UUID conducteurId, UUID passagerId) {
+        return registrationRepository.findByEventAndPerson(eventId, conducteurId)
+                .filter(r -> r.getPoste() == PosteEnum.CONDUCTEUR && !r.getPerson().getUserId().equals(passagerId))
+                .orElseThrow(() -> new InvalidResourceException("No conducteur " + conducteurId + " signed up for " + eventId));
     }
 
     @Override
-    public List<NestedUserDto> conducteursOf(UUID eventId) {
+    public List<ConducteurDto> conducteursOf(UUID eventId) {
         eventOrThrow(eventId);
         return registrationRepository.listByEvent(eventId).stream()
                 .filter(r -> r.getPoste() == PosteEnum.CONDUCTEUR)
-                .map(r -> personRef(r.getPerson()))
+                .map(r -> new ConducteurDto(r.getPerson().getUserId(), r.getPerson().getFirstName(), r.getPerson().getLastName(),
+                        r.getJournees().stream().filter(j -> j.getPassager() == null).map(JourneeRegistrationEntity::getJournee).toList()))
                 .toList();
     }
 
@@ -290,8 +363,8 @@ public class EventServiceImpl implements EventService {
             throw new InvalidResourceException("No pending Demande de groupe for " + personId);
         requireLeaderOrBureau(actor, registration.getDemandeGroup(), event);
         if (accept) {
-            // Beyond the maximum the Demande stays pending, on the Groupe's Liste d'attente
-            requireRoomIn(event, registration.getDemandeGroup(), registration.placesTaken());
+            // Beyond the maximum any of their Journées the Demande stays pending, on the Groupe's Liste d'attente
+            requireRoomIn(event, registration.getDemandeGroup(), registration.journeeDates(), 1);
             registration.acceptDemande();
         } else registration.refuseDemande();
         return toDto(registration);
@@ -299,19 +372,26 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public RosterDto placeInGroup(UUID eventId, UUID personId, UUID groupId) {
+    public RosterDto placeInGroup(UUID eventId, UUID personId, UUID groupId, boolean withPassager) {
         EventEntity event = lockedEventOrThrow(eventId);
         requireManaged(event);
         refuseOnArchived(event);
         EventRegistrationEntity registration = registrationOrThrow(eventId, personId);
-        requireNotPassager(registration);
         refuseOnChef(registration);
-        if (registration.isWaiting())
+        if (registration.status() == RegistrationStatusEnum.EN_ATTENTE)
             throw new InvalidResourceException("Only a Participant is placed in a Groupe.");
         GroupEntity group = groupOrThrow(groupId);
-        if (!registration.ridesWith(group)) requireRoomIn(event, group, registration.placesTaken());
-        registration.placeIn(group);
-        return rosterOf(event);
+        List<EventRegistrationEntity> moving = new ArrayList<>(List.of(registration));
+        if (withPassager) passagersOf(registration).stream().filter(p -> !p.isChefOfItsGroup()).forEach(moving::add);
+        else endPairingsOf(registration);
+        // Each one entering the Groupe takes a place there every Journée they are signed up for
+        List<LocalDate> entering = moving.stream().filter(m -> !m.ridesWith(group))
+                .flatMap(m -> m.journeeDates().stream()).toList();
+        entering.stream().distinct().forEach(d ->
+                requireRoomIn(event, group, List.of(d), (int) entering.stream().filter(d::equals).count()));
+        moving.forEach(m -> m.placeIn(group));
+        if (registration.isPassager()) endPairingsOutside(registration, group);
+        return rosterOf(event, null);
     }
 
     @Override
@@ -322,7 +402,7 @@ public class EventServiceImpl implements EventService {
         EventRegistrationEntity registration = registrationOrThrow(eventId, personId);
         refuseOnChef(registration);
         registration.changePoste(poste);
-        return rosterOf(event);
+        return rosterOf(event, null);
     }
 
     @Override
@@ -336,20 +416,83 @@ public class EventServiceImpl implements EventService {
             throw new InvalidResourceException("The Groupe " + groupId + " is not of the Event's Secteur.");
         // Lowering it below the current riders takes nobody out; it only stops new acceptances
         event.setMaximumOf(group, maximum);
-        return rosterOf(event);
+        return rosterOf(event, null);
     }
 
     @Override
     @Transactional
-    public RegistrationDto takeOutOfGroup(UUID eventId, UUID personId, Actor actor) {
+    public RegistrationDto takeOutOfGroup(UUID eventId, UUID personId, Actor actor, boolean withPassager) {
         EventEntity event = eventOrThrow(eventId);
         refuseOnArchived(event);
         EventRegistrationEntity registration = registrationOrThrow(eventId, personId);
-        requireLeaderOrBureau(actor, registration.getGroup(), event);
-        requireNotPassager(registration);
+        GroupEntity group = registration.getGroup();
+        requireLeaderOrBureau(actor, group, event);
         refuseOnChef(registration);
         registration.leaveGroup();
+        if (withPassager)
+            passagersOf(registration).stream().filter(p -> p.ridesWith(group) && !p.isChefOfItsGroup()).forEach(EventRegistrationEntity::leaveGroup);
+        else endPairingsOf(registration);
+        if (registration.isPassager()) endPairingsOutside(registration, null);
         return toDto(registration);
+    }
+
+    @Override
+    @Transactional
+    public RegistrationDto pair(UUID eventId, UUID passagerId, LocalDate journee, UUID conducteurId, Actor actor) {
+        EventEntity event = lockedEventOrThrow(eventId);
+        refuseOnArchived(event);
+        EventRegistrationEntity passager = passagerOrThrow(eventId, passagerId, actor, event);
+        EventRegistrationEntity conducteur = conducteurOrThrow(eventId, conducteurId, passagerId);
+        if (!Objects.equals(groupIdOf(passager), groupIdOf(conducteur)))
+            throw new InvalidResourceException("A passager rides behind a conducteur of their own Groupe.");
+        JourneeRegistrationEntity passagerJournee = passager.journeeOrThrow(journee);
+        JourneeRegistrationEntity conducteurJournee = conducteur.journeeOrThrow(journee);
+        if (passagerJournee.isWaiting() != conducteurJournee.isWaiting())
+            throw new InvalidResourceException("A passager and their conducteur wait, or ride, together.");
+        passagerJournee.pairWith(conducteurJournee);
+        return toDto(passager);
+    }
+
+    @Override
+    @Transactional
+    public RegistrationDto unpair(UUID eventId, UUID passagerId, LocalDate journee, Actor actor) {
+        EventEntity event = eventOrThrow(eventId);
+        refuseOnArchived(event);
+        EventRegistrationEntity passager = passagerOrThrow(eventId, passagerId, actor, event);
+        passager.journeeOrThrow(journee).unpair();
+        return toDto(passager);
+    }
+
+    /** A passager's sign-up, for the Bureau or the Chef of the passager's Groupe. */
+    private EventRegistrationEntity passagerOrThrow(UUID eventId, UUID passagerId, Actor actor, EventEntity event) {
+        EventRegistrationEntity passager = registrationOrThrow(eventId, passagerId);
+        if (!passager.isPassager())
+            throw new InvalidResourceException(passagerId + " is not a passager at " + eventId);
+        requireLeaderOrBureau(actor, passager.getGroup(), event);
+        return passager;
+    }
+
+    private static UUID groupIdOf(EventRegistrationEntity registration) {
+        return registration.getGroup() == null ? null : registration.getGroup().getGroupId();
+    }
+
+    /** The passagers riding behind this conducteur, any Journée. */
+    private static List<EventRegistrationEntity> passagersOf(EventRegistrationEntity conducteur) {
+        return conducteur.getJournees().stream().map(JourneeRegistrationEntity::getPassager).filter(Objects::nonNull)
+                .map(JourneeRegistrationEntity::getRegistration).distinct().toList();
+    }
+
+    /** A conducteur's passagers stay where they are: their pairings with them end. */
+    private static void endPairingsOf(EventRegistrationEntity conducteur) {
+        conducteur.getJournees().stream().filter(j -> j.getPassager() != null).forEach(JourneeRegistrationEntity::unpair);
+    }
+
+    /** A passager rides only behind a conducteur of their own Groupe: other pairings end. */
+    private static void endPairingsOutside(EventRegistrationEntity passager, GroupEntity group) {
+        UUID groupId = group == null ? null : group.getGroupId();
+        passager.getJournees().stream()
+                .filter(j -> j.getConducteur() != null && !Objects.equals(groupIdOf(j.getConducteur().getRegistration()), groupId))
+                .forEach(JourneeRegistrationEntity::unpair);
     }
 
     @Override
@@ -370,16 +513,31 @@ public class EventServiceImpl implements EventService {
         List<MonGroupeDto.EventRoster> events = byEvent.entrySet().stream()
                 .filter(e -> e.getKey().currentStatus() != EventStatusEnum.ARCHIVE && !e.getKey().isInClosedSector())
                 .sorted(Comparator.comparing((Map.Entry<EventEntity, List<EventRegistrationEntity>> e) -> e.getKey().getStartDateTime()))
-                .map(e -> new MonGroupeDto.EventRoster(
-                        e.getKey().getEventId(), e.getKey().getName(), e.getKey().getStartDateTime(), e.getKey().currentStatus(),
-                        e.getKey().maximumOf(group),
-                        e.getValue().stream().filter(r -> r.ridesWith(group)).map(EventServiceImpl::toRosterEntry).toList(),
-                        e.getValue().stream().filter(r -> r.asksFor(group)).map(EventServiceImpl::toRosterEntry).toList()))
+                .map(e -> {
+                    EventEntity event = e.getKey();
+                    List<EventRegistrationEntity> all = e.getValue();
+                    return new MonGroupeDto.EventRoster(
+                            event.getEventId(), event.getName(), event.getStartDateTime(), event.currentStatus(),
+                            event.maximumOf(group),
+                            all.stream().filter(r -> r.ridesWith(group)).map(r -> toRosterEntry(r, null)).toList(),
+                            all.stream().filter(r -> r.asksFor(group)).map(r -> toRosterEntry(r, null)).toList(),
+                            event.journees().stream().map(d -> new MonGroupeDto.JourneeRoster(d,
+                                    entriesAt(all, d, r -> r.ridesWith(group)),
+                                    entriesAt(all, d, r -> r.asksFor(group)))).toList());
+                })
                 .toList();
         return new MonGroupeDto(GroupRefDto.of(group), events);
     }
 
-    /** A Chef acts only on the Groupe they lead through their Affectation; the Bureau on any Groupe. */
+    /** The sign-ups for that Journée matching, in that Journée's sign-up order. */
+    private static List<RosterEntryDto> entriesAt(List<EventRegistrationEntity> all, LocalDate journee, Predicate<EventRegistrationEntity> matching) {
+        return all.stream().filter(matching)
+                .flatMap(r -> r.journee(journee).stream())
+                .sorted(BY_SIGN_UP)
+                .map(j -> toRosterEntry(j.getRegistration(), journee))
+                .toList();
+    }
+
     /** The Chef who leads the Groupe (by Affectation), or the Bureau of the Event's Secteur (ADR 0004). */
     private void requireLeaderOrBureau(Actor actor, GroupEntity group, EventEntity event) {
         boolean leads = group != null && group.getChef() != null && group.getChef().getUserId().equals(actor.personId());
@@ -400,11 +558,13 @@ public class EventServiceImpl implements EventService {
         return event;
     }
 
-    /** Refuses {@code needed} more riders in the Groupe beyond its maximum at the Event; no maximum means no limit. */
-    private void requireRoomIn(EventEntity event, GroupEntity group, int needed) {
+    /** Refuses {@code needed} more people in the Groupe beyond its maximum any of those Journées; no maximum means no limit. */
+    private void requireRoomIn(EventEntity event, GroupEntity group, List<LocalDate> journees, int needed) {
         Integer maximum = event.maximumOf(group);
-        if (maximum != null && registrationRepository.countInGroup(event.getEventId(), group.getGroupId()) + needed > maximum)
-            throw new InvalidResourceException("The Groupe is at its maximum of " + maximum + " at this Event.");
+        if (maximum == null) return;
+        for (LocalDate journee : journees)
+            if (journeeRepository.countInGroup(event.getEventId(), group.getGroupId(), journee) + needed > maximum)
+                throw new InvalidResourceException("The Groupe is at its maximum of " + maximum + " on " + journee + ".");
     }
 
     private GroupEntity groupOrThrow(UUID groupId) {
@@ -414,12 +574,31 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public void withdraw(UUID eventId, UUID personId) {
+    public void withdraw(UUID eventId, UUID personId, List<LocalDate> journees, boolean withPassager) {
         EventEntity event = eventOrThrow(eventId);
         EventRegistrationEntity registration = registrationOrThrow(eventId, personId);
         refuseOnArchived(event);
         refuseOnChef(registration);
-        registrationRepository.delete(registration);
+        leave(registration, journeesOf(registration, journees), withPassager);
+    }
+
+    /** Leaves those Journées, with the passager behind on each or leaving them there; a sign-up without Journée goes. */
+    private void leave(EventRegistrationEntity registration, List<JourneeRegistrationEntity> journees, boolean withPassager) {
+        journees.forEach(journee -> {
+            JourneeRegistrationEntity passager = journee.getPassager();
+            registration.removeJournee(journee);
+            if (withPassager && passager != null && !passager.getRegistration().isChefOfItsGroup()) {
+                EventRegistrationEntity theirs = passager.getRegistration();
+                theirs.removeJournee(passager);
+                dropIfWithoutJournee(theirs);
+            }
+        });
+        dropIfWithoutJournee(registration);
+        registrationRepository.flush();
+    }
+
+    private void dropIfWithoutJournee(EventRegistrationEntity registration) {
+        if (registration.getJournees().isEmpty()) registrationRepository.delete(registration);
     }
 
     @Override
@@ -431,8 +610,11 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    public RosterDto roster(UUID eventId) {
-        return rosterOf(managedEventOrThrow(eventId));
+    public RosterDto roster(UUID eventId, LocalDate journee) {
+        EventEntity event = managedEventOrThrow(eventId);
+        if (journee != null && !event.hasJournee(journee))
+            throw new InvalidResourceException("The Event has no Journée on " + journee);
+        return rosterOf(event, journee);
     }
 
     @Override
@@ -440,67 +622,89 @@ public class EventServiceImpl implements EventService {
         EventEntity event = managedEventOrThrow(eventId);
         featureLevers.require(FeatureEnum.EXPORT_LISTE, event.getSector());
         return new RosterExportDto(RosterSpreadsheet.fileName(event.getName(), event.getStartDateTime().toLocalDate()),
-                RosterSpreadsheet.of(rosterOf(event)));
+                RosterSpreadsheet.of(event.journees().stream().map(d -> rosterOf(event, d)).toList()));
     }
 
     @Override
     @Transactional
-    public RosterDto promote(UUID eventId, UUID personId) {
+    public RosterDto promote(UUID eventId, UUID personId, List<LocalDate> journees) {
         EventEntity event = lockedEventOrThrow(eventId);
         requireManaged(event);
         EventRegistrationEntity registration = registrationOrThrow(eventId, personId);
         refuseOnArchived(event);
-        requireNotPassager(registration);
-        if (!registration.isWaiting())
+        List<JourneeRegistrationEntity> waiting = journeesOf(registration, journees).stream()
+                .filter(JourneeRegistrationEntity::isWaiting).toList();
+        if (waiting.isEmpty())
             throw new InvalidResourceException(personId + " is already a Participant.");
-        if (!placeLeft(event, registration.placesTaken()))
-            throw new InvalidResourceException("The Event is at its maximum of " + event.getMaxParticipants() + " Participants.");
-        registration.moveUp();
-        return rosterOf(event);
+        for (JourneeRegistrationEntity journee : waiting) {
+            // A pair moves up together, taking two places
+            JourneeRegistrationEntity partner = journee.partner();
+            int needed = partner != null && partner.isWaiting() ? 2 : 1;
+            if (!placeLeft(event, journee.getJournee(), needed))
+                throw new InvalidResourceException("The Event is at its maximum of " + event.getMaxParticipants()
+                        + " Participants on " + journee.getJournee() + ".");
+            journee.setWaiting(false);
+            if (partner != null) partner.setWaiting(false);
+        }
+        return rosterOf(event, null);
     }
 
     @Override
     @Transactional
-    public RosterDto removeFromRoster(UUID eventId, UUID personId) {
+    public RosterDto removeFromRoster(UUID eventId, UUID personId, List<LocalDate> journees, boolean withPassager) {
         EventEntity event = managedEventOrThrow(eventId);
         EventRegistrationEntity registration = registrationOrThrow(eventId, personId);
         refuseOnArchived(event);
         refuseOnChef(registration);
-        registrationRepository.delete(registration);
-        registrationRepository.flush();
-        return rosterOf(event);
+        leave(registration, journeesOf(registration, journees), withPassager);
+        return rosterOf(event, null);
     }
 
-    private RosterDto rosterOf(EventEntity event) {
+    /** The roster for that Journée, the Event's first when none. */
+    private RosterDto rosterOf(EventEntity event, LocalDate asked) {
+        List<LocalDate> journees = event.journees();
+        LocalDate journee = asked != null ? asked : journees.isEmpty() ? null : journees.getFirst();
         List<EventRegistrationEntity> all = registrationRepository.listByEvent(event.getEventId());
         List<GroupEntity> groups = event.getSector() == null ? List.of()
                 : internalGroupService.doListEntitiesOfSector(event.getSector().getSectorId());
+        List<JourneeRegistrationEntity> that = all.stream().flatMap(r -> r.journee(journee).stream()).sorted(BY_SIGN_UP).toList();
         return new RosterDto(
                 event.getEventId(),
+                journee,
+                journees.stream().map(d -> {
+                    List<JourneeRegistrationEntity> at = all.stream().flatMap(r -> r.journee(d).stream()).toList();
+                    int waiting = (int) at.stream().filter(JourneeRegistrationEntity::isWaiting).count();
+                    return new RosterDto.JourneeCountDto(d, at.size() - waiting, waiting);
+                }).toList(),
                 event.getMaxParticipants(),
-                all.stream().filter(r -> !r.isWaiting()).map(EventServiceImpl::toRosterEntry).toList(),
-                all.stream().filter(EventRegistrationEntity::isWaiting).map(EventServiceImpl::toRosterEntry).toList(),
+                that.stream().filter(j -> !j.isWaiting()).map(j -> toRosterEntry(j.getRegistration(), journee)).toList(),
+                that.stream().filter(JourneeRegistrationEntity::isWaiting).map(j -> toRosterEntry(j.getRegistration(), journee)).toList(),
                 groups.stream().map(group -> new GroupRosterDto(
                         GroupRefDto.of(group),
                         event.maximumOf(group),
-                        all.stream().filter(r -> r.ridesWith(group)).map(EventServiceImpl::toRosterEntry).toList(),
-                        all.stream().filter(r -> r.asksFor(group)).map(EventServiceImpl::toRosterEntry).toList()
+                        entriesAt(all, journee, r -> r.ridesWith(group)),
+                        entriesAt(all, journee, r -> r.asksFor(group))
                 )).toList()
         );
     }
 
-    private static RosterEntryDto toRosterEntry(EventRegistrationEntity registration) {
+    /** One person on the roster, with that Journée's place and pairing (their first Journée's when none). */
+    private static RosterEntryDto toRosterEntry(EventRegistrationEntity registration, LocalDate journee) {
         UserEntity person = registration.getPerson();
+        JourneeRegistrationEntity at = (journee == null ? Optional.<JourneeRegistrationEntity>empty() : registration.journee(journee))
+                .or(() -> registration.getJournees().stream().findFirst())
+                .orElse(null);
         return new RosterEntryDto(person.getUserId(), person.getFirstName(), person.getLastName(), person.getPhone(),
-                registration.getPoste(), registration.getSignedUpAt(),
-                GroupRefDto.of(registration.getGroup()), DemandeDto.of(registration), conducteurOf(registration),
-                registration.getPassagers().size(), registration.isChefOfItsGroup());
+                registration.getPoste(), at == null ? registration.getSignedUpAt() : at.getSignedUpAt(),
+                GroupRefDto.of(registration.getGroup()), DemandeDto.of(registration),
+                at == null ? null : personOf(at.getConducteur()), at == null ? null : personOf(at.getPassager()),
+                registration.isChefOfItsGroup(), registration.journeeDates());
     }
 
-    /** true when the Event has no maximum or still has {@code needed} places under it (passagers count). */
-    private boolean placeLeft(EventEntity event, int needed) {
+    /** true when the Event has no maximum or still has {@code needed} places under it that Journée (every Poste counts). */
+    private boolean placeLeft(EventEntity event, LocalDate journee, int needed) {
         return event.getMaxParticipants() == null
-                || registrationRepository.countParticipants(event.getEventId()) + needed <= event.getMaxParticipants();
+                || journeeRepository.countParticipants(event.getEventId(), journee) + needed <= event.getMaxParticipants();
     }
 
     /** Sign-up is open while Ouvert or Complet, to someone with a phone number. */
@@ -519,18 +723,13 @@ public class EventServiceImpl implements EventService {
             throw new PhoneRequiredException("A phone number is required to sign up: " + person.getUserId());
     }
 
-    /** A passager is moved only with their conducteur. */
-    private static void requireNotPassager(EventRegistrationEntity registration) {
-        if (registration.isPassager())
-            throw new InvalidResourceException("A passager follows their conducteur; act on the conducteur instead.");
-    }
-
     private static NestedUserDto personRef(UserEntity person) {
         return new NestedUserDto(person.getUserId(), person.getFirstName(), person.getLastName());
     }
 
-    private static NestedUserDto conducteurOf(EventRegistrationEntity registration) {
-        return registration.getConducteur() == null ? null : personRef(registration.getConducteur().getPerson());
+    /** The person of the other sign-up of a pair, if any. */
+    private static NestedUserDto personOf(JourneeRegistrationEntity journee) {
+        return journee == null ? null : personRef(journee.getRegistration().getPerson());
     }
 
     private static void refuseOnFinal(EventEntity event) {
@@ -581,9 +780,13 @@ public class EventServiceImpl implements EventService {
     }
 
     private static RegistrationDto toDto(EventRegistrationEntity registration) {
+        List<RegistrationDto.JourneeDto> journees = registration.getJournees().stream()
+                .map(j -> new RegistrationDto.JourneeDto(j.getJournee(), j.status(), personOf(j.getConducteur()), personOf(j.getPassager())))
+                .toList();
+        NestedUserDto conducteur = journees.stream().map(RegistrationDto.JourneeDto::conducteur).filter(Objects::nonNull).findFirst().orElse(null);
         return new RegistrationDto(registration.getEvent().getEventId(), registration.getPoste(), registration.status(),
-                registration.getSignedUpAt(), GroupRefDto.of(registration.getGroup()), DemandeDto.of(registration), conducteurOf(registration),
-                registration.isChefOfItsGroup());
+                registration.getSignedUpAt(), GroupRefDto.of(registration.getGroup()), DemandeDto.of(registration), conducteur,
+                registration.isChefOfItsGroup(), journees);
     }
 
     /** A maximum of 0 or less means no maximum. */

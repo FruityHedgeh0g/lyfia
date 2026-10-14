@@ -340,6 +340,7 @@ async function events(method: string, [eventId, ...rest]: string[], body: any, q
     if (method === "PATCH") {
       return answer(async () => {
         await ev.updateEvent(body.eventId, body);
+        await reg.keepJourneesOf(body.eventId);
         return ev.fetchEventById(body.eventId, true, true);
       });
     }
@@ -358,21 +359,30 @@ async function events(method: string, [eventId, ...rest]: string[], body: any, q
     const groupId = query.get("groupId") ?? undefined;
     const conducteurId = query.get("conducteurId") ?? undefined;
     const poste = (query.get("poste") ?? (conducteurId ? "passager" : "conducteur")) as Poste;
-    return answer(() => reg.signUp(eventId, me(), groupId, conducteurId, poste));
+    return answer(() => reg.signUp(eventId, me(), groupId, conducteurId, poste, query.getAll("journee")));
   }
-  if (path === "registration" && method === "DELETE") return answer(() => reg.withdraw(eventId, state.viewer.userId));
+  const withPassager = query.get("withPassager") !== "false";
+  if (path === "registration" && method === "DELETE")
+    return answer(() => reg.withdraw(eventId, state.viewer.userId, query.getAll("journee"), withPassager));
   if (path === "registration/demande" && method === "PUT") return answer(() => reg.requestGroup(eventId, state.viewer.userId, body.groupId));
   if (path === "conducteurs" && method === "GET") return answer(() => reg.fetchConducteurs(eventId));
-  if (path === "roster" && method === "GET") return answer(() => reg.fetchRoster(eventId));
+  if (path === "roster" && method === "GET") return answer(() => reg.fetchRoster(eventId, query.get("journee") ?? undefined));
 
-  const [kind, personId, action, groupId] = rest;
+  const [kind, personId, action, groupId, , conducteurId] = rest;
+  // .../roster/{personId}/journees/{journee}/conducteur[/{conducteurId}] : les binômes d'une Journée
+  if (kind === "roster" && action === "journees" && method === "PUT")
+    return answer(() => reg.pair(eventId, personId, groupId, conducteurId, actor));
+  if (kind === "roster" && action === "journees" && method === "DELETE") return answer(() => reg.unpair(eventId, personId, groupId, actor));
   if (kind === "demandes" && method === "POST") return answer(() => reg.decideDemande(eventId, personId, actor, action === "accept"));
   if (kind === "groups" && action === "maximum" && method === "PUT") return answer(() => reg.setGroupMaximum(eventId, personId, body.maximum || null));
-  if (kind === "roster" && action === "group" && groupId && method === "PUT") return answer(() => reg.placeInGroup(eventId, personId, groupId));
-  if (kind === "roster" && action === "group" && method === "DELETE") return answer(() => reg.takeOutOfGroup(eventId, personId, actor));
+  if (kind === "roster" && action === "group" && groupId && method === "PUT")
+    return answer(() => reg.placeInGroup(eventId, personId, groupId, withPassager));
+  if (kind === "roster" && action === "group" && method === "DELETE")
+    return answer(() => reg.takeOutOfGroup(eventId, personId, actor, withPassager));
   if (kind === "roster" && action === "poste" && method === "PUT") return answer(() => reg.changePoste(eventId, personId, body.poste));
-  if (kind === "roster" && action === "promote" && method === "POST") return answer(() => reg.promote(eventId, personId));
-  if (kind === "roster" && !action && method === "DELETE") return answer(() => reg.remove(eventId, personId));
+  if (kind === "roster" && action === "promote" && method === "POST") return answer(() => reg.promote(eventId, personId, query.getAll("journee")));
+  if (kind === "roster" && !action && method === "DELETE")
+    return answer(() => reg.remove(eventId, personId, query.getAll("journee"), withPassager));
   return empty(405);
 }
 

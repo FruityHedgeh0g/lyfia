@@ -1,6 +1,7 @@
 import { apiFetch, HttpError } from "../../lib/http";
 import { EventStatus } from "./status";
 import { GroupKind } from "../groups/types";
+import { Journee } from "../../lib/journees";
 
 /** Où en est une inscription : place confirmée (Participant) ou Liste d'attente. */
 export type RegistrationStatus = "participant" | "en_attente";
@@ -44,7 +45,21 @@ export interface Demande {
   status: DemandeStatus;
 }
 
-/** Reflète RegistrationDto côté backend : sa propre inscription à un Événement. */
+/** Reflète RegistrationDto.JourneeDto : une Journée à laquelle on est inscrit, et qui roule avec soi ce jour-là. */
+export interface RegistrationJournee {
+  journee: Journee;
+  status: RegistrationStatus;
+  /** Le conducteur derrière lequel roule un passager ce jour-là. */
+  conducteur: PersonRef | null;
+  /** Le passager qui roule derrière un conducteur ce jour-là. */
+  passager: PersonRef | null;
+}
+
+/**
+ * Reflète RegistrationDto côté backend : sa propre inscription à un Événement, son Poste, son Groupe et sa Demande pour
+ * tout l'Événement, et chaque Journée à laquelle on est inscrit (ADR 0011). `status` : en attente seulement si on
+ * l'est chaque Journée.
+ */
 export interface Registration {
   eventId: string;
   poste: Poste;
@@ -53,13 +68,17 @@ export interface Registration {
   /** Groupe avec lequel on roule à cet Événement, une fois accepté ou placé. */
   group: GroupRef | null;
   demande: Demande | null;
-  /** Le conducteur d'un passager ; null pour un conducteur. */
+  /** Le conducteur de la première Journée où un passager en a un. */
   conducteur: PersonRef | null;
   /** On y roule comme Chef du Groupe qu'on mène : une place que seul un changement d'Affectation retire (ADR 0010). */
   leadsGroup?: boolean;
+  journees: RegistrationJournee[];
 }
 
-/** Reflète RosterEntryDto côté backend : une personne inscrite, vue par le Bureau ou son Chef de groupe. */
+/**
+ * Reflète RosterEntryDto côté backend : une personne inscrite, vue par le Bureau ou son Chef de groupe, pour une
+ * Journée — sa place, son conducteur ou son passager ce jour-là — avec toutes ses Journées.
+ */
 export interface RosterEntry {
   personId: string;
   firstName: string;
@@ -69,12 +88,17 @@ export interface RosterEntry {
   signedUpAt: string;
   group: GroupRef | null;
   demande: Demande | null;
+  /** Le conducteur derrière lequel roule un passager ce jour-là ; un passager sans conducteur attend d'être associé. */
   conducteur: PersonRef | null;
-  /** Nombre de passagers d'un conducteur : ils comptent avec lui dans chaque maximum. */
-  passagers: number;
+  /** Le passager qui roule derrière un conducteur ce jour-là. */
+  passager: PersonRef | null;
   /** Le Chef du Groupe : ni retiré, ni sorti du groupe, tant qu'il le mène (ADR 0010). */
   leadsGroup?: boolean;
+  journees: Journee[];
 }
+
+/** Un passager sans conducteur ce jour-là, signalé au Bureau et à son Chef de groupe pour être associé. */
+export const withoutConducteur = (entry: Pick<RosterEntry, "poste" | "conducteur">) => entry.poste === "passager" && !entry.conducteur;
 
 /**
  * Reflète GroupRosterDto : un Groupe à un Événement, son maximum (null : sans
@@ -88,9 +112,21 @@ export interface GroupRoster {
   demandes: RosterEntry[];
 }
 
-/** Reflète RosterDto : Participants et Liste d'attente, chacun dans l'ordre d'inscription, et chaque Groupe du Secteur. */
+/** Combien de personnes sont inscrites à une Journée : confirmées et sur sa Liste d'attente. */
+export interface JourneeCount {
+  journee: Journee;
+  participants: number;
+  waiting: number;
+}
+
+/**
+ * Reflète RosterDto : pour une Journée, Participants et Liste d'attente, chacun dans l'ordre d'inscription, et chaque
+ * Groupe du Secteur ; `journees` compte chaque Journée de l'Événement.
+ */
 export interface Roster {
   eventId: string;
+  journee: Journee;
+  journees: JourneeCount[];
   maxParticipants: number | null;
   participants: RosterEntry[];
   waiting: RosterEntry[];
@@ -107,9 +143,17 @@ export interface MonGroupe {
     status: EventStatus;
     /** Maximum du Groupe à cet Événement, null : sans limite. */
     maximum: number | null;
+    /** Tous ceux avec le Groupe, ou qui le demandent, quelle que soit la Journée. */
     members: RosterEntry[];
     demandes: RosterEntry[];
+    /** Les mêmes, Journée par Journée, avec chaque binôme ce jour-là. */
+    journees: { journee: Journee; members: RosterEntry[]; demandes: RosterEntry[] }[];
   }[];
+}
+
+/** Reflète ConducteurDto : un conducteur inscrit, et les Journées où il n'a pas encore de passager. */
+export interface Conducteur extends PersonRef {
+  freeJournees: Journee[];
 }
 
 /** Qui agit : un Chef n'agit que sur le Groupe qu'il mène (Affectation), le Bureau sur tous. */
@@ -134,8 +178,8 @@ export const REGISTRATION_STATUS_LABELS: Record<RegistrationStatus, string> = {
 };
 
 /**
- * Le tableur des Participants d'un Événement (GET /api/events/{eventId}/roster/export, Bureau) : un onglet par
- * Groupe, un pour les Participants sans groupe, un pour la Liste d'attente. Un fichier ne se mocke
+ * Le tableur des Participants d'un Événement (GET /api/events/{eventId}/roster/export, Bureau) : une feuille par
+ * Journée, la liste du jour sur le terrain. Un fichier ne se mocke
  * pas : le lien vise directement l'API, la session suffit à s'authentifier.
  */
 export const rosterExportUrl = (eventId: string) => `/api/events/${encodeURIComponent(eventId)}/roster/export`;
@@ -177,9 +221,22 @@ async function phoneRequired<T>(call: Promise<T>): Promise<T> {
  */
 export const fetchMyRegistrations = () => apiFetch<Registration[]>("/api/events/registrations");
 
-/** À un Poste autre que passager, `groupId` demande ce Groupe ; `conducteurId` inscrit comme passager de ce conducteur. */
-export function signUp(eventId: string, options: { poste?: Poste; groupId?: string; conducteurId?: string } = {}): Promise<Registration> {
-  const params = new URLSearchParams();
+const withJournees = (params: URLSearchParams, journees?: Journee[]) => {
+  (journees ?? []).forEach((j) => params.append("journee", j));
+  return params;
+};
+
+const query = (params: URLSearchParams) => (params.size ? `?${params}` : "");
+
+/**
+ * S'inscrire aux Journées choisies (aucune : tout l'Événement), à un Poste ; `groupId` demande ce Groupe ;
+ * `conducteurId` inscrit un passager derrière ce conducteur (« je viens avec »). S'inscrire de nouveau ajoute des Journées.
+ */
+export function signUp(
+  eventId: string,
+  options: { poste?: Poste; groupId?: string; conducteurId?: string; journees?: Journee[] } = {}
+): Promise<Registration> {
+  const params = withJournees(new URLSearchParams(), options.journees);
   if (options.poste) params.set("poste", options.poste);
   if (options.conducteurId) params.set("conducteurId", options.conducteurId);
   else if (options.groupId) params.set("groupId", options.groupId);
@@ -187,9 +244,14 @@ export function signUp(eventId: string, options: { poste?: Poste; groupId?: stri
   return phoneRequired(apiFetch<Registration>(`${base(eventId)}/registration${query}`, { method: "PUT" }));
 }
 
-export const withdraw = (eventId: string) => apiFetch<void>(`${base(eventId)}/registration`, { method: "DELETE" });
+/** Se retirer de Journées (aucune : toutes) ; `withPassager` : son passager se retire aussi ces Journées-là. */
+export const withdraw = (eventId: string, options: { journees?: Journee[]; withPassager?: boolean } = {}) => {
+  const params = withJournees(new URLSearchParams(), options.journees);
+  params.set("withPassager", String(options.withPassager ?? true));
+  return apiFetch<void>(`${base(eventId)}/registration${query(params)}`, { method: "DELETE" });
+};
 
-export const fetchConducteurs = (eventId: string) => apiFetch<PersonRef[]>(`${base(eventId)}/conducteurs`);
+export const fetchConducteurs = (eventId: string) => apiFetch<Conducteur[]>(`${base(eventId)}/conducteurs`);
 
 export const requestGroup = (eventId: string, groupId: string) =>
   apiFetch<Registration>(`${base(eventId)}/registration/demande`, { method: "PUT", body: JSON.stringify({ groupId }) });
@@ -197,8 +259,9 @@ export const requestGroup = (eventId: string, groupId: string) =>
 export const decideDemande = (eventId: string, personId: string, accept: boolean) =>
   apiFetch<Registration>(`${base(eventId)}/demandes/${id(personId)}/${accept ? "accept" : "refuse"}`, { method: "POST" });
 
-export const placeInGroup = (eventId: string, personId: string, groupId: string) =>
-  apiFetch<Roster>(`${base(eventId)}/roster/${id(personId)}/group/${id(groupId)}`, { method: "PUT" });
+/** `withPassager` : les passagers d'un conducteur le suivent, sinon leur binôme prend fin. */
+export const placeInGroup = (eventId: string, personId: string, groupId: string, withPassager = true) =>
+  apiFetch<Roster>(`${base(eventId)}/roster/${id(personId)}/group/${id(groupId)}?withPassager=${withPassager}`, { method: "PUT" });
 
 /** Le Bureau change le Poste de quelqu'un : jamais en passager, ni pour le Chef qui mène son Groupe. */
 export const changePoste = (eventId: string, personId: string, poste: Poste) =>
@@ -208,15 +271,31 @@ export const changePoste = (eventId: string, personId: string, poste: Poste) =>
 export const setGroupMaximum = (eventId: string, groupId: string, maximum: number | null) =>
   apiFetch<Roster>(`${base(eventId)}/groups/${id(groupId)}/maximum`, { method: "PUT", body: JSON.stringify({ maximum }) });
 
-export const takeOutOfGroup = (eventId: string, personId: string) =>
-  apiFetch<Registration>(`${base(eventId)}/roster/${id(personId)}/group`, { method: "DELETE" });
+/** `withPassager` : les passagers d'un conducteur sortent aussi du Groupe, sinon leur binôme prend fin. */
+export const takeOutOfGroup = (eventId: string, personId: string, withPassager = true) =>
+  apiFetch<Registration>(`${base(eventId)}/roster/${id(personId)}/group?withPassager=${withPassager}`, { method: "DELETE" });
+
+/** Le Bureau ou le Chef du passager l'associe à un conducteur de son Groupe pour une Journée. */
+export const pair = (eventId: string, passagerId: string, journee: Journee, conducteurId: string) =>
+  apiFetch<Registration>(`${base(eventId)}/roster/${id(passagerId)}/journees/${journee}/conducteur/${id(conducteurId)}`, { method: "PUT" });
+
+/** Le Bureau ou le Chef du passager met fin à son binôme ce jour-là. */
+export const unpair = (eventId: string, passagerId: string, journee: Journee) =>
+  apiFetch<Registration>(`${base(eventId)}/roster/${id(passagerId)}/journees/${journee}/conducteur`, { method: "DELETE" });
 
 export const fetchMonGroupe = () => apiFetch<MonGroupe>("/api/events/mon-groupe");
 
-export const fetchRoster = (eventId: string) => apiFetch<Roster>(`${base(eventId)}/roster`);
+/** La liste d'une Journée (aucune : la première de l'Événement). */
+export const fetchRoster = (eventId: string, journee?: Journee) =>
+  apiFetch<Roster>(`${base(eventId)}/roster${journee ? `?journee=${journee}` : ""}`);
 
-export const promote = (eventId: string, personId: string) =>
-  apiFetch<Roster>(`${base(eventId)}/roster/${id(personId)}/promote`, { method: "POST" });
+/** Faire monter de la Liste d'attente de Journées (aucune : toutes celles où l'on attend) ; un binôme monte ensemble. */
+export const promote = (eventId: string, personId: string, journees?: Journee[]) =>
+  apiFetch<Roster>(`${base(eventId)}/roster/${id(personId)}/promote${query(withJournees(new URLSearchParams(), journees))}`, { method: "POST" });
 
-export const remove = (eventId: string, personId: string) =>
-  apiFetch<Roster>(`${base(eventId)}/roster/${id(personId)}`, { method: "DELETE" });
+/** Retirer de Journées (aucune : toutes) ; `withPassager` : le passager est retiré aussi ces Journées-là. */
+export const remove = (eventId: string, personId: string, options: { journees?: Journee[]; withPassager?: boolean } = {}) => {
+  const params = withJournees(new URLSearchParams(), options.journees);
+  params.set("withPassager", String(options.withPassager ?? true));
+  return apiFetch<Roster>(`${base(eventId)}/roster/${id(personId)}${query(params)}`, { method: "DELETE" });
+};

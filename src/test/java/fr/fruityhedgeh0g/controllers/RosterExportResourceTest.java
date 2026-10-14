@@ -1,5 +1,11 @@
 package fr.fruityhedgeh0g.controllers;
 
+import java.util.Locale;
+
+import java.time.format.DateTimeFormatter;
+
+import java.time.LocalDate;
+
 import fr.fruityhedgeh0g.entities.EventEntity;
 import fr.fruityhedgeh0g.entities.EventRegistrationEntity;
 import fr.fruityhedgeh0g.entities.GroupEntity;
@@ -41,12 +47,12 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-/** The Bureau's spreadsheet of an Event: one tab per Groupe, one without a Groupe, one for the Liste d'attente. */
+/** The Bureau's spreadsheet of an Event: one sheet per Journée, Participants then the Liste d'attente (ADR 0011). */
 @QuarkusTest
 @TestHTTPEndpoint(EventController.class)
 public class RosterExportResourceTest {
 
-    static final String HEADER = "Nom|Prénom|Téléphone|Conducteur / passager|Conducteur";
+    static final String HEADER = "Nom|Prénom|Téléphone|Poste|Groupe|Avec|Place";
 
     static final String ANNE_ID = "00000000-0000-0000-0010-000000000001";
     static final String PAUL_ID = "00000000-0000-0000-0010-000000000002";
@@ -93,8 +99,6 @@ public class RosterExportResourceTest {
             sector = s.getSectorId();
             nord = persistGroup("Test Nord", s);
             sud = persistGroup("Test Sud", s);
-            // A Groupe named like a fixed tab must not take its place
-            groupRepository.persist(GroupEntity.builder().name("Sans groupe").sector(s).build());
 
             EventEntity e = new EventEntity();
             e.setName("Test Balade");
@@ -120,7 +124,6 @@ public class RosterExportResourceTest {
     void cleanUp() {
         SecteurFixtures.detachFromSecteur(userRepository, sectorRepository, sector);
         QuarkusTransaction.requiringNew().run(() -> {
-            registrationRepository.delete("event.sector.sectorId = ?1 and conducteur is not null", sector);
             registrationRepository.delete("event.sector.sectorId", sector);
             eventRepository.list("sector.sectorId", sector).forEach(eventRepository::delete);
             groupRepository.delete("sector.sectorId", sector);
@@ -155,6 +158,7 @@ public class RosterExportResourceTest {
             EventRegistrationEntity r = EventRegistrationEntity.conducteur(
                     eventRepository.findById(event), userRepository.findById(UUID.fromString(personId)), waiting);
             r.setSignedUpAt(at);
+            r.getJournees().forEach(j -> j.setSignedUpAt(at));
             registrationRepository.persist(r);
             return r;
         });
@@ -167,6 +171,7 @@ public class RosterExportResourceTest {
                     registrationRepository.findByEventAndPerson(event, UUID.fromString(conducteurId)).orElseThrow(),
                     userRepository.findById(UUID.fromString(personId)));
             r.setSignedUpAt(at);
+            r.getJournees().forEach(j -> j.setSignedUpAt(at));
             registrationRepository.persist(r);
         });
     }
@@ -195,21 +200,31 @@ public class RosterExportResourceTest {
     @Test
     @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU_ID))
-    void theBureauDownloadsOneTabPerGroupeThenWithoutAGroupeThenTheListeDAttente() throws IOException {
+    void theBureauDownloadsOneSheetPerJournee() throws IOException {
+        List<LocalDate> journees = QuarkusTransaction.requiringNew().call(() -> eventRepository.findById(event).journees());
+        // Paul has no conducteur the second Journée
+        QuarkusTransaction.requiringNew().run(() -> registrationRepository.findByEventAndPerson(event, UUID.fromString(PAUL_ID))
+                .orElseThrow().journee(journees.get(1)).orElseThrow().unpair());
+
         byte[] xlsx = given().when().get("/{id}/roster/export", event).then().statusCode(200)
                 .contentType(RosterSpreadsheet.MEDIA_TYPE)
                 .header("Content-Disposition", containsString("attachment"))
                 .header("Content-Disposition", containsString("participants-test-balade-"))
                 .extract().asByteArray();
 
-        Map<String, List<String>> tabs = read(xlsx);
-        String nordTab = groupName(nord);
-        String sudTab = groupName(sud);
-        assertEquals(List.of("Sans groupe (2)", nordTab, sudTab, "Sans groupe", "Liste d'attente"), List.copyOf(tabs.keySet()));
-        assertEquals(List.of(HEADER, "Martin|Anne|06 01 01 01 01|conducteur", "Martin|Paul|06 02 02 02 02|passager|Anne Martin"), tabs.get(nordTab));
-        assertEquals(List.of(HEADER), tabs.get(sudTab), "an empty Groupe still gets its tab");
-        assertEquals(List.of(HEADER, "Weber|Claire|06 03 03 03 03|conducteur"), tabs.get("Sans groupe"));
-        assertEquals(List.of(HEADER, "Klein|Denis|06 04 04 04 04|conducteur", "Klein|Eve|06 05 05 05 05|passager|Denis Klein"), tabs.get("Liste d'attente"));
+        Map<String, List<String>> sheets = read(xlsx);
+        DateTimeFormatter name = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.FRENCH);
+        String first = journees.get(0).format(name);
+        String second = journees.get(1).format(name);
+        String nordName = groupName(nord);
+        assertEquals(List.of(first, second), List.copyOf(sheets.keySet()));
+        assertEquals(List.of(HEADER,
+                "Martin|Anne|06 01 01 01 01|Conducteur|" + nordName + "|Passager : Paul Martin|Participant",
+                "Martin|Paul|06 02 02 02 02|Passager|" + nordName + "|Derrière Anne Martin|Participant",
+                "Weber|Claire|06 03 03 03 03|Conducteur|||Participant",
+                "Klein|Denis|06 04 04 04 04|Conducteur||Passager : Eve Klein|Liste d'attente n°1",
+                "Klein|Eve|06 05 05 05 05|Passager||Derrière Denis Klein|Liste d'attente n°2"), sheets.get(first));
+        assertEquals("Martin|Paul|06 02 02 02 02|Passager|" + nordName + "|Sans conducteur|Participant", sheets.get(second).get(2));
     }
 
     @Test

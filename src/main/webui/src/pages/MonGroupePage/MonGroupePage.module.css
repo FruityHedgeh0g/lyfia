@@ -86,3 +86,10 @@
   font-weight: 400;
   color: var(--color-muted);
 }
+
+/* Une Journée de l'Événement, avec ses membres et chaque binôme ce jour-là (ADR 0011) */
+.journee {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

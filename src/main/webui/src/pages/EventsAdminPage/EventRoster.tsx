@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { useGroupActions, useRoster } from "../../features/events/useRoster";
-import { GroupRoster, groupKindOf, passagerLabel, POSTE_LABELS, POSTES, RosterEntry, rosterExportUrl } from "../../features/events/registrationsApi";
+import { GroupRoster, groupKindOf, passagerLabel, POSTE_LABELS, POSTES, RosterEntry, rosterExportUrl, withoutConducteur } from "../../features/events/registrationsApi";
 import { useGroups } from "../../features/groups/useGroups";
-import { confirmRefusal, confirmTakeOut, fullName } from "../../features/events/confirmations";
+import { askWithPassager, confirmRefusal, confirmTakeOut, fullName } from "../../features/events/confirmations";
 import { useConfirm } from "../../components/molecules/ConfirmDialog/useConfirm";
 import Button from "../../components/atoms/Button/Button";
 import Select from "../../components/atoms/Select/Select";
@@ -12,6 +12,7 @@ import Spinner from "../../components/atoms/Spinner/Spinner";
 import FeatureNotice from "../../components/molecules/FeatureNotice/FeatureNotice";
 import Collapsible from "../../components/molecules/Collapsible/Collapsible";
 import { matchesSearch } from "../../lib/textSearch";
+import { Journee, journeeLabel } from "../../lib/journees";
 import { useFeature, useFeatureOff } from "../../features/featureFlags/useFeatureFlags";
 import styles from "./EventRoster.module.css";
 
@@ -81,28 +82,34 @@ const GroupRow: React.FC<GroupRowProps> = ({ entry, editable, maximum, onMaximum
  * Participants et Liste d'attente d'un Événement, dans l'ordre d'inscription.
  * Le Bureau fait monter à la main (tant que le maximum n'est pas atteint),
  * retire des personnes, décide des Demandes de groupe et place ou sort des
- * Participants d'un Groupe (dans la limite du maximum de chaque Groupe) ; un
- * passager suit son conducteur, seul son retrait se fait à part ;
+ * Participants d'un Groupe (dans la limite du maximum de chaque Groupe) ;
  * personne ne monte automatiquement, ni dans l'Événement ni dans un Groupe.
- * Les deux listes se replient et une recherche les filtre ensemble, sans appel au serveur.
+ * La liste se lit Journée par Journée (ADR 0011) : chaque Journée a sa Liste
+ * d'attente, et le Bureau y associe un passager à un conducteur de son Groupe ;
+ * un binôme monte ensemble, et qui retire, place ou sort un conducteur choisit
+ * si son passager suit. Les deux listes se replient et une recherche les filtre
+ * ensemble, sans appel au serveur.
  */
 export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, editable, maxima, onMaximum, maximumError }) => {
-  const { roster, moveUp, removePerson, place, changePoste } = useRoster(eventId);
-  const { decide, takeOut } = useGroupActions();
+  const [journee, setJournee] = useState<Journee | undefined>(undefined);
+  const { roster, moveUp, removePerson, place, changePoste } = useRoster(eventId, journee);
+  const { decide, takeOut, pairWith } = useGroupActions();
   const { confirm, dialog } = useConfirm();
   const [search, setSearch] = useState("");
   const { data: groups } = useGroups();
   const exportOn = useFeature("export-liste", sectorId);
   const exportOff = useFeatureOff("export-liste", sectorId);
   const pending =
-    moveUp.isPending || removePerson.isPending || place.isPending || changePoste.isPending || decide.isPending || takeOut.isPending;
+    moveUp.isPending || removePerson.isPending || place.isPending || changePoste.isPending || decide.isPending || takeOut.isPending || pairWith.isPending;
 
   if (roster.isLoading) return <Spinner label="Chargement des inscrits..." />;
   if (!roster.data) return null;
 
   const { participants, waiting, maxParticipants } = roster.data;
+  const shownJournee = roster.data.journee;
+  const severalJournees = roster.data.journees.length > 1;
   const full = maxParticipants !== null && participants.length >= maxParticipants;
-  const error = moveUp.error ?? removePerson.error ?? place.error ?? changePoste.error ?? maximumError ?? decide.error ?? takeOut.error;
+  const error = moveUp.error ?? removePerson.error ?? place.error ?? changePoste.error ?? maximumError ?? decide.error ?? takeOut.error ?? pairWith.error;
   /** Les Groupes du Secteur de la sorte qui va avec le Poste de la personne. */
   const groupOptions = (entry: RosterEntry) => [
     { value: "", label: "Sans groupe" },
@@ -111,11 +118,13 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
       .map((g) => ({ value: g.groupId, label: g.name })),
   ];
 
-  /** Le Poste (ou le conducteur d'un passager), puis le Groupe ou la Demande en attente. */
+  /** Le Poste et qui roule avec la personne ce jour-là, puis le Groupe ou la Demande en attente. */
   const groupLine = (entry: RosterEntry) => {
     const poste = entry.conducteur
       ? passagerLabel(entry.conducteur)
-      : [POSTE_LABELS[entry.poste], entry.passagers > 0 && `+ ${entry.passagers} passager(s)`].filter(Boolean).join(" ");
+      : withoutConducteur(entry)
+        ? "Passager · sans conducteur"
+        : [POSTE_LABELS[entry.poste], entry.passager && `· passager : ${fullName(entry.passager)}`].filter(Boolean).join(" ");
     if (entry.group) return `${poste} · ${entry.leadsGroup ? "Chef de groupe" : "Groupe"} : ${entry.group.name}`;
     if (entry.demande?.status === "en_attente") return `${poste} · Demande : ${entry.demande.group.name}`;
     return poste;
@@ -130,28 +139,50 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
       disabled={pending}
       onClick={async () => {
         const confirmed = await confirm({
-          title: "Retirer de l'événement ?",
-          message: `${fullName(entry)} sera retiré(e) de l'événement${entry.passagers > 0 ? ", avec ses passagers" : ""}. Personne ne prend sa place automatiquement.`,
+          title: severalJournees ? `Retirer du ${journeeLabel(shownJournee)} ?` : "Retirer de l'événement ?",
+          message: `${fullName(entry)} sera retiré(e) ${severalJournees ? "de cette journée" : "de l'événement"}. Personne ne prend sa place automatiquement.`,
           confirmLabel: "Retirer",
         });
-        if (confirmed) removePerson.mutate(entry.personId);
+        if (!confirmed) return;
+        const withPassager = await askWithPassager(confirm, fullName(entry), entry.passager, "Retirer aussi son passager ?");
+        removePerson.mutate({ personId: entry.personId, withPassager });
       }}
     />
   );
 
-  /**
-   * Le Bureau change le Poste : jamais en passager (le passager nomme son conducteur), ni pour le Chef qui mène son
-   * Groupe (ADR 0010), ni pour un conducteur qui a un passager.
-   */
+  /** Le Bureau change le Poste, sauf pour le Chef qui mène son Groupe (ADR 0010) et pour un conducteur qui a un passager. */
   const posteSelect = (entry: RosterEntry) =>
     !entry.leadsGroup &&
-    entry.passagers === 0 && (
+    !entry.passager && (
       <Select
         label="Poste"
         value={entry.poste}
         disabled={pending}
         onChange={(poste) => poste !== entry.poste && changePoste.mutate({ personId: entry.personId, poste: poste as typeof entry.poste })}
-        options={POSTES.filter((p) => p !== "passager" || entry.poste === "passager").map((p) => ({ value: p, label: POSTE_LABELS[p] }))}
+        options={POSTES.map((p) => ({ value: p, label: POSTE_LABELS[p] }))}
+      />
+    );
+
+  /**
+   * Un passager roule derrière un conducteur de son Groupe, en attente ou confirmé comme lui, qui n'a pas encore de
+   * passager ce jour-là ; « Sans conducteur » met fin au binôme.
+   */
+  const conducteurSelect = (entry: RosterEntry, sameList: RosterEntry[]) =>
+    entry.poste === "passager" && (
+      <Select
+        label="Conducteur"
+        value={entry.conducteur?.userId ?? ""}
+        disabled={pending}
+        onChange={(conducteurId) =>
+          pairWith.mutate({ eventId, passagerId: entry.personId, journee: shownJournee, conducteurId: conducteurId || null })
+        }
+        options={[
+          { value: "", label: "Sans conducteur" },
+          ...sameList
+            .filter((c) => c.poste === "conducteur" && c.group?.groupId === entry.group?.groupId)
+            .filter((c) => !c.passager || c.passager.userId === entry.personId)
+            .map((c) => ({ value: c.personId, label: fullName(c) })),
+        ]}
       />
     );
 
@@ -172,14 +203,16 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
           />
         </>
       )}
-      {entry.group && !entry.conducteur && !entry.leadsGroup && (
+      {entry.group && !entry.leadsGroup && (
         <Button
           type="button"
           label="Sortir du groupe"
           variant="outline"
           disabled={pending}
           onClick={async () => {
-            if (await confirmTakeOut(confirm, entry)) takeOut.mutate({ eventId, personId: entry.personId });
+            if (!(await confirmTakeOut(confirm, entry))) return;
+            const withPassager = await askWithPassager(confirm, fullName(entry), entry.passager, "Le sortir aussi du groupe ?");
+            takeOut.mutate({ eventId, personId: entry.personId, withPassager });
           }}
         />
       )}
@@ -234,6 +267,17 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
       ) : (
         exportOff && <FeatureNotice feature="export-liste" message="Le téléchargement de la liste est temporairement suspendu." />
       )}
+      {severalJournees && (
+        <Select
+          label="Journée"
+          value={shownJournee}
+          onChange={(selected) => setJournee(selected)}
+          options={roster.data.journees.map((j) => ({
+            value: j.journee,
+            label: `${journeeLabel(j.journee)} · ${j.participants} participant(s)${j.waiting > 0 ? `, ${j.waiting} en attente` : ""}`,
+          }))}
+        />
+      )}
       {participants.length + waiting.length > 0 && (
         <FormField
           label="Rechercher un inscrit"
@@ -255,11 +299,16 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
         (p) => (
           <>
             {posteSelect(p)}
-            {!p.group && !p.conducteur && groupKindOf(p.poste) && (
+            {conducteurSelect(p, participants)}
+            {!p.group && groupKindOf(p.poste) && (
               <Select
                 label="Groupe"
                 value=""
-                onChange={(groupId) => groupId && place.mutate({ personId: p.personId, groupId })}
+                onChange={async (groupId) => {
+                  if (!groupId) return;
+                  const withPassager = await askWithPassager(confirm, fullName(p), p.passager, "Le placer aussi dans ce groupe ?");
+                  place.mutate({ personId: p.personId, groupId, withPassager });
+                }}
                 options={groupOptions(p)}
               />
             )}
@@ -272,7 +321,9 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
       {list(`Liste d'attente (${waiting.length})`, "Liste d'attente", waiting, "Personne en attente.", (w) => (
         <>
           {posteSelect(w)}
-          {!w.conducteur && <Button type="button" label="Faire monter" disabled={pending || full} onClick={() => moveUp.mutate(w.personId)} />}
+          {conducteurSelect(w, waiting)}
+          {/* Un binôme monte ensemble */}
+          <Button type="button" label="Faire monter" disabled={pending || full} onClick={() => moveUp.mutate(w.personId)} />
           {groupActions(w)}
           {removeButton(w)}
         </>

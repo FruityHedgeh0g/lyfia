@@ -10,6 +10,7 @@ import Spinner from "../../components/atoms/Spinner/Spinner";
 import Icon from "../../components/atoms/Icon/Icon";
 import ButtonLink from "../../components/atoms/ButtonLink/ButtonLink";
 import { placeholderImage } from "../../lib/placeholderImage";
+import { eventJournees } from "../../lib/journees";
 import styles from "./MyEventsPage.module.css";
 
 /** Son Poste, et où l'on en est côté Groupe : le Groupe rejoint, ou la dernière Demande et son état. */
@@ -20,6 +21,10 @@ const groupLine = (registration: Registration) => {
     return `${poste} · Demande pour ${registration.demande.group.name} : ${DEMANDE_STATUS_LABELS[registration.demande.status]}`;
   return poste;
 };
+
+/** À quelles Journées on vient, quand ce n'est pas tout l'Événement (ADR 0011). */
+const journeesLine = (registration: Registration, total: number) =>
+  registration.journees.length < total ? `${registration.journees.length} journée(s) sur ${total}` : undefined;
 
 export const MyEventsPage: React.FC = () => {
   const { data: events, isLoading: eventsLoading } = useEvents();
@@ -53,7 +58,12 @@ export const MyEventsPage: React.FC = () => {
           imageSrc={event.imageUrl || placeholderImage(event.eventId, event.name)}
           imageAlt={event.name}
           title={event.name}
-          subtitle={[EVENT_STATUS_LABELS[event.status], formatDateRange(event.startDateTime, event.endDateTime), groupLine(registration)]
+          subtitle={[
+            EVENT_STATUS_LABELS[event.status],
+            formatDateRange(event.startDateTime, event.endDateTime),
+            journeesLine(registration, eventJournees(event.startDateTime, event.endDateTime).length),
+            groupLine(registration),
+          ]
             .filter(Boolean)
             .join(" · ")}
           badge={

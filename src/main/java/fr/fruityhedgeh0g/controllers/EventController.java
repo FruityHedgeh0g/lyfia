@@ -1,5 +1,8 @@
 package fr.fruityhedgeh0g.controllers;
 
+import fr.fruityhedgeh0g.dtos.eventDtos.ConducteurDto;
+import jakarta.ws.rs.DefaultValue;
+import java.time.LocalDate;
 import fr.fruityhedgeh0g.dtos.eventDtos.PosteChangeDto;
 import fr.fruityhedgeh0g.enums.PosteEnum;
 import com.fasterxml.jackson.annotation.JsonView;
@@ -70,32 +73,30 @@ public class EventController {
     }
 
     /**
-     * {@code ?poste=} conducteur (by default), chauffeur_camionnette, point_fixe or service, with an optional
-     * {@code ?groupId=} creating a Demande de groupe for that Groupe;
-     * {@code ?conducteurId=} signs up as passager of that conducteur, who chooses the Groupe.
+     * {@code ?poste=} conducteur (by default), passager, chauffeur_camionnette, point_fixe or service;
+     * {@code ?journee=} each Journée signed up for (none: every one, "tout l'Événement"); {@code ?groupId=} creates a
+     * Demande de groupe for that Groupe; {@code ?conducteurId=} signs a passager up behind that conducteur
+     * ("je viens avec"), taking their Groupe. Signing up again adds Journées.
      */
     @PUT
     @Path("/{eventId}/registration")
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("benevole")
     public RegistrationDto signUp(@PathParam("eventId") UUID eventId, @QueryParam("poste") String poste,
-                                  @QueryParam("groupId") UUID groupId, @QueryParam("conducteurId") UUID conducteurId){
+                                  @QueryParam("groupId") UUID groupId, @QueryParam("conducteurId") UUID conducteurId,
+                                  @QueryParam("journee") List<LocalDate> journees){
         PosteEnum chosen = poste == null ? (conducteurId == null ? PosteEnum.CONDUCTEUR : PosteEnum.PASSAGER) : PosteEnum.of(poste);
-        if (chosen != PosteEnum.PASSAGER) {
-            if (conducteurId != null) throw new BadRequestException("Only a passager names a conducteur.");
-            return eventService.signUp(eventId, me(), chosen, groupId);
-        }
-        if (conducteurId == null) throw new BadRequestException("A passager names their conducteur.");
-        if (groupId != null) throw new BadRequestException("A passager rides with their conducteur's Groupe.");
-        return eventService.signUpAsPassager(eventId, me(), conducteurId);
+        if (conducteurId != null && chosen != PosteEnum.PASSAGER) throw new BadRequestException("Only a passager names a conducteur.");
+        if (conducteurId != null && groupId != null) throw new BadRequestException("A passager rides with their conducteur's Groupe.");
+        return eventService.signUp(eventId, me(), new PublicEventService.SignUp(chosen, groupId, conducteurId, journees));
     }
 
-    /** The conducteurs signed up for the Event, for a passager to choose from (names only). */
+    /** The conducteurs signed up for the Event, for a passager to choose from: names and Journées without a passager. */
     @GET
     @Path("/{eventId}/conducteurs")
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("benevole")
-    public List<NestedUserDto> getConducteurs(@PathParam("eventId") UUID eventId){
+    public List<ConducteurDto> getConducteurs(@PathParam("eventId") UUID eventId){
         return eventService.conducteursOf(eventId);
     }
 
@@ -124,8 +125,9 @@ public class EventController {
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("bureau")
     public RosterDto placeInGroup(@PathParam("eventId") UUID eventId, @PathParam("personId") UUID personId,
-                                  @PathParam("groupId") UUID groupId){
-        return eventService.placeInGroup(eventId, personId, groupId);
+                                  @PathParam("groupId") UUID groupId,
+                                  @QueryParam("withPassager") @DefaultValue("true") boolean withPassager){
+        return eventService.placeInGroup(eventId, personId, groupId, withPassager);
     }
 
     /** The Bureau changes someone's Poste at this Event. */
@@ -155,8 +157,29 @@ public class EventController {
     @Path("/{eventId}/roster/{personId}/group")
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("chef_de_groupe")
-    public RegistrationDto takeOutOfGroup(@PathParam("eventId") UUID eventId, @PathParam("personId") UUID personId){
-        return eventService.takeOutOfGroup(eventId, personId, actor());
+    public RegistrationDto takeOutOfGroup(@PathParam("eventId") UUID eventId, @PathParam("personId") UUID personId,
+                                          @QueryParam("withPassager") @DefaultValue("true") boolean withPassager){
+        return eventService.takeOutOfGroup(eventId, personId, actor(), withPassager);
+    }
+
+    /** The Bureau or the passager's Chef pairs a passager with a conducteur of their Groupe for a Journée. */
+    @PUT
+    @Path("/{eventId}/roster/{personId}/journees/{journee}/conducteur/{conducteurId}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RolesAllowed("chef_de_groupe")
+    public RegistrationDto pair(@PathParam("eventId") UUID eventId, @PathParam("personId") UUID personId,
+                                @PathParam("journee") LocalDate journee, @PathParam("conducteurId") UUID conducteurId){
+        return eventService.pair(eventId, personId, journee, conducteurId, actor());
+    }
+
+    /** The Bureau or the passager's Chef ends their pairing that Journée. */
+    @DELETE
+    @Path("/{eventId}/roster/{personId}/journees/{journee}/conducteur")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RolesAllowed("chef_de_groupe")
+    public RegistrationDto unpair(@PathParam("eventId") UUID eventId, @PathParam("personId") UUID personId,
+                                  @PathParam("journee") LocalDate journee){
+        return eventService.unpair(eventId, personId, journee, actor());
     }
 
     /** Mon groupe: per Event, the riders and pending Demandes of the Groupe the Chef leads. */
@@ -175,19 +198,20 @@ public class EventController {
     @DELETE
     @Path("/{eventId}/registration")
     @RolesAllowed("benevole")
-    public void withdraw(@PathParam("eventId") UUID eventId){
-        eventService.withdraw(eventId, me());
+    public void withdraw(@PathParam("eventId") UUID eventId, @QueryParam("journee") List<LocalDate> journees,
+                         @QueryParam("withPassager") @DefaultValue("true") boolean withPassager){
+        eventService.withdraw(eventId, me(), journees, withPassager);
     }
 
     @GET
     @Path("/{eventId}/roster")
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("bureau")
-    public RosterDto getRoster(@PathParam("eventId") UUID eventId){
-        return eventService.roster(eventId);
+    public RosterDto getRoster(@PathParam("eventId") UUID eventId, @QueryParam("journee") LocalDate journee){
+        return eventService.roster(eventId, journee);
     }
 
-    /** The roster as an .xlsx download: one tab per Groupe, one without a Groupe, one for the Liste d'attente. */
+    /** The roster as an .xlsx download: one sheet per Journée. */
     @GET
     @Path("/{eventId}/roster/export")
     @Produces(RosterSpreadsheet.MEDIA_TYPE)
@@ -203,16 +227,19 @@ public class EventController {
     @Path("/{eventId}/roster/{personId}/promote")
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("bureau")
-    public RosterDto promote(@PathParam("eventId") UUID eventId, @PathParam("personId") UUID personId){
-        return eventService.promote(eventId, personId);
+    public RosterDto promote(@PathParam("eventId") UUID eventId, @PathParam("personId") UUID personId,
+                             @QueryParam("journee") List<LocalDate> journees){
+        return eventService.promote(eventId, personId, journees);
     }
 
     @DELETE
     @Path("/{eventId}/roster/{personId}")
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("bureau")
-    public RosterDto removeFromRoster(@PathParam("eventId") UUID eventId, @PathParam("personId") UUID personId){
-        return eventService.removeFromRoster(eventId, personId);
+    public RosterDto removeFromRoster(@PathParam("eventId") UUID eventId, @PathParam("personId") UUID personId,
+                                     @QueryParam("journee") List<LocalDate> journees,
+                                     @QueryParam("withPassager") @DefaultValue("true") boolean withPassager){
+        return eventService.removeFromRoster(eventId, personId, journees, withPassager);
     }
 
     @GET

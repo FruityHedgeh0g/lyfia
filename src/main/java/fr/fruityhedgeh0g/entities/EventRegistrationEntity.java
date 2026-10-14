@@ -7,16 +7,18 @@ import fr.fruityhedgeh0g.exceptions.InvalidResourceException;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
- * A person's sign-up for an Event: a confirmed place (Participant) or a place
- * on the Event's Liste d'attente, ordered by sign-up time. A passager's sign-up
- * points at their conducteur's and follows every change to its placement and Groupe.
+ * A person's sign-up for an Event (ADR 0011): their Poste, Groupe and Demande de groupe, the same for the whole Event,
+ * and the Journées they signed up for, each a confirmed place or a place on that Journée's Liste d'attente.
  */
 @Entity
 @Table(name = "event_registrations",
@@ -45,14 +47,11 @@ public class EventRegistrationEntity extends AuditTemplate {
     @Column(name = "poste", nullable = false)
     private PosteEnum poste;
 
-    /** true while on the Liste d'attente; nobody moves up automatically. */
-    @Column(name = "waiting", nullable = false)
-    private boolean waiting;
-
+    /** When the person first signed up for the Event. */
     @Column(name = "signed_up_at", nullable = false)
     private LocalDateTime signedUpAt;
 
-    /** The Groupe this person rides with at this Event, once accepted or placed there. */
+    /** The Groupe this person is with at this Event, once accepted or placed there. */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "group_id")
     private GroupEntity group;
@@ -66,42 +65,62 @@ public class EventRegistrationEntity extends AuditTemplate {
     @Column(name = "demande_status")
     private DemandeStatusEnum demandeStatus;
 
-    /** The conducteur's sign-up a passager rides with; null for a conducteur. */
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "conducteur_registration_id")
-    private EventRegistrationEntity conducteur;
-
-    /**
-     * A conducteur's passagers; removing the conducteur's sign-up (through the entity manager) removes theirs.
-     * A bulk JPQL delete bypasses this cascade: delete passagers first.
-     */
-    @OneToMany(mappedBy = "conducteur", cascade = CascadeType.REMOVE)
+    /** The Journées signed up for; the sign-up goes once it has none left. */
+    @OneToMany(mappedBy = "registration", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OrderBy("journee")
     @Builder.Default
-    private List<EventRegistrationEntity> passagers = new ArrayList<>();
+    private List<JourneeRegistrationEntity> journees = new ArrayList<>();
 
     public boolean isPassager() {
         return poste == PosteEnum.PASSAGER;
     }
 
-    /** Places this sign-up takes towards a maximum: the conducteur and their passagers. */
-    public int placesTaken() {
-        return 1 + passagers.size();
+    public Optional<JourneeRegistrationEntity> journee(LocalDate journee) {
+        return journees.stream().filter(j -> j.getJournee().equals(journee)).findFirst();
     }
 
-    /** Moves the conducteur and their passagers up from the Liste d'attente. */
-    public void moveUp() {
-        waiting = false;
-        passagers.forEach(p -> p.waiting = false);
+    public JourneeRegistrationEntity journeeOrThrow(LocalDate journee) {
+        return journee(journee).orElseThrow(() -> new InvalidResourceException("Not signed up for the Journée of " + journee));
     }
 
-    private void passagersFollowGroup() {
-        passagers.forEach(p -> p.group = group);
+    public List<LocalDate> journeeDates() {
+        return journees.stream().map(JourneeRegistrationEntity::getJournee).sorted().toList();
+    }
+
+    /** A new Journée, dated now; {@code waiting} puts it on that Journée's Liste d'attente. */
+    public JourneeRegistrationEntity addJournee(LocalDate journee, boolean waiting) {
+        if (journee(journee).isPresent())
+            throw new InvalidResourceException("Already signed up for the Journée of " + journee);
+        JourneeRegistrationEntity added = JourneeRegistrationEntity.builder()
+                .registration(this)
+                .journee(journee)
+                .waiting(waiting)
+                .signedUpAt(LocalDateTime.now(EventEntity.ZONE))
+                .build();
+        journees.add(added);
+        journees.sort(Comparator.comparing(JourneeRegistrationEntity::getJournee));
+        return added;
+    }
+
+    /** Leaves that Journée, ending its pairing. */
+    public void removeJournee(JourneeRegistrationEntity journee) {
+        journee.unpair();
+        journees.remove(journee);
+    }
+
+    /** true while a passager rides behind this conducteur on any Journée. */
+    public boolean hasPassager() {
+        return journees.stream().anyMatch(j -> j.getPassager() != null);
+    }
+
+    /** Where the sign-up stands overall: on the Liste d'attente only while waiting on every Journée. */
+    public RegistrationStatusEnum status() {
+        return journees.stream().allMatch(JourneeRegistrationEntity::isWaiting) ? RegistrationStatusEnum.EN_ATTENTE
+                : RegistrationStatusEnum.PARTICIPANT;
     }
 
     /** A new pending Demande de groupe; only someone outside any Groupe at this Event makes one. */
     public void requestGroup(GroupEntity requested) {
-        if (isPassager())
-            throw new InvalidResourceException("A passager rides with their conducteur's Groupe.");
         if (group != null)
             throw new InvalidResourceException("Already riding with a Groupe at this Event.");
         requireFits(requested);
@@ -127,7 +146,6 @@ public class EventRegistrationEntity extends AuditTemplate {
         requirePendingDemande();
         group = demandeGroup;
         demandeStatus = DemandeStatusEnum.ACCEPTEE;
-        passagersFollowGroup();
     }
 
     /** The person stays signed up, without a Groupe, and may make a new Demande. */
@@ -142,7 +160,6 @@ public class EventRegistrationEntity extends AuditTemplate {
         group = placed;
         demandeGroup = placed;
         demandeStatus = DemandeStatusEnum.ACCEPTEE;
-        passagersFollowGroup();
     }
 
     /** Takes the person out of their Groupe; they remain signed up for the Event. */
@@ -152,7 +169,11 @@ public class EventRegistrationEntity extends AuditTemplate {
         group = null;
         demandeGroup = null;
         demandeStatus = null;
-        passagersFollowGroup();
+    }
+
+    /** Ends every pairing of this sign-up, as passager or as conducteur. */
+    public void unpairAll() {
+        journees.forEach(JourneeRegistrationEntity::unpair);
     }
 
     /** true while this person leads the Groupe they ride with: their sign-up follows the Affectation alone (ADR 0010). */
@@ -161,16 +182,14 @@ public class EventRegistrationEntity extends AuditTemplate {
     }
 
     /**
-     * The Bureau changes the Poste: never to passager, who names their conducteur; not for a conducteur who has
-     * passagers. A passager leaves their conducteur; someone whose new Poste does not fit their Groupe's kind leaves
-     * it, and a pending Demande for such a Groupe is dropped.
+     * The Bureau changes the Poste: not for a conducteur who has a passager. A passager becoming something else is no
+     * longer paired; someone whose new Poste does not fit their Groupe's kind leaves it, and a pending Demande for
+     * such a Groupe is dropped.
      */
     public void changePoste(PosteEnum changed) {
-        if (changed == PosteEnum.PASSAGER)
-            throw new InvalidResourceException("A passager names their conducteur when signing up.");
-        if (!passagers.isEmpty() && changed != PosteEnum.CONDUCTEUR)
+        if (hasPassager() && changed != PosteEnum.CONDUCTEUR)
             throw new InvalidResourceException("A conducteur who has a passager keeps their Poste.");
-        leaveConducteur();
+        if (changed != PosteEnum.PASSAGER) unpairAll();
         poste = changed;
         if (group != null && !changed.fits(group.getKind())) {
             group = null;
@@ -182,13 +201,6 @@ public class EventRegistrationEntity extends AuditTemplate {
         }
     }
 
-    /** A passager stops riding behind their conducteur. */
-    private void leaveConducteur() {
-        if (conducteur == null) return;
-        conducteur.getPassagers().remove(this);
-        conducteur = null;
-    }
-
     /** Only people whose Poste fits its kind are with a Groupe; a Point fixe is with none. */
     private void requireFits(GroupEntity other) {
         if (!poste.fits(other.getKind()))
@@ -197,13 +209,14 @@ public class EventRegistrationEntity extends AuditTemplate {
     }
 
     /**
-     * The Chef rides with the Groupe they lead (ADR 0010): a confirmed place in it at the Poste of its kind, whatever the maximums.
-     * A passager leaves their conducteur, a Demande is settled, and their own passagers follow.
+     * The Chef is at every Journée of the Event with the Groupe they lead (ADR 0010): a confirmed place at the Poste of
+     * its kind, whatever the maximums. A passager is no longer paired, nor is a Chef who stops being a conducteur, and
+     * a Demande is settled.
      */
-    public void leadGroup(GroupEntity led) {
-        leaveConducteur();
+    public void leadGroup(GroupEntity led, List<LocalDate> eventJournees) {
+        if (isPassager() || led.getKind().chefPoste() != PosteEnum.CONDUCTEUR) unpairAll();
         poste = led.getKind().chefPoste();
-        moveUp();
+        eventJournees.forEach(d -> journee(d).ifPresentOrElse(j -> j.setWaiting(false), () -> addJournee(d, false)));
         placeIn(led);
     }
 
@@ -212,41 +225,36 @@ public class EventRegistrationEntity extends AuditTemplate {
             throw new InvalidResourceException("No pending Demande de groupe.");
     }
 
-    /** A new conducteur sign-up, dated now; {@code waiting} puts it on the Liste d'attente. */
-    public static EventRegistrationEntity conducteur(EventEntity event, UserEntity person, boolean waiting) {
-        return signUp(event, person, PosteEnum.CONDUCTEUR, waiting);
-    }
-
-    /** A new sign-up at a Poste other than passager, dated now; {@code waiting} puts it on the Liste d'attente. */
-    public static EventRegistrationEntity signUp(EventEntity event, UserEntity person, PosteEnum poste, boolean waiting) {
+    /** A new sign-up at a Poste, dated now, without any Journée yet. */
+    public static EventRegistrationEntity of(EventEntity event, UserEntity person, PosteEnum poste) {
         return EventRegistrationEntity.builder()
                 .event(event)
                 .person(person)
                 .poste(poste)
-                .waiting(waiting)
                 .signedUpAt(LocalDateTime.now(EventEntity.ZONE))
                 .build();
     }
 
-    /** A new passager sign-up with that conducteur, dated now, mirroring the conducteur's placement and Groupe. */
+    /** A new sign-up at a Poste for every Journée of the Event; {@code waiting} puts it on their Listes d'attente. */
+    public static EventRegistrationEntity signUp(EventEntity event, UserEntity person, PosteEnum poste, boolean waiting) {
+        EventRegistrationEntity registration = of(event, person, poste);
+        event.journees().forEach(d -> registration.addJournee(d, waiting));
+        return registration;
+    }
+
+    /** A new conducteur sign-up for every Journée of the Event. */
+    public static EventRegistrationEntity conducteur(EventEntity event, UserEntity person, boolean waiting) {
+        return signUp(event, person, PosteEnum.CONDUCTEUR, waiting);
+    }
+
+    /** A new passager sign-up behind that conducteur on each of their Journées, in their Groupe, waiting as they do. */
     public static EventRegistrationEntity passager(EventRegistrationEntity conducteur, UserEntity person) {
         if (conducteur.getPoste() != PosteEnum.CONDUCTEUR)
             throw new InvalidResourceException("A passager rides behind a conducteur.");
-        EventRegistrationEntity passager = EventRegistrationEntity.builder()
-                .event(conducteur.getEvent())
-                .person(person)
-                .poste(PosteEnum.PASSAGER)
-                .conducteur(conducteur)
-                .waiting(conducteur.isWaiting())
-                .group(conducteur.getGroup())
-                .signedUpAt(LocalDateTime.now(EventEntity.ZONE))
-                .build();
-        conducteur.getPassagers().add(passager);
+        EventRegistrationEntity passager = of(conducteur.getEvent(), person, PosteEnum.PASSAGER);
+        passager.setGroup(conducteur.getGroup());
+        conducteur.getJournees().forEach(j -> passager.addJournee(j.getJournee(), j.isWaiting()).pairWith(j));
         return passager;
-    }
-
-    public RegistrationStatusEnum status() {
-        return waiting ? RegistrationStatusEnum.EN_ATTENTE : RegistrationStatusEnum.PARTICIPANT;
     }
 
     @Override

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Poste, fetchMyRegistrations, fetchConducteurs, requestGroup, signUp, withdraw } from "./registrationsApi";
 import { queryKeys } from "../queryKeys";
+import { Journee } from "../../lib/journees";
 import { useAuth } from "../../auth/AuthContext";
 
 export function useMyRegistrations() {
@@ -29,15 +30,22 @@ export function useEventRegistration() {
 
   const register = useMutation({
     /** `conducteurId` : s'inscrire comme passager de ce conducteur (sans Demande de groupe). L'API lit le téléphone au profil. */
-    mutationFn: (input: { eventId: string; poste: Poste; phone?: string; groupId?: string; conducteurId?: string }) => {
+    mutationFn: (input: { eventId: string; poste: Poste; phone?: string; groupId?: string; conducteurId?: string; journees?: Journee[] }) => {
       if (!user) throw new Error("Connectez-vous pour vous inscrire.");
-      return signUp(input.eventId, { poste: input.poste, groupId: input.groupId || undefined, conducteurId: input.conducteurId || undefined });
+      return signUp(input.eventId, {
+        poste: input.poste,
+        groupId: input.groupId || undefined,
+        conducteurId: input.conducteurId || undefined,
+        journees: input.journees,
+      });
     },
     onSuccess: invalidate,
   });
 
+  /** Se retirer de Journées (aucune : toutes), avec ou sans son passager. */
   const unregister = useMutation({
-    mutationFn: (eventId: string) => withdraw(eventId),
+    mutationFn: (input: { eventId: string; journees?: Journee[]; withPassager?: boolean }) =>
+      withdraw(input.eventId, { journees: input.journees, withPassager: input.withPassager }),
     onSuccess: invalidate,
   });
 
