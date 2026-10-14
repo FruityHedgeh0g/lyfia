@@ -178,6 +178,20 @@ describe("EventsAdminPage", () => {
     expect(within(weber).queryByRole("button", { name: "Sortir du groupe" })).not.toBeInTheDocument();
   });
 
+  it("lets the Bureau change a Poste, never to passager, leaving a Groupe of another kind", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /Test Ouvert/ }));
+    const participants = await screen.findByRole("list", { name: "Participants" });
+    await userEvent.selectOptions(within(participants).getByLabelText("Groupe"), "group-1");
+    await waitFor(() => expect(within(participants).getByText(/Weber/).closest("li")).toHaveTextContent("Conducteur · Groupe : Groupe Algrange Centre"));
+
+    const poste = within(participants).getByLabelText("Poste") as HTMLSelectElement;
+    expect([...poste.options].map((o) => o.value)).not.toContain("passager");
+    await userEvent.selectOptions(poste, "service");
+    await waitFor(() => expect(within(participants).getByText(/Weber/).closest("li")).toHaveTextContent("Service"));
+    expect(within(participants).getByText(/Weber/).closest("li")).not.toHaveTextContent("Groupe Algrange Centre");
+  });
+
   it("lets the Bureau decide a pending Demande de groupe", async () => {
     const eventId = (await createEventsApi().fetchEvents(true)).find((e) => e.name === "Test Ouvert")!.eventId;
     await createRegistrationsApi().signUp(eventId, { userId: "p-3", firstName: "Test", lastName: "Meyer", phone: "06 00 00 00 00" }, "group-1");

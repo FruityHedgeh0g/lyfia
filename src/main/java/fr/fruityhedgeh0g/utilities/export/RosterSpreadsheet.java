@@ -101,7 +101,7 @@ public final class RosterSpreadsheet {
                     sheet.value(r + 1, 0, person.lastName());
                     sheet.value(r + 1, 1, person.firstName());
                     sheet.value(r + 1, 2, Objects.requireNonNullElse(person.phone(), ""));
-                    sheet.value(r + 1, 3, person.mode().id());
+                    sheet.value(r + 1, 3, person.poste().id());
                     if (person.conducteur() != null)
                         sheet.value(r + 1, 4, person.conducteur().firstName() + " " + person.conducteur().lastName());
                 }

@@ -3,6 +3,7 @@ import { mockSectors } from "./fixtures/sectors";
 import { Sector } from "../features/sectors/types";
 import { mockGroups } from "./fixtures/groups";
 import { Group } from "../features/groups/types";
+import type { Poste } from "../features/events/registrationsApi";
 import { mockMembers } from "./fixtures/users";
 import { Member } from "../features/users/types";
 import { assignableRoles, canLeadGroupe, RoleId, roleAtLeast } from "../auth/roles";
@@ -94,7 +95,7 @@ let seeded = 0;
 /** Ajoute un Groupe tel quel, sans les règles de l'API ; renvoie son id. */
 export function seedGroup(group: Partial<Group> & Pick<Group, "name" | "sectorId">): string {
   const groupId = group.groupId ?? `group-seed-${++seeded}`;
-  state.groups.push({ description: "", area: "", chef: null, ...group, groupId });
+  state.groups.push({ description: "", area: "", kind: "motards", chef: null, ...group, groupId });
   return groupId;
 }
 
@@ -189,7 +190,7 @@ function groups(method: string, [groupId, action, userId]: string[], body: any):
       if (!sectorId || (!isSuperAdmin() && body.sectorId && body.sectorId !== sectorId)) return empty(403);
       if (sectorOf(sectorId)?.closed) return empty(400);
       if (state.groups.some((g) => g.name === body.name)) return empty(409);
-      const groupId = seedGroup({ name: body.name, description: body.description, area: body.area, sectorId });
+      const groupId = seedGroup({ name: body.name, description: body.description, area: body.area, kind: body.kind ?? "motards", sectorId });
       const { chef: _chef, ...created } = state.groups.find((g) => g.groupId === groupId)!;
       return json(created);
     }
@@ -197,7 +198,11 @@ function groups(method: string, [groupId, action, userId]: string[], body: any):
       const group = state.groups.find((g) => g.groupId === body.groupId && visibleGroup(g));
       if (!group) return empty(404);
       if (sectorOf(group.sectorId)?.closed) return empty(400);
-      Object.assign(group, { name: body.name, description: body.description, area: body.area });
+      const kind = body.kind ?? group.kind;
+      // Comme GroupKindChange : seul son Chef peut être avec un Groupe qui change de sorte
+      if (kind !== group.kind && createRegistrationsApi().concernsOthersThanChef(group)) return empty(400);
+      Object.assign(group, { name: body.name, description: body.description, area: body.area, kind });
+      createRegistrationsApi().chefFollowsKind(group);
       return json(group);
     }
     return empty(405);
@@ -352,7 +357,8 @@ async function events(method: string, [eventId, ...rest]: string[], body: any, q
   if (path === "registration" && method === "PUT") {
     const groupId = query.get("groupId") ?? undefined;
     const conducteurId = query.get("conducteurId") ?? undefined;
-    return answer(() => reg.signUp(eventId, me(), groupId, conducteurId));
+    const poste = (query.get("poste") ?? (conducteurId ? "passager" : "conducteur")) as Poste;
+    return answer(() => reg.signUp(eventId, me(), groupId, conducteurId, poste));
   }
   if (path === "registration" && method === "DELETE") return answer(() => reg.withdraw(eventId, state.viewer.userId));
   if (path === "registration/demande" && method === "PUT") return answer(() => reg.requestGroup(eventId, state.viewer.userId, body.groupId));
@@ -364,6 +370,7 @@ async function events(method: string, [eventId, ...rest]: string[], body: any, q
   if (kind === "groups" && action === "maximum" && method === "PUT") return answer(() => reg.setGroupMaximum(eventId, personId, body.maximum || null));
   if (kind === "roster" && action === "group" && groupId && method === "PUT") return answer(() => reg.placeInGroup(eventId, personId, groupId));
   if (kind === "roster" && action === "group" && method === "DELETE") return answer(() => reg.takeOutOfGroup(eventId, personId, actor));
+  if (kind === "roster" && action === "poste" && method === "PUT") return answer(() => reg.changePoste(eventId, personId, body.poste));
   if (kind === "roster" && action === "promote" && method === "POST") return answer(() => reg.promote(eventId, personId));
   if (kind === "roster" && !action && method === "DELETE") return answer(() => reg.remove(eventId, personId));
   return empty(405);

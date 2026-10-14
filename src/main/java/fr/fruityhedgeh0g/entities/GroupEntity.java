@@ -1,5 +1,6 @@
 package fr.fruityhedgeh0g.entities;
 
+import fr.fruityhedgeh0g.enums.GroupKindEnum;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -28,6 +29,12 @@ public class GroupEntity extends AuditTemplate {
     /** The part of the Secteur this Groupe covers. */
     @Column(name = "area")
     private String area;
+
+    /** De motards (on the road) or de service (one task at the Event); decides who can be with it. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kind", nullable = false)
+    @Builder.Default
+    private GroupKindEnum kind = GroupKindEnum.MOTARDS;
 
     /** Current Affectation: at most one Chef per Groupe, one Groupe per Chef. */
     @OneToOne(fetch = FetchType.EAGER)

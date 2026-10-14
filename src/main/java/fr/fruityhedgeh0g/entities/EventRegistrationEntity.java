@@ -2,7 +2,7 @@ package fr.fruityhedgeh0g.entities;
 
 import fr.fruityhedgeh0g.enums.DemandeStatusEnum;
 import fr.fruityhedgeh0g.enums.RegistrationStatusEnum;
-import fr.fruityhedgeh0g.enums.RideModeEnum;
+import fr.fruityhedgeh0g.enums.PosteEnum;
 import fr.fruityhedgeh0g.exceptions.InvalidResourceException;
 import jakarta.persistence.*;
 import lombok.*;
@@ -42,8 +42,8 @@ public class EventRegistrationEntity extends AuditTemplate {
     private UserEntity person;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "mode", nullable = false)
-    private RideModeEnum mode;
+    @Column(name = "poste", nullable = false)
+    private PosteEnum poste;
 
     /** true while on the Liste d'attente; nobody moves up automatically. */
     @Column(name = "waiting", nullable = false)
@@ -80,7 +80,7 @@ public class EventRegistrationEntity extends AuditTemplate {
     private List<EventRegistrationEntity> passagers = new ArrayList<>();
 
     public boolean isPassager() {
-        return mode == RideModeEnum.PASSAGER;
+        return poste == PosteEnum.PASSAGER;
     }
 
     /** Places this sign-up takes towards a maximum: the conducteur and their passagers. */
@@ -104,6 +104,7 @@ public class EventRegistrationEntity extends AuditTemplate {
             throw new InvalidResourceException("A passager rides with their conducteur's Groupe.");
         if (group != null)
             throw new InvalidResourceException("Already riding with a Groupe at this Event.");
+        requireFits(requested);
         demandeGroup = requested;
         demandeStatus = DemandeStatusEnum.EN_ATTENTE;
     }
@@ -137,6 +138,7 @@ public class EventRegistrationEntity extends AuditTemplate {
 
     /** The Bureau places the person in a Groupe directly, settling any Demande. */
     public void placeIn(GroupEntity placed) {
+        requireFits(placed);
         group = placed;
         demandeGroup = placed;
         demandeStatus = DemandeStatusEnum.ACCEPTEE;
@@ -159,15 +161,48 @@ public class EventRegistrationEntity extends AuditTemplate {
     }
 
     /**
-     * The Chef rides with the Groupe they lead (ADR 0010): a confirmed conducteur place in it, whatever the maximums.
+     * The Bureau changes the Poste: never to passager, who names their conducteur; not for a conducteur who has
+     * passagers. A passager leaves their conducteur; someone whose new Poste does not fit their Groupe's kind leaves
+     * it, and a pending Demande for such a Groupe is dropped.
+     */
+    public void changePoste(PosteEnum changed) {
+        if (changed == PosteEnum.PASSAGER)
+            throw new InvalidResourceException("A passager names their conducteur when signing up.");
+        if (!passagers.isEmpty() && changed != PosteEnum.CONDUCTEUR)
+            throw new InvalidResourceException("A conducteur who has a passager keeps their Poste.");
+        leaveConducteur();
+        poste = changed;
+        if (group != null && !changed.fits(group.getKind())) {
+            group = null;
+            demandeGroup = null;
+            demandeStatus = null;
+        } else if (hasPendingDemande() && !changed.fits(demandeGroup.getKind())) {
+            demandeGroup = null;
+            demandeStatus = null;
+        }
+    }
+
+    /** A passager stops riding behind their conducteur. */
+    private void leaveConducteur() {
+        if (conducteur == null) return;
+        conducteur.getPassagers().remove(this);
+        conducteur = null;
+    }
+
+    /** Only people whose Poste fits its kind are with a Groupe; a Point fixe is with none. */
+    private void requireFits(GroupEntity other) {
+        if (!poste.fits(other.getKind()))
+            throw new InvalidResourceException(poste == PosteEnum.POINT_FIXE ? "A point fixe is with no Groupe."
+                    : "A " + poste.id() + " is with a Groupe de " + poste.groupKind().id() + " only.");
+    }
+
+    /**
+     * The Chef rides with the Groupe they lead (ADR 0010): a confirmed place in it at the Poste of its kind, whatever the maximums.
      * A passager leaves their conducteur, a Demande is settled, and their own passagers follow.
      */
     public void leadGroup(GroupEntity led) {
-        if (isPassager()) {
-            conducteur.getPassagers().remove(this);
-            conducteur = null;
-            mode = RideModeEnum.CONDUCTEUR;
-        }
+        leaveConducteur();
+        poste = led.getKind().chefPoste();
         moveUp();
         placeIn(led);
     }
@@ -179,10 +214,15 @@ public class EventRegistrationEntity extends AuditTemplate {
 
     /** A new conducteur sign-up, dated now; {@code waiting} puts it on the Liste d'attente. */
     public static EventRegistrationEntity conducteur(EventEntity event, UserEntity person, boolean waiting) {
+        return signUp(event, person, PosteEnum.CONDUCTEUR, waiting);
+    }
+
+    /** A new sign-up at a Poste other than passager, dated now; {@code waiting} puts it on the Liste d'attente. */
+    public static EventRegistrationEntity signUp(EventEntity event, UserEntity person, PosteEnum poste, boolean waiting) {
         return EventRegistrationEntity.builder()
                 .event(event)
                 .person(person)
-                .mode(RideModeEnum.CONDUCTEUR)
+                .poste(poste)
                 .waiting(waiting)
                 .signedUpAt(LocalDateTime.now(EventEntity.ZONE))
                 .build();
@@ -190,12 +230,12 @@ public class EventRegistrationEntity extends AuditTemplate {
 
     /** A new passager sign-up with that conducteur, dated now, mirroring the conducteur's placement and Groupe. */
     public static EventRegistrationEntity passager(EventRegistrationEntity conducteur, UserEntity person) {
-        if (conducteur.isPassager())
-            throw new InvalidResourceException("A passager rides with a conducteur, not with another passager.");
+        if (conducteur.getPoste() != PosteEnum.CONDUCTEUR)
+            throw new InvalidResourceException("A passager rides behind a conducteur.");
         EventRegistrationEntity passager = EventRegistrationEntity.builder()
                 .event(conducteur.getEvent())
                 .person(person)
-                .mode(RideModeEnum.PASSAGER)
+                .poste(PosteEnum.PASSAGER)
                 .conducteur(conducteur)
                 .waiting(conducteur.isWaiting())
                 .group(conducteur.getGroup())

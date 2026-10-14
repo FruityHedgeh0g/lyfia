@@ -1,5 +1,6 @@
 package fr.fruityhedgeh0g.dtos.groupDtos;
 
+import fr.fruityhedgeh0g.enums.GroupKindEnum;
 import com.fasterxml.jackson.annotation.JsonView;
 import fr.fruityhedgeh0g.dtos.sectorDtos.NestedSectorDto;
 import fr.fruityhedgeh0g.dtos.userDtos.NestedUserDto;
@@ -24,6 +25,10 @@ public class GroupDto {
 
     @JsonView({Views.Basic.class,Views.Creation.class,Views.Update.class})
     String area;
+
+    /** motards or service; motards when left out at creation. */
+    @JsonView({Views.Basic.class,Views.Creation.class,Views.Update.class})
+    GroupKindEnum kind;
 
     /** Set only through an Affectation, never from a create or update body. */
     @JsonView(Views.Basic.class)

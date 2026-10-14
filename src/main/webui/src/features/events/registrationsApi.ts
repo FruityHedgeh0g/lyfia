@@ -1,5 +1,6 @@
 import { apiFetch, HttpError } from "../../lib/http";
 import { EventStatus } from "./status";
+import { GroupKind } from "../groups/types";
 
 /** Où en est une inscription : place confirmée (Participant) ou Liste d'attente. */
 export type RegistrationStatus = "participant" | "en_attente";
@@ -7,8 +8,22 @@ export type RegistrationStatus = "participant" | "en_attente";
 /** Où en est une Demande de groupe. */
 export type DemandeStatus = "en_attente" | "acceptee" | "refusee";
 
-/** Comment on roule à un Événement : `passager` d'un `conducteur` inscrit, qu'il suit partout. */
-export type RideMode = "conducteur" | "passager";
+/** Ce que la personne fait à l'Événement, choisi pour chaque Événement ; chaque Poste compte dans les maximums. */
+export type Poste = "conducteur" | "passager" | "chauffeur_camionnette" | "point_fixe" | "service";
+
+export const POSTE_LABELS: Record<Poste, string> = {
+  conducteur: "Conducteur",
+  passager: "Passager",
+  chauffeur_camionnette: "Chauffeur camionnette",
+  point_fixe: "Point fixe",
+  service: "Service",
+};
+
+export const POSTES = Object.keys(POSTE_LABELS) as Poste[];
+
+/** La sorte de Groupe avec laquelle on est à ce Poste ; aucune pour un Point fixe. */
+export const groupKindOf = (poste: Poste): GroupKind | null =>
+  poste === "service" ? "service" : poste === "point_fixe" ? null : "motards";
 
 /** Reflète NestedUserDto : une personne nommée, sans ses coordonnées. */
 export interface PersonRef {
@@ -32,7 +47,7 @@ export interface Demande {
 /** Reflète RegistrationDto côté backend : sa propre inscription à un Événement. */
 export interface Registration {
   eventId: string;
-  mode: RideMode;
+  poste: Poste;
   status: RegistrationStatus;
   signedUpAt: string;
   /** Groupe avec lequel on roule à cet Événement, une fois accepté ou placé. */
@@ -50,7 +65,7 @@ export interface RosterEntry {
   firstName: string;
   lastName: string;
   phone: string;
-  mode: RideMode;
+  poste: Poste;
   signedUpAt: string;
   group: GroupRef | null;
   demande: Demande | null;
@@ -162,9 +177,10 @@ async function phoneRequired<T>(call: Promise<T>): Promise<T> {
  */
 export const fetchMyRegistrations = () => apiFetch<Registration[]>("/api/events/registrations");
 
-/** Comme conducteur, `groupId` demande ce Groupe ; `conducteurId` inscrit comme passager de ce conducteur. */
-export function signUp(eventId: string, options: { groupId?: string; conducteurId?: string } = {}): Promise<Registration> {
+/** À un Poste autre que passager, `groupId` demande ce Groupe ; `conducteurId` inscrit comme passager de ce conducteur. */
+export function signUp(eventId: string, options: { poste?: Poste; groupId?: string; conducteurId?: string } = {}): Promise<Registration> {
   const params = new URLSearchParams();
+  if (options.poste) params.set("poste", options.poste);
   if (options.conducteurId) params.set("conducteurId", options.conducteurId);
   else if (options.groupId) params.set("groupId", options.groupId);
   const query = params.size ? `?${params}` : "";
@@ -183,6 +199,10 @@ export const decideDemande = (eventId: string, personId: string, accept: boolean
 
 export const placeInGroup = (eventId: string, personId: string, groupId: string) =>
   apiFetch<Roster>(`${base(eventId)}/roster/${id(personId)}/group/${id(groupId)}`, { method: "PUT" });
+
+/** Le Bureau change le Poste de quelqu'un : jamais en passager, ni pour le Chef qui mène son Groupe. */
+export const changePoste = (eventId: string, personId: string, poste: Poste) =>
+  apiFetch<Roster>(`${base(eventId)}/roster/${id(personId)}/poste`, { method: "PUT", body: JSON.stringify({ poste }) });
 
 /** null ou 0 retire le maximum. */
 export const setGroupMaximum = (eventId: string, groupId: string, maximum: number | null) =>

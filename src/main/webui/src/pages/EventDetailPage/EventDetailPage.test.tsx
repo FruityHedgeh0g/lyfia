@@ -61,11 +61,28 @@ describe("EventDetailPage sign-up", () => {
     expect(await screen.findByText("Demande pour Groupe Algrange Centre : en attente")).toBeInTheDocument();
   });
 
+  it("offers each Poste, with only the Groupes of the kind that goes with it", async () => {
+    seedGroup({ groupId: "buvette", name: "Buvette", sectorId: "sector-1", kind: "service" });
+    renderPage();
+
+    const groupes = () => [...(screen.getByLabelText("Groupe (facultatif)") as HTMLSelectElement).options].map((o) => o.textContent);
+    await screen.findByLabelText("Poste");
+    expect(groupes()).toEqual(["Sans groupe", "Groupe Algrange Centre"]);
+    await userEvent.selectOptions(screen.getByLabelText("Poste"), "service");
+    expect(groupes()).toEqual(["Sans groupe", "Buvette"]);
+    await userEvent.selectOptions(screen.getByLabelText("Poste"), "point_fixe");
+    expect(screen.queryByLabelText("Groupe (facultatif)")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "M'inscrire comme point fixe" }));
+    expect(await screen.findByText("Vous êtes inscrit comme point fixe")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Demander ce groupe" })).not.toBeInTheDocument();
+  });
+
   it("signs up as passager of a chosen conducteur", async () => {
     await createRegistrationsApi().signUp(eventId, { userId: "p-1", firstName: "Marc", lastName: "Weber", phone: "06 00 00 00 00" });
     renderPage();
 
-    await userEvent.selectOptions(await screen.findByLabelText("Je roule comme"), "passager");
+    await userEvent.selectOptions(await screen.findByLabelText("Poste"), "passager");
     expect(screen.queryByLabelText("Groupe (facultatif)")).not.toBeInTheDocument();
     await userEvent.selectOptions(await screen.findByLabelText("Conducteur"), "p-1");
     await userEvent.click(screen.getByRole("button", { name: "M'inscrire comme passager" }));

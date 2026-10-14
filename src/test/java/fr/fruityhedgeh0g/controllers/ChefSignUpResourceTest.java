@@ -6,7 +6,7 @@ import fr.fruityhedgeh0g.entities.GroupEntity;
 import fr.fruityhedgeh0g.entities.SectorEntity;
 import fr.fruityhedgeh0g.entities.UserEntity;
 import fr.fruityhedgeh0g.enums.EventStatusEnum;
-import fr.fruityhedgeh0g.enums.RideModeEnum;
+import fr.fruityhedgeh0g.enums.PosteEnum;
 import fr.fruityhedgeh0g.enums.RoleEnum;
 import fr.fruityhedgeh0g.repositories.EventRegistrationRepository;
 import fr.fruityhedgeh0g.repositories.EventRepository;
@@ -173,7 +173,7 @@ public class ChefSignUpResourceTest {
         given().when().get("/{id}/roster", event).then().statusCode(200)
                 .body("participants.personId", hasItems(CHEF_ID, OTHER_CHEF_ID))
                 .body("waiting.size()", equalTo(0))
-                .body("participants.find { it.personId == '" + CHEF_ID + "' }.mode", equalTo("conducteur"))
+                .body("participants.find { it.personId == '" + CHEF_ID + "' }.poste", equalTo("conducteur"))
                 .body("participants.find { it.personId == '" + CHEF_ID + "' }.group.groupId", equalTo(nord.toString()))
                 .body("participants.find { it.personId == '" + CHEF_ID + "' }.leadsGroup", equalTo(true));
     }
@@ -267,7 +267,7 @@ public class ChefSignUpResourceTest {
         given().basePath("/api/groups").when().put("/{g}/chef/{p}", nord, NEW_CHEF_ID).then().statusCode(200);
 
         EventRegistrationEntity chef = registrationOf(event, NEW_CHEF_ID).orElseThrow();
-        assertEquals(RideModeEnum.CONDUCTEUR, chef.getMode());
+        assertEquals(PosteEnum.CONDUCTEUR, chef.getPoste());
         assertFalse(chef.isWaiting());
         assertEquals(nord, groupOf(event, NEW_CHEF_ID));
         assertEquals(0, QuarkusTransaction.requiringNew().call(() ->

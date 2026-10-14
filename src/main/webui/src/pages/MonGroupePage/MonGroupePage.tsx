@@ -1,6 +1,6 @@
 import React from "react";
 import { useGroupActions, useMonGroupe } from "../../features/events/useRoster";
-import { passagerLabel, RosterEntry } from "../../features/events/registrationsApi";
+import { passagerLabel, POSTE_LABELS, RosterEntry } from "../../features/events/registrationsApi";
 import { EVENT_STATUS_LABELS } from "../../features/events/status";
 import { formatDate } from "../../lib/formatDate";
 import Button from "../../components/atoms/Button/Button";
@@ -31,7 +31,12 @@ export const MonGroupePage: React.FC = () => {
       <span className={styles.person}>
         {entry.firstName} {entry.lastName}
         <span className={styles.phone}>
-          {[entry.phone, entry.conducteur ? passagerLabel(entry.conducteur) : entry.passagers > 0 && `+ ${entry.passagers} passager(s)`]
+          {[
+            entry.phone,
+            entry.conducteur
+              ? passagerLabel(entry.conducteur)
+              : [POSTE_LABELS[entry.poste], entry.passagers > 0 && `+ ${entry.passagers} passager(s)`].filter(Boolean).join(" "),
+          ]
             .filter(Boolean)
             .join(" · ")}
         </span>

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useGroupActions, useRoster } from "../../features/events/useRoster";
-import { GroupRoster, passagerLabel, RosterEntry, rosterExportUrl } from "../../features/events/registrationsApi";
+import { GroupRoster, groupKindOf, passagerLabel, POSTE_LABELS, POSTES, RosterEntry, rosterExportUrl } from "../../features/events/registrationsApi";
 import { useGroups } from "../../features/groups/useGroups";
 import { confirmRefusal, confirmTakeOut, fullName } from "../../features/events/confirmations";
 import { useConfirm } from "../../components/molecules/ConfirmDialog/useConfirm";
@@ -87,7 +87,7 @@ const GroupRow: React.FC<GroupRowProps> = ({ entry, editable, maximum, onMaximum
  * Les deux listes se replient et une recherche les filtre ensemble, sans appel au serveur.
  */
 export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, editable, maxima, onMaximum, maximumError }) => {
-  const { roster, moveUp, removePerson, place } = useRoster(eventId);
+  const { roster, moveUp, removePerson, place, changePoste } = useRoster(eventId);
   const { decide, takeOut } = useGroupActions();
   const { confirm, dialog } = useConfirm();
   const [search, setSearch] = useState("");
@@ -95,25 +95,30 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
   const exportOn = useFeature("export-liste", sectorId);
   const exportOff = useFeatureOff("export-liste", sectorId);
   const pending =
-    moveUp.isPending || removePerson.isPending || place.isPending || decide.isPending || takeOut.isPending;
+    moveUp.isPending || removePerson.isPending || place.isPending || changePoste.isPending || decide.isPending || takeOut.isPending;
 
   if (roster.isLoading) return <Spinner label="Chargement des inscrits..." />;
   if (!roster.data) return null;
 
   const { participants, waiting, maxParticipants } = roster.data;
   const full = maxParticipants !== null && participants.length >= maxParticipants;
-  const error = moveUp.error ?? removePerson.error ?? place.error ?? maximumError ?? decide.error ?? takeOut.error;
-  const groupOptions = [
+  const error = moveUp.error ?? removePerson.error ?? place.error ?? changePoste.error ?? maximumError ?? decide.error ?? takeOut.error;
+  /** Les Groupes du Secteur de la sorte qui va avec le Poste de la personne. */
+  const groupOptions = (entry: RosterEntry) => [
     { value: "", label: "Sans groupe" },
-    ...(groups ?? []).filter((g) => g.sectorId === sectorId).map((g) => ({ value: g.groupId, label: g.name })),
+    ...(groups ?? [])
+      .filter((g) => g.sectorId === sectorId && g.kind === groupKindOf(entry.poste))
+      .map((g) => ({ value: g.groupId, label: g.name })),
   ];
 
+  /** Le Poste (ou le conducteur d'un passager), puis le Groupe ou la Demande en attente. */
   const groupLine = (entry: RosterEntry) => {
-    const passager = entry.conducteur ? passagerLabel(entry.conducteur) : entry.passagers > 0 && `+ ${entry.passagers} passager(s)`;
-    if (entry.group) return [passager, `${entry.leadsGroup ? "Chef de groupe" : "Groupe"} : ${entry.group.name}`].filter(Boolean).join(" · ");
-    if (passager) return passager;
-    if (entry.demande?.status === "en_attente") return `Demande : ${entry.demande.group.name}`;
-    return undefined;
+    const poste = entry.conducteur
+      ? passagerLabel(entry.conducteur)
+      : [POSTE_LABELS[entry.poste], entry.passagers > 0 && `+ ${entry.passagers} passager(s)`].filter(Boolean).join(" ");
+    if (entry.group) return `${poste} · ${entry.leadsGroup ? "Chef de groupe" : "Groupe"} : ${entry.group.name}`;
+    if (entry.demande?.status === "en_attente") return `${poste} · Demande : ${entry.demande.group.name}`;
+    return poste;
   };
 
   /** Le Chef du Groupe n'est ni retiré ni sorti du groupe : seule l'Affectation le fait (ADR 0010). */
@@ -133,6 +138,22 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
       }}
     />
   );
+
+  /**
+   * Le Bureau change le Poste : jamais en passager (le passager nomme son conducteur), ni pour le Chef qui mène son
+   * Groupe (ADR 0010), ni pour un conducteur qui a un passager.
+   */
+  const posteSelect = (entry: RosterEntry) =>
+    !entry.leadsGroup &&
+    entry.passagers === 0 && (
+      <Select
+        label="Poste"
+        value={entry.poste}
+        disabled={pending}
+        onChange={(poste) => poste !== entry.poste && changePoste.mutate({ personId: entry.personId, poste: poste as typeof entry.poste })}
+        options={POSTES.filter((p) => p !== "passager" || entry.poste === "passager").map((p) => ({ value: p, label: POSTE_LABELS[p] }))}
+      />
+    );
 
   /** Décision sur une Demande en attente, et sortie du Groupe pour qui y roule. */
   const groupActions = (entry: RosterEntry) => (
@@ -233,12 +254,13 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
         "Aucun participant.",
         (p) => (
           <>
-            {!p.group && !p.conducteur && (
+            {posteSelect(p)}
+            {!p.group && !p.conducteur && groupKindOf(p.poste) && (
               <Select
                 label="Groupe"
                 value=""
                 onChange={(groupId) => groupId && place.mutate({ personId: p.personId, groupId })}
-                options={groupOptions}
+                options={groupOptions(p)}
               />
             )}
             {groupActions(p)}
@@ -249,6 +271,7 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
 
       {list(`Liste d'attente (${waiting.length})`, "Liste d'attente", waiting, "Personne en attente.", (w) => (
         <>
+          {posteSelect(w)}
           {!w.conducteur && <Button type="button" label="Faire monter" disabled={pending || full} onClick={() => moveUp.mutate(w.personId)} />}
           {groupActions(w)}
           {removeButton(w)}

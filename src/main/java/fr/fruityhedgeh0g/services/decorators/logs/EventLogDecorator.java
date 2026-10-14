@@ -1,5 +1,6 @@
 package fr.fruityhedgeh0g.services.decorators.logs;
 
+import fr.fruityhedgeh0g.enums.PosteEnum;
 import fr.fruityhedgeh0g.dtos.eventDtos.EventDto;
 import fr.fruityhedgeh0g.dtos.eventDtos.MonGroupeDto;
 import fr.fruityhedgeh0g.dtos.eventDtos.RegistrationDto;
@@ -99,9 +100,9 @@ public class EventLogDecorator implements EventService{
     }
 
     @Override
-    public RegistrationDto signUp(UUID eventId, UUID personId, UUID groupId) {
-        Log.debugf("%s signs up for event %s...", personId, eventId);
-        return Try.of(() -> eventService.signUp(eventId, personId, groupId))
+    public RegistrationDto signUp(UUID eventId, UUID personId, PosteEnum poste, UUID groupId) {
+        Log.debugf("%s signs up for event %s as %s...", personId, eventId, poste.id());
+        return Try.of(() -> eventService.signUp(eventId, personId, poste, groupId))
                 .onSuccess(r -> Log.infof("%s signed up for event %s: %s.", personId, eventId, r.status().id()))
                 .onFailure(t -> {
                     switch (t) {
@@ -230,6 +231,12 @@ public class EventLogDecorator implements EventService{
             eventService.doCloseEventsOfSector(sectorId);
             return null;
         }, "[INTERNAL] Closing the events of sector " + sectorId);
+    }
+
+    @Override
+    public RosterDto changePoste(UUID eventId, UUID personId, PosteEnum poste) {
+        return logged(() -> eventService.changePoste(eventId, personId, poste),
+                "Poste " + poste.id() + " for " + personId + " at event " + eventId);
     }
 
     @Override

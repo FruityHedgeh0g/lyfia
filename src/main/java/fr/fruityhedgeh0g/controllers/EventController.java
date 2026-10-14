@@ -1,5 +1,7 @@
 package fr.fruityhedgeh0g.controllers;
 
+import fr.fruityhedgeh0g.dtos.eventDtos.PosteChangeDto;
+import fr.fruityhedgeh0g.enums.PosteEnum;
 import com.fasterxml.jackson.annotation.JsonView;
 import fr.fruityhedgeh0g.dtos.eventDtos.EventDto;
 import fr.fruityhedgeh0g.dtos.eventDtos.EventStatusChangeDto;
@@ -68,16 +70,22 @@ public class EventController {
     }
 
     /**
-     * As conducteur, optional {@code ?groupId=} creates a Demande de groupe for that Groupe;
+     * {@code ?poste=} conducteur (by default), chauffeur_camionnette, point_fixe or service, with an optional
+     * {@code ?groupId=} creating a Demande de groupe for that Groupe;
      * {@code ?conducteurId=} signs up as passager of that conducteur, who chooses the Groupe.
      */
     @PUT
     @Path("/{eventId}/registration")
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("benevole")
-    public RegistrationDto signUp(@PathParam("eventId") UUID eventId, @QueryParam("groupId") UUID groupId,
-                                  @QueryParam("conducteurId") UUID conducteurId){
-        if (conducteurId == null) return eventService.signUp(eventId, me(), groupId);
+    public RegistrationDto signUp(@PathParam("eventId") UUID eventId, @QueryParam("poste") String poste,
+                                  @QueryParam("groupId") UUID groupId, @QueryParam("conducteurId") UUID conducteurId){
+        PosteEnum chosen = poste == null ? (conducteurId == null ? PosteEnum.CONDUCTEUR : PosteEnum.PASSAGER) : PosteEnum.of(poste);
+        if (chosen != PosteEnum.PASSAGER) {
+            if (conducteurId != null) throw new BadRequestException("Only a passager names a conducteur.");
+            return eventService.signUp(eventId, me(), chosen, groupId);
+        }
+        if (conducteurId == null) throw new BadRequestException("A passager names their conducteur.");
         if (groupId != null) throw new BadRequestException("A passager rides with their conducteur's Groupe.");
         return eventService.signUpAsPassager(eventId, me(), conducteurId);
     }
@@ -118,6 +126,18 @@ public class EventController {
     public RosterDto placeInGroup(@PathParam("eventId") UUID eventId, @PathParam("personId") UUID personId,
                                   @PathParam("groupId") UUID groupId){
         return eventService.placeInGroup(eventId, personId, groupId);
+    }
+
+    /** The Bureau changes someone's Poste at this Event. */
+    @PUT
+    @Path("/{eventId}/roster/{personId}/poste")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RolesAllowed("bureau")
+    public RosterDto changePoste(@PathParam("eventId") UUID eventId, @PathParam("personId") UUID personId,
+                                 @Valid @NotNull PosteChangeDto change){
+        if (change.poste() == null) throw new BadRequestException("A Poste change names the Poste.");
+        return eventService.changePoste(eventId, personId, change.poste());
     }
 
     /** A Groupe's maximum at this Event; null or 0 removes it. */

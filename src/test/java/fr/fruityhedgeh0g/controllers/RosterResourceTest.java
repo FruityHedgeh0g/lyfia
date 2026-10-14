@@ -134,7 +134,7 @@ public class RosterResourceTest {
                 .body("participants.lastName", contains("First", "Second"))
                 .body("waiting.lastName", contains("Earlier", "Later"))
                 .body("participants[0].phone", equalTo("06 00 00 00 00"))
-                .body("participants[0].mode", equalTo("conducteur"));
+                .body("participants[0].poste", equalTo("conducteur"));
     }
 
     @Test

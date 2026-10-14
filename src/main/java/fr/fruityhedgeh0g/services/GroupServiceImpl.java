@@ -1,5 +1,6 @@
 package fr.fruityhedgeh0g.services;
 
+import fr.fruityhedgeh0g.enums.GroupKindEnum;
 import fr.fruityhedgeh0g.utilities.logging.Logged;
 
 import fr.fruityhedgeh0g.dtos.groupDtos.GroupDto;
@@ -37,6 +38,10 @@ public class GroupServiceImpl implements GroupService, InternalGroupService {
     /** The Events of the Groupe's Secteur follow each Affectation (EventServiceImpl, ADR 0010). */
     @Inject
     Event<AffectationChange> affectationChanges;
+
+    /** The Events of the Groupe's Secteur check and follow a change of kind (EventServiceImpl). */
+    @Inject
+    Event<GroupKindChange> groupKindChanges;
 
     @Inject GroupRepository groupRepository;
     @Inject InternalUserService internalUserService;
@@ -104,6 +109,7 @@ public class GroupServiceImpl implements GroupService, InternalGroupService {
 
         GroupEntity groupEntity = groupMapper.toEntity(groupDto);
         groupEntity.setSector(sectorOfNewGroup(groupDto.getSectorId()));
+        if (groupEntity.getKind() == null) groupEntity.setKind(GroupKindEnum.MOTARDS);
         groupRepository.persist(groupEntity);
 
         return groupMapper.toDto(groupEntity);
@@ -119,7 +125,11 @@ public class GroupServiceImpl implements GroupService, InternalGroupService {
         if (!groupEntity.getName().equals(groupDto.getName()) && groupRepository.existsByName(groupDto.getName()))
             throw new DuplicateResourceException("A group with this name already exists in the system.");
 
+        GroupKindEnum previousKind = groupEntity.getKind();
         groupEntity = groupMapper.partialDtoToEntity(groupEntity,groupDto);
+        // The Events check nobody but the Chef is with it, and move the Chef to the new kind's Poste
+        if (groupEntity.getKind() != previousKind)
+            groupKindChanges.fire(new GroupKindChange(groupEntity.getGroupId()));
         groupRepository.persist(groupEntity);
 
         return groupMapper.toDto(groupEntity);

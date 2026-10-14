@@ -1,7 +1,7 @@
 import React from "react";
 import { useEvents } from "../../features/events/useEvents";
 import { useMyRegistrations } from "../../features/events/useMyRegistrations";
-import { DEMANDE_STATUS_LABELS, passagerLabel, Registration, REGISTRATION_STATUS_LABELS } from "../../features/events/registrationsApi";
+import { DEMANDE_STATUS_LABELS, passagerLabel, POSTE_LABELS, Registration, REGISTRATION_STATUS_LABELS } from "../../features/events/registrationsApi";
 import { EVENT_STATUS_LABELS } from "../../features/events/status";
 import { formatDateRange } from "../../lib/formatDate";
 import MediaCard from "../../components/molecules/MediaCard/MediaCard";
@@ -12,14 +12,13 @@ import ButtonLink from "../../components/atoms/ButtonLink/ButtonLink";
 import { placeholderImage } from "../../lib/placeholderImage";
 import styles from "./MyEventsPage.module.css";
 
-/** Où l'on en est côté Groupe : le Groupe rejoint, ou la dernière Demande et son état. */
+/** Son Poste, et où l'on en est côté Groupe : le Groupe rejoint, ou la dernière Demande et son état. */
 const groupLine = (registration: Registration) => {
-  const passager = registration.conducteur && passagerLabel(registration.conducteur);
-  if (registration.group)
-    return [passager, `${registration.leadsGroup ? "Chef de groupe" : "Groupe"} : ${registration.group.name}`].filter(Boolean).join(" · ");
-  if (passager) return passager;
-  if (registration.demande) return `Demande pour ${registration.demande.group.name} : ${DEMANDE_STATUS_LABELS[registration.demande.status]}`;
-  return undefined;
+  const poste = registration.conducteur ? passagerLabel(registration.conducteur) : POSTE_LABELS[registration.poste];
+  if (registration.group) return `${poste} · ${registration.leadsGroup ? "Chef de groupe" : "Groupe"} : ${registration.group.name}`;
+  if (registration.demande && !registration.conducteur)
+    return `${poste} · Demande pour ${registration.demande.group.name} : ${DEMANDE_STATUS_LABELS[registration.demande.status]}`;
+  return poste;
 };
 
 export const MyEventsPage: React.FC = () => {

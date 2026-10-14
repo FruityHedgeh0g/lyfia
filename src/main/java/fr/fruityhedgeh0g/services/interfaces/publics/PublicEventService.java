@@ -7,6 +7,7 @@ import fr.fruityhedgeh0g.dtos.eventDtos.RosterDto;
 import fr.fruityhedgeh0g.dtos.eventDtos.RosterExportDto;
 import fr.fruityhedgeh0g.dtos.userDtos.NestedUserDto;
 import fr.fruityhedgeh0g.enums.EventStatusEnum;
+import fr.fruityhedgeh0g.enums.PosteEnum;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 
@@ -26,11 +27,11 @@ public interface PublicEventService {
     EventDto changeStatus(@NotNull UUID eventId, @NotNull EventStatusEnum status);
 
     /**
-     * Signs the person up as conducteur while the Event is Ouvert or Complet: a Participant
+     * Signs the person up at a Poste other than passager while the Event is Ouvert or Complet: a Participant
      * while Ouvert and under the maximum, otherwise on the Liste d'attente. Signing up
      * again returns the existing sign-up.
      */
-    RegistrationDto signUp(@NotNull UUID eventId, @NotNull UUID personId, UUID groupId);
+    RegistrationDto signUp(@NotNull UUID eventId, @NotNull UUID personId, @NotNull PosteEnum poste, UUID groupId);
     /**
      * Signs the person up as passager of a conducteur already signed up for the Event, with the conducteur's
      * placement and Groupe; refused when that would exceed the Event's or the Groupe's maximum.
@@ -47,6 +48,11 @@ public interface PublicEventService {
     RegistrationDto decideDemande(@NotNull UUID eventId, @NotNull UUID personId, @NotNull Actor actor, boolean accept);
     /** The Bureau places a Participant in a Groupe directly, within the Groupe's maximum. */
     RosterDto placeInGroup(@NotNull UUID eventId, @NotNull UUID personId, @NotNull UUID groupId);
+    /**
+     * The Bureau changes someone's Poste, never to passager nor for the Chef leading their Groupe; they leave a Groupe
+     * whose kind no longer fits.
+     */
+    RosterDto changePoste(@NotNull UUID eventId, @NotNull UUID personId, @NotNull PosteEnum poste);
     /** The Bureau sets a Groupe's maximum at the Event (a Groupe of the Event's Secteur); null or 0 removes it. */
     RosterDto setGroupMaximum(@NotNull UUID eventId, @NotNull UUID groupId, Integer maximum);
     /** The Groupe's Chef or the Bureau takes the person out of the Groupe; they stay signed up. */

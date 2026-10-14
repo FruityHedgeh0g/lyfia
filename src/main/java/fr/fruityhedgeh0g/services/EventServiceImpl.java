@@ -19,6 +19,7 @@ import fr.fruityhedgeh0g.entities.UserEntity;
 import fr.fruityhedgeh0g.entities.SectorEntity;
 import fr.fruityhedgeh0g.enums.EventStatusEnum;
 import fr.fruityhedgeh0g.enums.FeatureEnum;
+import fr.fruityhedgeh0g.enums.PosteEnum;
 import fr.fruityhedgeh0g.enums.RoleEnum;
 import fr.fruityhedgeh0g.exceptions.ForbiddenActionException;
 import fr.fruityhedgeh0g.exceptions.InvalidResourceException;
@@ -159,8 +160,23 @@ public class EventServiceImpl implements EventService {
         UserEntity chef = group.getChef();
         if (chef == null) return;
         EventRegistrationEntity registration = registrationRepository.findByEventAndPerson(event.getEventId(), chef.getUserId())
-                .orElseGet(() -> registrationRepository.persistConfirmed(event, chef));
+                .orElseGet(() -> registrationRepository.persistConfirmed(event, chef, group.getKind().chefPoste()));
         registration.leadGroup(group);
+    }
+
+    /**
+     * A Groupe changes kind only while nobody but its Chef is with it, or asks for it, at an Event still to come;
+     * the Chef then holds the Poste of the new kind there (ADR 0010).
+     */
+    void onGroupKindChange(@Observes GroupKindChange change) {
+        GroupEntity group = internalGroupService.doGetEntityById(change.groupId()).orElse(null);
+        if (group == null) return;
+        List<EventRegistrationEntity> concerned = registrationRepository.listByGroup(group.getGroupId()).stream()
+                .filter(r -> !r.getEvent().currentStatus().isFinal())
+                .toList();
+        if (concerned.stream().anyMatch(r -> !r.isChefOfItsGroup()))
+            throw new InvalidResourceException("A Groupe changes kind only while nobody but its Chef is with it at an Event to come.");
+        concerned.forEach(chef -> chef.setPoste(group.getKind().chefPoste()));
     }
 
     /** The Chef leading the Groupe rides with it: only a change of Affectation takes them out (ADR 0010). */
@@ -194,7 +210,9 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public RegistrationDto signUp(UUID eventId, UUID personId, UUID groupId) {
+    public RegistrationDto signUp(UUID eventId, UUID personId, PosteEnum poste, UUID groupId) {
+        if (poste == PosteEnum.PASSAGER)
+            throw new InvalidResourceException("A passager signs up behind a conducteur.");
         EventEntity event = lockedEventOrThrow(eventId);
         UserEntity person = internalUserService.doGetEntityById(personId)
                 .orElseThrow(() -> new UnknownResourceException("User not found: " + personId));
@@ -205,8 +223,8 @@ public class EventServiceImpl implements EventService {
         requireSignUpOpenTo(event, person);
 
         EventRegistrationEntity registration = event.currentStatus() == EventStatusEnum.OUVERT && placeLeft(event, 1)
-                ? registrationRepository.persistConfirmed(event, person)
-                : registrationRepository.persistWaiting(event, person);
+                ? registrationRepository.persistConfirmed(event, person, poste)
+                : registrationRepository.persistWaiting(event, person, poste);
         if (groupId != null) registration.requestGroup(groupOrThrow(groupId));
         return toDto(registration);
     }
@@ -246,7 +264,7 @@ public class EventServiceImpl implements EventService {
     public List<NestedUserDto> conducteursOf(UUID eventId) {
         eventOrThrow(eventId);
         return registrationRepository.listByEvent(eventId).stream()
-                .filter(r -> !r.isPassager())
+                .filter(r -> r.getPoste() == PosteEnum.CONDUCTEUR)
                 .map(r -> personRef(r.getPerson()))
                 .toList();
     }
@@ -293,6 +311,17 @@ public class EventServiceImpl implements EventService {
         GroupEntity group = groupOrThrow(groupId);
         if (!registration.ridesWith(group)) requireRoomIn(event, group, registration.placesTaken());
         registration.placeIn(group);
+        return rosterOf(event);
+    }
+
+    @Override
+    @Transactional
+    public RosterDto changePoste(UUID eventId, UUID personId, PosteEnum poste) {
+        EventEntity event = managedEventOrThrow(eventId);
+        refuseOnArchived(event);
+        EventRegistrationEntity registration = registrationOrThrow(eventId, personId);
+        refuseOnChef(registration);
+        registration.changePoste(poste);
         return rosterOf(event);
     }
 
@@ -463,7 +492,7 @@ public class EventServiceImpl implements EventService {
     private static RosterEntryDto toRosterEntry(EventRegistrationEntity registration) {
         UserEntity person = registration.getPerson();
         return new RosterEntryDto(person.getUserId(), person.getFirstName(), person.getLastName(), person.getPhone(),
-                registration.getMode(), registration.getSignedUpAt(),
+                registration.getPoste(), registration.getSignedUpAt(),
                 GroupRefDto.of(registration.getGroup()), DemandeDto.of(registration), conducteurOf(registration),
                 registration.getPassagers().size(), registration.isChefOfItsGroup());
     }
@@ -552,7 +581,7 @@ public class EventServiceImpl implements EventService {
     }
 
     private static RegistrationDto toDto(EventRegistrationEntity registration) {
-        return new RegistrationDto(registration.getEvent().getEventId(), registration.getMode(), registration.status(),
+        return new RegistrationDto(registration.getEvent().getEventId(), registration.getPoste(), registration.status(),
                 registration.getSignedUpAt(), GroupRefDto.of(registration.getGroup()), DemandeDto.of(registration), conducteurOf(registration),
                 registration.isChefOfItsGroup());
     }

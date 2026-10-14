@@ -3,6 +3,7 @@ package fr.fruityhedgeh0g.repositories;
 import fr.fruityhedgeh0g.entities.EventEntity;
 import fr.fruityhedgeh0g.entities.EventRegistrationEntity;
 import fr.fruityhedgeh0g.entities.UserEntity;
+import fr.fruityhedgeh0g.enums.PosteEnum;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
 
@@ -42,15 +43,23 @@ public class EventRegistrationRepository implements PanacheRepositoryBase<EventR
     }
 
     public EventRegistrationEntity persistConfirmed(EventEntity event, UserEntity person) {
-        return persistSignUp(event, person, false);
+        return persistConfirmed(event, person, PosteEnum.CONDUCTEUR);
     }
 
     public EventRegistrationEntity persistWaiting(EventEntity event, UserEntity person) {
-        return persistSignUp(event, person, true);
+        return persistWaiting(event, person, PosteEnum.CONDUCTEUR);
     }
 
-    private EventRegistrationEntity persistSignUp(EventEntity event, UserEntity person, boolean waiting) {
-        EventRegistrationEntity registration = EventRegistrationEntity.conducteur(event, person, waiting);
+    public EventRegistrationEntity persistConfirmed(EventEntity event, UserEntity person, PosteEnum poste) {
+        return persistSignUp(event, person, poste, false);
+    }
+
+    public EventRegistrationEntity persistWaiting(EventEntity event, UserEntity person, PosteEnum poste) {
+        return persistSignUp(event, person, poste, true);
+    }
+
+    private EventRegistrationEntity persistSignUp(EventEntity event, UserEntity person, PosteEnum poste, boolean waiting) {
+        EventRegistrationEntity registration = EventRegistrationEntity.signUp(event, person, poste, waiting);
         persist(registration);
         return registration;
     }
