@@ -51,6 +51,7 @@ export const PhotoEditDialog: React.FC<PhotoEditDialogProps> = ({ photo, onClose
   };
 
   if (!photo) return dialog;
+  const used = (photo.usedBy ?? []).length > 0;
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,14 +104,19 @@ export const PhotoEditDialog: React.FC<PhotoEditDialogProps> = ({ photo, onClose
             label="Visibilité"
             value={shownTo}
             onChange={(v) => setShownTo(v as Visibilite)}
-            disabled={!editable}
+            disabled={!editable || used}
             options={VISIBILITES.map((v) => ({ value: v, label: VISIBILITE_LABELS[v] }))}
           />
+          {used && (
+            <p className={styles.muted}>
+              Utilisée par : {photo.usedBy!.join(", ")}. Elle reste Publique et ne peut pas être supprimée tant qu'elle sert à ces endroits.
+            </p>
+          )}
           {error && <p className={styles.error}>{error.message}</p>}
           {editable && (
             <div className={styles.dialogActions}>
               <Button type="submit" label="Enregistrer" disabled={pending} />
-              <Button type="button" label="Supprimer" variant="danger" onClick={() => destroy().catch(() => undefined)} disabled={pending} />
+              <Button type="button" label="Supprimer" variant="danger" onClick={() => destroy().catch(() => undefined)} disabled={pending || used} />
             </div>
           )}
         </form>

@@ -24,7 +24,7 @@ const sizeLabel = (bytes: number) => (bytes < 1024 * 1024 ? `${Math.round(bytes 
  */
 export const MediasAdminPage: React.FC = () => {
   const { data: medias, isLoading } = useMedias();
-  const { upload, describe } = useMediaMutations();
+  const { upload, describe, remove } = useMediaMutations();
   const depositOn = useFeature("depot-medias");
   const depositOff = useFeatureOff("depot-medias");
 
@@ -40,7 +40,7 @@ export const MediasAdminPage: React.FC = () => {
       idOf={(m) => m.mediaId}
       display={(m) => ({
         title: m.alt,
-        subtitle: `${m.originalFilename} · ${sizeLabel(m.fileSize)}`,
+        subtitle: [m.originalFilename, sizeLabel(m.fileSize), m.usedBy?.length ? `Utilisée par : ${m.usedBy.join(", ")}` : "Inutilisée"].join(" · "),
         leading: <img className={styles.thumb} src={m.url} alt="" />,
       })}
       toDraft={(m) => ({ alt: m.alt, file: null })}
@@ -59,6 +59,17 @@ export const MediasAdminPage: React.FC = () => {
         </>
       )}
       onUpdate={(mediaId, draft) => describe.mutateAsync({ mediaId, alt: draft.alt })}
+      remove={{
+        title: "Supprimer l'image ?",
+        message: (m) =>
+          m.usedBy?.length
+            ? `Cette image est utilisée par : ${m.usedBy.join(", ")}. Remplacez-la d'abord à ces endroits : elle ne sera pas supprimée.`
+            : "L'image est supprimée pour de bon.",
+        onRemove: (mediaId) => {
+          const media = medias?.find((m) => m.mediaId === mediaId);
+          return media?.usedBy?.length ? Promise.reject(new Error("Image utilisée")) : remove.mutateAsync(mediaId);
+        },
+      }}
       create={
         depositOn
           ? {

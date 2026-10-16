@@ -86,6 +86,14 @@ public class MediaController {
         }
     }
 
+    /** The Bureau deletes an image outside the Galerie once nothing uses it. */
+    @DELETE
+    @Path("/{mediaId}")
+    @RolesAllowed("bureau")
+    public void delete(@PathParam("mediaId") UUID mediaId){
+        mediaFileService.deleteUnused(mediaId);
+    }
+
     @PATCH
     @Path("/{mediaId}")
     @Consumes(MediaType.APPLICATION_JSON)

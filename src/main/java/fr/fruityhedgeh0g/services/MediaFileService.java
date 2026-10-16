@@ -6,6 +6,7 @@ import fr.fruityhedgeh0g.entities.medias.PhotoEntity;
 import fr.fruityhedgeh0g.enums.MediaVariantEnum;
 import fr.fruityhedgeh0g.exceptions.InvalidResourceException;
 import fr.fruityhedgeh0g.exceptions.UnknownResourceException;
+import fr.fruityhedgeh0g.repositories.GalleryPhotoRepository;
 import fr.fruityhedgeh0g.repositories.MediaRepository;
 import fr.fruityhedgeh0g.storage.MediaStorage;
 import fr.fruityhedgeh0g.storage.StoredFile;
@@ -39,6 +40,8 @@ public class MediaFileService {
     @Inject MediaRepository mediaRepository;
     @Inject MediaStorage storage;
     @Inject MediaMapper mediaMapper;
+    @Inject MediaUses mediaUses;
+    @Inject GalleryPhotoRepository photoRepository;
 
     /** An image used outside the Galerie (a banner, the carousel, the logo): its original only. */
     @Transactional
@@ -96,6 +99,20 @@ public class MediaFileService {
     public Optional<StoredFile> file(MediaEntity media, MediaVariantEnum variant) {
         return storage.open(variant.keyOf(media.getFileKey()))
                 .or(() -> variant == MediaVariantEnum.ORIGINAL ? Optional.empty() : storage.open(MediaVariantEnum.ORIGINAL.keyOf(media.getFileKey())));
+    }
+
+    /**
+     * The Bureau deletes an image outside the Galerie once nothing uses it any more; a Photo de la Galerie is deleted
+     * through the Galerie.
+     */
+    @Transactional
+    public void deleteUnused(UUID mediaId) {
+        MediaEntity media = mediaRepository.findByIdOptional(mediaId)
+                .orElseThrow(() -> new UnknownResourceException("Media not found: " + mediaId));
+        if (photoRepository.isInGalerie(mediaId))
+            throw new InvalidResourceException("A Photo de la Galerie is deleted through the Galerie: " + mediaId);
+        mediaUses.requireUnused(mediaId, "An image in use is not deleted");
+        delete(media);
     }
 
     /** The Media and every one of its files. */

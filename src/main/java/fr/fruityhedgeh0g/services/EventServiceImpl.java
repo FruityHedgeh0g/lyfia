@@ -99,6 +99,9 @@ public class EventServiceImpl implements EventService {
     @Inject
     DechargeService dechargeService;
 
+    @Inject
+    MediaUses mediaUses;
+
     /** A Journée's sign-ups in the order they were taken: the order of its Liste d'attente. */
     private static final Comparator<JourneeRegistrationEntity> BY_SIGN_UP = Comparator
             .comparing(JourneeRegistrationEntity::getSignedUpAt)
@@ -143,6 +146,7 @@ public class EventServiceImpl implements EventService {
         EventEntity event = eventMapper.toEntity(eventDto);
         event.setStatus(EventStatusEnum.PLANIFICATION);
         event.setSector(sector);
+        event.setMedia(mediaUses.usable(eventDto.getImageMediaId()));
         normalizeMaximum(event);
         validate(event);
         eventRepository.persist(event);
@@ -219,6 +223,8 @@ public class EventServiceImpl implements EventService {
         EventEntity event = managedEventOrThrow(eventDto.getEventId());
         refuseOnFinal(event);
         eventMapper.partialDtoToEntity(event, eventDto);
+        // The whole Event is sent: no image means it was taken away
+        event.setMedia(mediaUses.usable(eventDto.getImageMediaId()));
         normalizeMaximum(event);
         validate(event);
         // The sign-ups of Journées the Event no longer has go; its Chefs are at the new ones

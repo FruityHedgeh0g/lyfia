@@ -1,5 +1,6 @@
 package fr.fruityhedgeh0g.entities;
 
+import jakarta.persistence.ManyToOne;
 import fr.fruityhedgeh0g.entities.medias.MediaEntity;
 import fr.fruityhedgeh0g.enums.PostStatusEnum;
 import jakarta.persistence.*;
@@ -66,7 +67,7 @@ public class PostEntity extends AuditTemplate {
         return status == PostStatusEnum.PUBLIE;
     }
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "media_id")
     private MediaEntity banner;
 

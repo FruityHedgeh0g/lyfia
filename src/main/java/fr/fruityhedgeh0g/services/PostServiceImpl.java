@@ -36,6 +36,9 @@ import java.util.UUID;
 @Default
 public class PostServiceImpl implements PostService {
     @Inject
+    MediaUses mediaUses;
+
+    @Inject
     PostRepository postRepository;
 
     @Inject
@@ -90,6 +93,7 @@ public class PostServiceImpl implements PostService {
                 .orElseThrow(() -> new UnknownResourceException("User not found: " + authorId));
         post.setAuthor(author);
         post.setSector(sectorFor(author, postDto.getSectorId()));
+        post.setBanner(mediaUses.usable(postDto.getBannerId()));
         validate(post);
         postRepository.persist(post);
         return postMapper.toDto(post);
@@ -101,6 +105,8 @@ public class PostServiceImpl implements PostService {
         if (postDto.getPostId() == null) throw new InvalidResourceException("Missing post id.");
         PostEntity post = managedPostOrThrow(postDto.getPostId());
         postMapper.partialDtoToEntity(post, postDto);
+        // The whole Post is sent: no banner means it was taken away
+        post.setBanner(mediaUses.usable(postDto.getBannerId()));
         validate(post);
         return postMapper.toDto(post);
     }

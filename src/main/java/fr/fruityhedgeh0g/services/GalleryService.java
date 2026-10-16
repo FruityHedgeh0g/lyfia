@@ -52,6 +52,7 @@ public class GalleryService {
     @Inject EventRepository eventRepository;
     @Inject GroupRepository groupRepository;
     @Inject MediaFileService mediaFileService;
+    @Inject MediaUses mediaUses;
     @Inject GallerySettings settings;
     @Inject FeatureLevers featureLevers;
     @Inject Viewer viewer;
@@ -82,7 +83,7 @@ public class GalleryService {
                 .filter(this::visible)
                 .filter(p -> eventId == null || (p.getEvent() != null && p.getEvent().getEventId().equals(eventId)))
                 .filter(p -> groupId == null || p.getGroups().stream().anyMatch(g -> g.getGroupId().equals(groupId)))
-                .map(p -> GalleryPhotoDto.of(p, manages(p.getSector())))
+                .map(p -> manages(p.getSector()) ? managedDto(p) : GalleryPhotoDto.of(p, false, List.of()))
                 .toList();
     }
 
@@ -106,7 +107,7 @@ public class GalleryService {
         photo.setMedia(mediaFileService.store(deposit.original(),
                 Map.of(MediaVariantEnum.AFFICHAGE, deposit.affichage(), MediaVariantEnum.VIGNETTE, deposit.vignette()), deposit.alt()));
         photoRepository.persist(photo);
-        return GalleryPhotoDto.of(photo, true);
+        return managedDto(photo);
     }
 
     /** The Bureau corrects what a photo tells: its description, Event or Année, and Groupes. */
@@ -115,15 +116,18 @@ public class GalleryService {
         GalleryPhotoEntity photo = managedPhotoOrThrow(photoId);
         tell(photo, change.eventId(), change.annee(), change.groupIds());
         photo.getMedia().setAlt(change.alt() == null || change.alt().isBlank() ? null : change.alt().trim());
-        return GalleryPhotoDto.of(photo, true);
+        return managedDto(photo);
     }
 
     /** The Bureau gives a selection of its Secteur's photos one Visibilité. */
     @Transactional
     public List<GalleryPhotoDto> setVisibilite(List<UUID> photoIds, VisibiliteEnum visibilite) {
         List<GalleryPhotoEntity> photos = photoIds.stream().distinct().map(this::managedPhotoOrThrow).toList();
+        // A photo used on the public site stays Publique
+        if (visibilite != VisibiliteEnum.PUBLIQUE)
+            photos.forEach(photo -> mediaUses.requireUnused(photo.getMedia().getMediaId(), "A photo in use stays Publique"));
         photos.forEach(photo -> photo.setVisibilite(visibilite));
-        return photos.stream().map(p -> GalleryPhotoDto.of(p, true)).toList();
+        return photos.stream().map(this::managedDto).toList();
     }
 
     /** The Bureau deletes a photo, on request for instance (image rights), with its files. */
@@ -131,6 +135,7 @@ public class GalleryService {
     public void delete(UUID photoId) {
         GalleryPhotoEntity photo = managedPhotoOrThrow(photoId);
         MediaEntity media = photo.getMedia();
+        mediaUses.requireUnused(media.getMediaId(), "A photo in use is not deleted");
         photoRepository.delete(photo);
         photoRepository.flush();
         mediaFileService.delete(media);
@@ -147,6 +152,11 @@ public class GalleryService {
                 .map(photo -> new Access(seesWhateverTheFeature(photo), photo.getVisibilite() == VisibiliteEnum.PUBLIQUE
                         && !photo.getSector().isClosed()))
                 .orElse(new Access(true, true));
+    }
+
+    /** For the Bureau of its Secteur: its Visibilité, and where the site uses it. */
+    private GalleryPhotoDto managedDto(GalleryPhotoEntity photo) {
+        return GalleryPhotoDto.of(photo, true, mediaUses.usedBy(photo.getMedia().getMediaId()));
     }
 
     public GallerySettings.Limits limits() {

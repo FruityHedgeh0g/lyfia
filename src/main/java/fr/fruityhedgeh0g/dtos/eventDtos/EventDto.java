@@ -33,8 +33,9 @@ public class EventDto {
     @JsonView({Views.Basic.class,Views.Creation.class,Views.Update.class})
     LocalDateTime endDateTime;
 
+    /** Its image's Media (files at /api/medias/{id}/content); none: the site's placeholder. */
     @JsonView({Views.Basic.class,Views.Creation.class,Views.Update.class})
-    String imageUrl;
+    UUID imageMediaId;
 
     /** Secteur of the Event: required on creation, fixed afterwards. */
     @JsonView({Views.Basic.class,Views.Creation.class})

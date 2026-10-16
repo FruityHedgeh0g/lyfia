@@ -29,12 +29,15 @@ public class MediaServiceImpl implements MediaService {
     @Inject
     MediaMapper mediaMapper;
 
+    @Inject
+    MediaUses mediaUses;
+
     @Override
     public List<MediaDto> listAll() {
         // The Medias outside the Galerie: a Photo de la Galerie is seen through the Galerie, as its Visibilité allows
         return mediaRepository.list("from MediaEntity m where not exists (select p from GalleryPhotoEntity p where p.media = m)")
                 .stream()
-                .map(mediaMapper::toDto)
+                .map(media -> mediaMapper.toDto(media).withUsedBy(mediaUses.usedBy(media.getMediaId())))
                 .toList();
     }
 

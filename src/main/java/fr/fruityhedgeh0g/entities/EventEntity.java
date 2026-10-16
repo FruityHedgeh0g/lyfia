@@ -70,8 +70,10 @@ public class EventEntity extends AuditTemplate {
     @Column(name = "address_complement")
     private String addressComplement;
 
-    @Column(name = "image_url")
-    private String imageUrl;
+    /** Its image: a Media outside the Galerie, or a Publique Photo de la Galerie. */
+    @jakarta.persistence.ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
+    @jakarta.persistence.JoinColumn(name = "media_id")
+    private fr.fruityhedgeh0g.entities.medias.MediaEntity media;
 
     /** Optional overall maximum of Participants; beyond it, sign-ups go onto the Liste d'attente. */
     @Column(name = "max_participants")

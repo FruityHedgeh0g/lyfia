@@ -9,6 +9,7 @@ interface MediaDto {
   contentType?: string | null;
   fileSize: number;
   alt?: string | null;
+  usedBy?: string[] | null;
 }
 
 export const mediaUrl = (mediaId: string) => `/api/medias/${encodeURIComponent(mediaId)}/content`;
@@ -21,6 +22,7 @@ const toMedia = (dto: MediaDto): Media => ({
   fileSize: dto.fileSize,
   url: mediaUrl(dto.mediaId),
   alt: dto.alt || dto.originalFilename,
+  usedBy: dto.usedBy ?? [],
 });
 
 /** Images JPEG, PNG, WebP ou GIF de 8 Mo au plus (ADR 0008). */
@@ -47,3 +49,6 @@ export async function uploadMedia(file: File, alt: string): Promise<Media> {
 export async function describeMedia(mediaId: string, alt: string): Promise<Media> {
   return toMedia(await apiFetch<MediaDto>(`/api/medias/${encodeURIComponent(mediaId)}`, { method: "PATCH", body: JSON.stringify({ alt }) }));
 }
+
+/** Le Bureau supprime une image hors de la Galerie, une fois que plus rien ne l'utilise. */
+export const deleteMedia = (mediaId: string) => apiFetch<void>(`/api/medias/${encodeURIComponent(mediaId)}`, { method: "DELETE" });
