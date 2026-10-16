@@ -134,6 +134,12 @@ export function seedGalleryPhoto(photo: Partial<GalleryPhoto> & Pick<GalleryPhot
   return photoId;
 }
 
+/** Donne à une actualité ses « Photos de l'actualité », sans les règles de l'API. */
+export function seedPostPhotos(postId: string, mediaIds: string[]) {
+  const post = state.posts.find((p) => p.postId === postId);
+  if (post) post.attachmentIds = mediaIds;
+}
+
 /** Ajoute une personne aux Inscrits telle quelle, sans les règles de l'API. */
 export function seedMember(member: Member) {
   state.members.push(member);
@@ -523,14 +529,23 @@ function posts(method: string, [postId, action]: string[], body: any, query: URL
     if (method === "POST") {
       const { userId, firstName, lastName } = state.viewer;
       const sectorId = isSuperAdmin() ? (body.sectorId ?? null) : state.viewer.sectorId;
-      const post: Post = { postId: `post-new-${state.posts.length + 1}`, title: body.title, content: body.content, status: "brouillon", author: { userId, firstName, lastName }, sectorId };
+      const post: Post = {
+        postId: `post-new-${state.posts.length + 1}`,
+        title: body.title,
+        content: body.content,
+        status: "brouillon",
+        author: { userId, firstName, lastName },
+        sectorId,
+        bannerId: body.bannerId ?? null,
+        attachmentIds: body.attachmentIds ?? [],
+      };
       state.posts.unshift(post);
       return json(post);
     }
     const post = state.posts.find((p) => p.postId === body.postId);
     if (method !== "PATCH" || !post) return empty(method === "PATCH" ? 404 : 405);
     if (!manages(post.sectorId)) return empty(403);
-    Object.assign(post, { title: body.title, content: body.content });
+    Object.assign(post, { title: body.title, content: body.content, bannerId: body.bannerId ?? null, attachmentIds: body.attachmentIds ?? [] });
     return json(post);
   }
   const offPost = state.posts.find((p) => p.postId === postId && p.status === "publie" && offFor(p));

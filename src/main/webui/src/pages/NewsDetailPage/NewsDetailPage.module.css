@@ -53,3 +53,7 @@
 .error {
   color: var(--color-danger);
 }
+
+.photos {
+  margin-top: 32px;
+}

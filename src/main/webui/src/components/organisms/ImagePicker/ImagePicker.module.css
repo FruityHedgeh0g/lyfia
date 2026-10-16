@@ -106,3 +106,44 @@
   outline: 3px solid var(--color-accent);
   outline-offset: -3px;
 }
+
+/* Plusieurs photos dans leur ordre (les « Photos de l'actualité ») */
+.photoList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.photoListItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.photoListItem img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  display: block;
+}
+
+.photoListActions {
+  display: flex;
+  justify-content: space-between;
+}
+
+.photoListActions button {
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: inherit;
+  cursor: pointer;
+}
+
+.photoListActions button:disabled {
+  opacity: .4;
+  cursor: default;
+}

@@ -8,6 +8,8 @@ export interface PostInput {
   sectorId?: string | null;
   /** Le Media de sa bannière ; null la retire. */
   bannerId?: string | null;
+  /** Ses « Photos de l'actualité », dans l'ordre (12 au plus) ; vide les retire toutes. */
+  attachmentIds?: string[];
 }
 
 type PostDto = Omit<Post, "content" | "author"> & { content?: string | null; author?: Post["author"] };
@@ -16,6 +18,7 @@ const toPost = (dto: PostDto): Post => ({
   ...dto,
   content: dto.content ?? "",
   author: dto.author ?? null,
+  attachmentIds: dto.attachmentIds ?? [],
   // La bannière s'affiche par son fichier d'affichage (ADR 0014)
   banner: dto.bannerId
     ? ({ ...dto.banner, mediaId: dto.bannerId, url: `/api/medias/${encodeURIComponent(dto.bannerId)}/content?variante=affichage`, alt: dto.banner?.alt || dto.title } as Post["banner"])
@@ -54,7 +57,7 @@ export async function createPost(input: PostInput): Promise<Post> {
 
 export async function updatePost(postId: string, patch: PostInput): Promise<Post> {
   const { title, content } = patch;
-  return toPost(await apiFetch<PostDto>("/api/posts", { method: "PATCH", body: JSON.stringify({ postId, title, content, bannerId: patch.bannerId ?? null }) }));
+  return toPost(await apiFetch<PostDto>("/api/posts", { method: "PATCH", body: JSON.stringify({ postId, title, content, bannerId: patch.bannerId ?? null, attachmentIds: patch.attachmentIds ?? [] }) }));
 }
 
 export async function changePostStatus(postId: string, status: PostStatus): Promise<Post> {
