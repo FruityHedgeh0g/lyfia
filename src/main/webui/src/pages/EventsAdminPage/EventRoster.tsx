@@ -9,6 +9,7 @@ import Select from "../../components/atoms/Select/Select";
 import ButtonLink from "../../components/atoms/ButtonLink/ButtonLink";
 import FormField from "../../components/molecules/FormField/FormField";
 import Spinner from "../../components/atoms/Spinner/Spinner";
+import SearchBar from "../../components/molecules/SearchBar/SearchBar";
 import FeatureNotice from "../../components/molecules/FeatureNotice/FeatureNotice";
 import Collapsible from "../../components/molecules/Collapsible/Collapsible";
 import { matchesSearch } from "../../lib/textSearch";
@@ -288,11 +289,10 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
         />
       )}
       {participants.length + waiting.length > 0 && (
-        <FormField
+        <SearchBar
           label="Rechercher un inscrit"
-          type="search"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={setSearch}
           onKeyDown={(e) => {
             // Le roster est dans le formulaire de l'Événement : Entrée ne l'enregistre pas
             if (e.key === "Enter") e.preventDefault();
