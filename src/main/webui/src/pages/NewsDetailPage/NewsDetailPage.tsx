@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
+import Lightbox from "../../components/organisms/Lightbox/Lightbox";
+import PhotoGrid from "../../components/organisms/PhotoGrid/PhotoGrid";
 import { Link, useParams } from "react-router-dom";
 import { usePost } from "../../features/posts/usePosts";
 import PageHero from "../../components/organisms/PageHero/PageHero";
@@ -11,6 +13,9 @@ import styles from "./NewsDetailPage.module.css";
 export const NewsDetailPage: React.FC = () => {
   const { postId } = useParams<{ postId: string }>();
   const { data: post, isLoading, isError, error } = usePost(postId);
+  const [open, setOpen] = useState<number | null>(null);
+  // Ses photos, montrées comme celles de la Galerie ; elles portent le titre de l'actualité
+  const photos = (post?.attachmentIds ?? []).map((mediaId) => ({ photoId: mediaId, mediaId, alt: post!.title }));
 
   const back = (
     <Link className={styles.back} to="/actualites">
@@ -39,6 +44,12 @@ export const NewsDetailPage: React.FC = () => {
         {back}
         {post.banner && <img className={styles.banner} src={post.banner.url} alt={post.banner.alt} />}
         <p className={styles.content}>{post.content}</p>
+        {photos.length > 0 && (
+          <section className={styles.photos} aria-label="Photos de l'actualité">
+            <PhotoGrid photos={photos} onOpen={setOpen} />
+            <Lightbox photos={photos} index={open} onIndex={setOpen} />
+          </section>
+        )}
       </div>
     </article>
   );

@@ -415,6 +415,33 @@ public class GalleryResourceTest {
         given().basePath("/api").when().get("/medias/{id}/content", mediaId).then().statusCode(404);
     }
 
+    @Test
+    @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU))
+    void aPostShowsUpTo12PhotosInTheOrderChosen() {
+        String first = depositOfEdition().extract().path("photoId");
+        String second = photo(ORIGINAL).multiPart("annee", "2020").when().post("/galerie").then().extract().path("photoId");
+        makeVisible(first, "PUBLIQUE");
+        makeVisible(second, "PUBLIQUE");
+        String a = mediaOf(first);
+        String b = mediaOf(second);
+
+        String postId = given().basePath("/api").contentType(ContentType.JSON)
+                .body(Map.of("title", "Galerie compte rendu", "content", "La balade", "attachmentIds", List.of(b, a)))
+                .when().post("/posts").then().statusCode(200).extract().path("postId");
+        given().basePath("/api").when().get("/posts/{id}", postId).then().statusCode(200).body("attachmentIds", equalTo(List.of(b, a)));
+        album(editionYear).body("[0].usedBy", hasItem("Photos de l'actualité « Galerie compte rendu »"));
+
+        given().basePath("/api").contentType(ContentType.JSON)
+                .body(Map.of("postId", postId, "title", "Galerie compte rendu", "content", "La balade", "attachmentIds", List.of(a)))
+                .when().patch("/posts").then().statusCode(200).body("attachmentIds", equalTo(List.of(a)));
+
+        given().basePath("/api").contentType(ContentType.JSON)
+                .body(Map.of("title", "Galerie trop", "content", "Trop", "attachmentIds",
+                        java.util.stream.Stream.generate(() -> UUID.randomUUID().toString()).limit(13).toList()))
+                .when().post("/posts").then().statusCode(400);
+    }
+
     // --- Propositions de photo ---
 
     private ValidatableResponse propose(UUID eventId) {

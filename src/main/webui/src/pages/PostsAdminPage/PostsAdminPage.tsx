@@ -1,4 +1,5 @@
 import React from "react";
+import PhotoListPicker from "../../components/organisms/ImagePicker/PhotoListPicker";
 import { useAuth } from "../../auth/AuthContext";
 import ImagePicker from "../../components/organisms/ImagePicker/ImagePicker";
 import { useAllPosts, usePostMutations } from "../../features/posts/usePosts";
@@ -49,7 +50,7 @@ export const PostsAdminPage: React.FC = () => {
           .filter(Boolean)
           .join(" · "),
       })}
-      toDraft={(p): PostInput => ({ title: p.title, content: p.content, bannerId: p.bannerId ?? null })}
+      toDraft={(p): PostInput => ({ title: p.title, content: p.content, bannerId: p.bannerId ?? null, attachmentIds: p.attachmentIds ?? [] })}
       renderFields={(draft, setDraft, post) => (
         <>
           {superAdmin && !post && (
@@ -69,6 +70,12 @@ export const PostsAdminPage: React.FC = () => {
             format="banniere"
             value={draft.bannerId ?? null}
             onChange={(bannerId) => setDraft({ ...draft, bannerId })}
+            sectorId={post ? post.sectorId ?? null : draft.sectorId || user?.sector?.sectorId || null}
+          />
+          <PhotoListPicker
+            label="Photos de l'actualité"
+            value={draft.attachmentIds ?? []}
+            onChange={(attachmentIds) => setDraft({ ...draft, attachmentIds })}
             sectorId={post ? post.sectorId ?? null : draft.sectorId || user?.sector?.sectorId || null}
           />
           {post && (

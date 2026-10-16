@@ -1,5 +1,6 @@
 package fr.fruityhedgeh0g.services;
 
+import fr.fruityhedgeh0g.entities.medias.MediaEntity;
 import fr.fruityhedgeh0g.entities.SectorEntity;
 import fr.fruityhedgeh0g.entities.UserEntity;
 import fr.fruityhedgeh0g.enums.FeatureEnum;
@@ -26,6 +27,8 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 
+import java.util.ArrayList;
+import java.util.Objects;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -94,6 +97,7 @@ public class PostServiceImpl implements PostService {
         post.setAuthor(author);
         post.setSector(sectorFor(author, postDto.getSectorId()));
         post.setBanner(mediaUses.usable(postDto.getBannerId()));
+        post.setAttachments(attachmentsOf(postDto.getAttachmentIds()));
         validate(post);
         postRepository.persist(post);
         return postMapper.toDto(post);
@@ -105,10 +109,22 @@ public class PostServiceImpl implements PostService {
         if (postDto.getPostId() == null) throw new InvalidResourceException("Missing post id.");
         PostEntity post = managedPostOrThrow(postDto.getPostId());
         postMapper.partialDtoToEntity(post, postDto);
-        // The whole Post is sent: no banner means it was taken away
+        // The whole Post is sent: no banner, no photos, means they were taken away
         post.setBanner(mediaUses.usable(postDto.getBannerId()));
+        post.setAttachments(attachmentsOf(postDto.getAttachmentIds()));
         validate(post);
         return postMapper.toDto(post);
+    }
+
+    /** The most "Photos de l'actualité" a Post has. */
+    static final int MAX_ATTACHMENTS = 12;
+
+    /** "Photos de l'actualité" in their order: images the public site may show, 12 at most. */
+    private List<MediaEntity> attachmentsOf(List<UUID> mediaIds) {
+        List<UUID> ids = mediaIds == null ? List.of() : mediaIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.size() > MAX_ATTACHMENTS)
+            throw new InvalidResourceException("A Post has " + MAX_ATTACHMENTS + " photos at most: " + ids.size());
+        return new ArrayList<>(ids.stream().map(mediaUses::usable).toList());
     }
 
     @Override

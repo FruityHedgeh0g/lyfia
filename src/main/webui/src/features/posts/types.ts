@@ -28,5 +28,7 @@ export interface Post {
   /** Le Media de sa bannière ; aucun : pas de bannière. */
   bannerId?: string | null;
   banner?: Media;
+  /** Ses « Photos de l'actualité », dans l'ordre choisi par le Bureau (12 au plus). */
+  attachmentIds?: string[];
   attachments?: Media[];
 }

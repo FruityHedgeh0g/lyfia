@@ -43,4 +43,8 @@ public class PostDto {
 
     @JsonView({Views.Detailed.class})
     List<NestedMediaDto> attachments;
+
+    /** Its "Photos de l'actualité" in their order, as the Bureau chooses them (12 at most); none takes them all away. */
+    @JsonView({Views.Detailed.class,Views.Creation.class,Views.Update.class})
+    List<UUID> attachmentIds;
 }

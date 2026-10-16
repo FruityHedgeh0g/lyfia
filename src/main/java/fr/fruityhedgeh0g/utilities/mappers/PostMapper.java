@@ -17,6 +17,7 @@ public interface PostMapper {
 
     @Mapping(target = "sectorId", source = "sector.sectorId")
     @Mapping(target = "bannerId", source = "banner.mediaId")
+    @Mapping(target = "attachmentIds", expression = "java(entity.getAttachments() == null ? java.util.List.of() : entity.getAttachments().stream().map(fr.fruityhedgeh0g.entities.medias.MediaEntity::getMediaId).toList())")
     PostDto toDto(PostEntity entity);
 
     NestedPostDto toNestedDto(PostEntity entity);

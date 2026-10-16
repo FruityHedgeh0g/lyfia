@@ -2,13 +2,13 @@ import React, { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Icon from "../../atoms/Icon/Icon";
 import { useDialog } from "../../molecules/Modal/useDialog";
-import { GalleryPhoto } from "../../../features/galerie/types";
+import { ShownPhoto } from "../../../features/galerie/types";
 import { photoUrl } from "../../../features/galerie/galerieApi";
 import { photoCaption } from "../PhotoGrid/PhotoGrid";
 import styles from "./Lightbox.module.css";
 
 export interface LightboxProps {
-  photos: GalleryPhoto[];
+  photos: ShownPhoto[];
   /** La photo ouverte ; null : fermé. */
   index: number | null;
   onIndex: (index: number | null) => void;
@@ -35,7 +35,7 @@ export const Lightbox: React.FC<LightboxProps> = ({ photos, index, onIndex }) =>
 
   if (!open) return null;
   const photo = photos[index!];
-  const details = [photo.event?.name, ...photo.groups.map((g) => g.name)].filter(Boolean).join(" · ");
+  const details = [photo.event?.name, ...(photo.groups ?? []).map((g) => g.name)].filter(Boolean).join(" · ");
 
   return createPortal(
     <div

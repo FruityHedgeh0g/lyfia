@@ -12,6 +12,15 @@ export const VISIBILITES = Object.keys(VISIBILITE_LABELS) as Visibilite[];
 /** Les fichiers d'une photo (ADR 0014) : la vignette des grilles, la version d'affichage en grand, l'original. */
 export type Variante = "vignette" | "affichage" | "original";
 
+/** Ce qu'il faut pour montrer une photo, dans une grille ou en grand : une Photo de la Galerie ou celle d'une actualité. */
+export interface ShownPhoto {
+  photoId: string;
+  mediaId: string;
+  alt: string | null;
+  event?: { name: string } | null;
+  groups?: { name: string }[];
+}
+
 /** Reflète AlbumDto : les photos d'un Secteur pour une Année, et combien la personne en voit (ADR 0013). */
 export interface Album {
   sectorId: string;

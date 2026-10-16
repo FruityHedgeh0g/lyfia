@@ -1,23 +1,23 @@
 import React from "react";
-import { GalleryPhoto } from "../../../features/galerie/types";
+import { ShownPhoto } from "../../../features/galerie/types";
 import { photoUrl } from "../../../features/galerie/galerieApi";
 import styles from "./PhotoGrid.module.css";
 
 /** Ce qu'une photo montre, pour sa légende et les lecteurs d'écran : sa description, sinon son Event. */
-export const photoCaption = (photo: GalleryPhoto) => photo.alt || photo.event?.name || "Photo";
+export const photoCaption = (photo: ShownPhoto) => photo.alt || photo.event?.name || "Photo";
 
-export interface PhotoGridProps {
-  photos: GalleryPhoto[];
+export interface PhotoGridProps<T extends ShownPhoto> {
+  photos: T[];
   /** Ouvre la photo en grand. */
   onOpen: (index: number) => void;
   /** Ce que l'administration ajoute sur une vignette : sélection, Visibilité. */
-  overlay?: (photo: GalleryPhoto) => React.ReactNode;
+  overlay?: (photo: T) => React.ReactNode;
   /** La première photo à la une, sur 2 × 2 cases (la Galerie publique). */
   featured?: boolean;
 }
 
 /** Mosaïque de vignettes (ADR 0014) : on n'y charge que la variante « vignette ». */
-export const PhotoGrid: React.FC<PhotoGridProps> = ({ photos, onOpen, overlay, featured = false }) => (
+export const PhotoGrid = <T extends ShownPhoto>({ photos, onOpen, overlay, featured = false }: PhotoGridProps<T>) => (
   <ul className={`${styles.grid} ${featured ? styles.featured : ""}`}>
     {photos.map((photo, index) => (
       <li className={styles.item} key={photo.photoId}>
