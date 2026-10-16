@@ -76,6 +76,8 @@ public class GalleryResourceTest {
     @Inject MediaFileRepository fileRepository;
     @Inject ConfigurationRepository configurationRepository;
     @Inject FeatureSectorLeverRepository sectorLeverRepository;
+    @Inject fr.fruityhedgeh0g.repositories.CarouselItemRepository carouselRepository;
+    @Inject fr.fruityhedgeh0g.repositories.PostRepository postRepository;
 
     private UUID algrange;
     private UUID thionville;
@@ -110,6 +112,9 @@ public class GalleryResourceTest {
     @AfterEach
     void cleanUp() {
         QuarkusTransaction.requiringNew().run(() -> {
+            carouselRepository.deleteAll();
+            postRepository.delete("title like ?1", "Galerie %");
+            eventRepository.update("media = null where eventId in ?1", List.of(edition, otherEvent));
             photoRepository.listAll().forEach(photoRepository::delete);
             photoRepository.flush();
             fileRepository.deleteAll();
@@ -352,6 +357,59 @@ public class GalleryResourceTest {
         QuarkusTransaction.requiringNew().run(() -> sectorRepository.findById(algrange).setClosed(true));
         album(editionYear).body("$", empty());
         given().basePath("/api").when().delete("/galerie/{id}", photoId).then().statusCode(400);
+    }
+
+    // --- Used on the public site (the image picker) ---
+
+    private ValidatableResponse slideWith(String mediaId) {
+        return given().basePath("/api").contentType(ContentType.JSON).body(Map.of("title", "Galerie diapo", "mediaId", mediaId))
+                .when().post("/carousel").then();
+    }
+
+    @Test
+    @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU))
+    void onlyAPubliquePhotoIsUsedOnThePublicSite() {
+        String photoId = depositOfEdition().extract().path("photoId");
+        String mediaId = mediaOf(photoId);
+        slideWith(mediaId).statusCode(400);
+
+        makeVisible(photoId, "PUBLIQUE");
+        slideWith(mediaId).statusCode(200).body("mediaId", equalTo(mediaId));
+        given().basePath("/api").contentType(ContentType.JSON)
+                .body(Map.of("title", "Galerie actualité", "content", "Le compte rendu", "bannerId", mediaId))
+                .when().post("/posts").then().statusCode(200);
+
+        album(editionYear).body("[0].usedBy", hasItem("Carrousel « Galerie diapo »"))
+                .body("[0].usedBy", hasItem("Actualité « Galerie actualité »"));
+    }
+
+    @Test
+    @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU))
+    void aPhotoInUseStaysPubliqueAndIsNotDeleted() {
+        String photoId = depositOfEdition().extract().path("photoId");
+        makeVisible(photoId, "PUBLIQUE");
+        slideWith(mediaOf(photoId)).statusCode(200);
+
+        given().basePath("/api").contentType(ContentType.JSON).body(Map.of("photoIds", List.of(photoId), "visibilite", "inscrits"))
+                .when().put("/galerie/visibilite").then().statusCode(400);
+        given().basePath("/api").when().delete("/galerie/{id}", photoId).then().statusCode(400);
+    }
+
+    @Test
+    @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU))
+    void anImageOutsideTheGalerieIsDeletedOnceUnused() {
+        String mediaId = given().basePath("/api").multiPart("file", "banniere.jpg", ORIGINAL, "image/jpeg")
+                .when().post("/medias").then().statusCode(200).extract().path("mediaId");
+        String slide = slideWith(mediaId).extract().path("id");
+        given().basePath("/api").when().get("/medias").then().body("find { it.mediaId == '" + mediaId + "' }.usedBy", hasItem("Carrousel « Galerie diapo »"));
+        given().basePath("/api").when().delete("/medias/{id}", mediaId).then().statusCode(400);
+
+        given().basePath("/api").when().delete("/carousel/{id}", slide).then().statusCode(204);
+        given().basePath("/api").when().delete("/medias/{id}", mediaId).then().statusCode(204);
+        given().basePath("/api").when().get("/medias/{id}/content", mediaId).then().statusCode(404);
     }
 
     @Test

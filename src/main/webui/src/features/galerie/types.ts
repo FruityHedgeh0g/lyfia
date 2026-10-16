@@ -31,6 +31,8 @@ export interface GalleryPhoto {
   groups: { groupId: string; name: string }[];
   visibilite: Visibilite | null;
   depositedAt: string;
+  /** Pour le Bureau de son Secteur : où le site l'utilise ; elle reste alors Publique et n'est pas supprimée. */
+  usedBy?: string[];
 }
 
 /** La plus grande photo gardée, réglée par le Super admin : le navigateur réduit au-delà (ADR 0014). */

@@ -16,6 +16,7 @@ public interface PostMapper {
     PostEntity toEntity(PostDto dto);
 
     @Mapping(target = "sectorId", source = "sector.sectorId")
+    @Mapping(target = "bannerId", source = "banner.mediaId")
     PostDto toDto(PostEntity entity);
 
     NestedPostDto toNestedDto(PostEntity entity);

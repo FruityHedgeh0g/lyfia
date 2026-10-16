@@ -9,4 +9,6 @@ export interface Media {
   url: string;
   /** Ce que montre l'image ; à défaut, le nom du fichier. */
   alt: string;
+  /** Où le site l'utilise ; on ne la supprime qu'une fois inutilisée. */
+  usedBy?: string[];
 }

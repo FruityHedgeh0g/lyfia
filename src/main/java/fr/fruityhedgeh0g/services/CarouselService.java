@@ -10,7 +10,6 @@ import fr.fruityhedgeh0g.entities.CarouselItemEntity;
 import fr.fruityhedgeh0g.exceptions.InvalidResourceException;
 import fr.fruityhedgeh0g.exceptions.UnknownResourceException;
 import fr.fruityhedgeh0g.repositories.CarouselItemRepository;
-import fr.fruityhedgeh0g.repositories.MediaRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -27,7 +26,7 @@ import java.util.UUID;
 public class CarouselService {
 
     @Inject CarouselItemRepository itemRepository;
-    @Inject MediaRepository mediaRepository;
+    @Inject MediaUses mediaUses;
     @Inject SectorRepository sectorRepository;
     @Inject Viewer viewer;
 
@@ -123,7 +122,6 @@ public class CarouselService {
         item.setCaption(input.caption());
         item.setLinkTo(linkTo);
         item.setActive(input.active() == null || input.active());
-        item.setMedia(input.mediaId() == null ? null : mediaRepository.findByIdOptional(input.mediaId())
-                .orElseThrow(() -> new InvalidResourceException("Unknown media: " + input.mediaId())));
+        item.setMedia(mediaUses.usable(input.mediaId()));
     }
 }

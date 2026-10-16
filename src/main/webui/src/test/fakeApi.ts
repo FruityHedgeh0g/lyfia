@@ -676,6 +676,10 @@ async function galerie(method: string, [photoId]: string[], body: any, query: UR
   return empty(405);
 }
 
+/** Comme MediaUses : seule une photo Publique de la Galerie sert sur le site public. */
+const usableOnThePublicSite = (mediaId: string | null | undefined) =>
+  !mediaId || state.galerie.every((p) => p.mediaId !== mediaId || p.visibilite === "publique");
+
 function carousel(method: string, [id, action, direction]: string[], body: any, query: URLSearchParams): Response {
   const isBureau = roleAtLeast(state.viewer.role, "bureau");
   const ordered = () => [...state.carousel].sort((a, b) => a.order - b.order);
@@ -687,6 +691,7 @@ function carousel(method: string, [id, action, direction]: string[], body: any, 
     }
     if (method !== "POST") return empty(405);
     if (!isBureau) return empty(403);
+    if (!usableOnThePublicSite(body.mediaId)) return empty(400);
     const sectorId = isSuperAdmin() ? (body.sectorId ?? null) : state.viewer.sectorId;
     const item: CarouselItem = { id: `carousel-new-${state.carousel.length + 1}`, order: Math.max(0, ...state.carousel.map((i) => i.order)) + 1, ...body, sectorId };
     state.carousel.push(item);
@@ -697,6 +702,7 @@ function carousel(method: string, [id, action, direction]: string[], body: any, 
   if (!item) return empty(404);
   if (!manages(item.sectorId)) return empty(403);
   if (method === "PUT" && !action) {
+    if (!usableOnThePublicSite(body.mediaId)) return empty(400);
     Object.assign(item, { ...body, sectorId: item.sectorId });
     return json(item);
   }

@@ -37,6 +37,10 @@ public class PostDto {
     @JsonView({Views.Detailed.class})
     NestedMediaDto banner;
 
+    /** The banner's Media, as the Bureau chooses it; none takes it away. */
+    @JsonView({Views.Detailed.class,Views.Creation.class,Views.Update.class})
+    UUID bannerId;
+
     @JsonView({Views.Detailed.class})
     List<NestedMediaDto> attachments;
 }
