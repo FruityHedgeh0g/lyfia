@@ -50,6 +50,11 @@
   max-width: 520px;
 }
 
+/* Actions réparties à gauche et à droite : sur toute la largeur de la fiche */
+.form > .split {
+  max-width: none;
+}
+
 /* Formulaire de création : carte distincte au-dessus de la liste */
 .wrapper > .form {
   max-width: none;

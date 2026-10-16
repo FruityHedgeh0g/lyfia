@@ -14,6 +14,8 @@ import { useConfirm } from "../../components/molecules/ConfirmDialog/useConfirm"
 import { useGroupMaximum } from "../../features/events/useRoster";
 import EventRoster from "./EventRoster";
 import EventRosterActions from "./EventRosterActions";
+import Collapsible from "../../components/molecules/Collapsible/Collapsible";
+import styles from "./EventsAdminPage.module.css";
 import { fetchRoster } from "../../features/events/registrationsApi";
 import { eventJournees, journeeLabel } from "../../lib/journees";
 
@@ -126,7 +128,8 @@ export const EventsAdminPage: React.FC = () => {
       toDraft={toDraft}
       renderFields={(value, onChange, event) => {
         const transitions = event ? allowedTransitions(event.status) : [];
-        return (
+        // Les champs de l'Événement se replient à l'édition, pour aller à la liste des inscrits
+        const fields = (
           <>
             <FormField label="Nom" value={value.name} onChange={(e) => onChange({ ...value, name: e.target.value })} required />
             <FormField
@@ -178,6 +181,15 @@ export const EventsAdminPage: React.FC = () => {
             <FormField label="Adresse" value={value.address} onChange={(e) => onChange({ ...value, address: e.target.value })} />
             <FormField label="Ville" value={value.city} onChange={(e) => onChange({ ...value, city: e.target.value })} />
             <FormField label="Code postal" value={value.postalCode} onChange={(e) => onChange({ ...value, postalCode: e.target.value })} />
+          </>
+        );
+        return (
+          <>
+            {event ? (
+              <Collapsible title={<h3 className={styles.title}>Informations de l'événement</h3>}>{fields}</Collapsible>
+            ) : (
+              fields
+            )}
             {event && (
               <EventRoster
                 key={event.eventId}
