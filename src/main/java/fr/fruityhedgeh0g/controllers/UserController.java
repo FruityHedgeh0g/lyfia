@@ -37,7 +37,7 @@ public class UserController {
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("bureau")
-    public @JsonView(Views.Basic.class) List<UserDto> getAllUsers(){
+    public @JsonView(Views.Detailed.class) List<UserDto> getAllUsers(){
         return userService.listAll();
     }
 

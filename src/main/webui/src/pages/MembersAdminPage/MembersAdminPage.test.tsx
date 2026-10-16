@@ -28,6 +28,37 @@ describe("MembersAdminPage", () => {
     localStorage.clear();
   });
 
+  it("shows each person's contact details in the unfolded card, not under the name", async () => {
+    renderAs("bureau");
+    const sophie = await screen.findByRole("button", { name: /Sophie Kremer/ });
+    expect(sophie).not.toHaveTextContent("06 23 45 67 89");
+    await userEvent.click(sophie);
+    expect(screen.getByLabelText("Téléphone")).toHaveValue("06 23 45 67 89");
+    expect(screen.getByLabelText("E-mail")).toHaveValue("sophie.kremer@urue-algrange.fr");
+    expect(screen.getByLabelText("Téléphone")).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("Date de naissance")).toHaveValue("");
+    expect(screen.getByLabelText("Date de naissance")).toHaveAttribute("placeholder", "Non renseigné");
+  });
+
+  it("finds an Inscrit by phone or e-mail", async () => {
+    renderAs("bureau");
+    await screen.findByRole("button", { name: /Sophie Kremer/ });
+    await userEvent.type(screen.getByLabelText("Rechercher un inscrit"), "sophie.kremer@");
+    expect(screen.getByRole("button", { name: /Sophie Kremer/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Julien Meyer/ })).not.toBeInTheDocument();
+  });
+
+  it("filters the Inscrits by any text of their line, ignoring accents", async () => {
+    renderAs("bureau");
+    await screen.findByRole("button", { name: /Sophie Kremer/ });
+    await userEvent.type(screen.getByLabelText("Rechercher un inscrit"), "benevole kremer");
+    expect(screen.getByRole("button", { name: /Sophie Kremer/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Julien Meyer/ })).not.toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText("Rechercher un inscrit"));
+    await userEvent.type(screen.getByLabelText("Rechercher un inscrit"), "personne inconnue");
+    expect(screen.getByText(/Aucun résultat/)).toBeInTheDocument();
+  });
+
   it("offers the Bureau only membre and chef_de_groupe", async () => {
     renderAs("bureau");
     await userEvent.click(await screen.findByRole("button", { name: /Sophie Kremer/ }));

@@ -8,11 +8,14 @@ export interface MemberInput {
   lastName: string;
 }
 
-/** UserDto (vue Basic) : le Secteur y est imbriqué. */
+/** UserDto (vue Detailed) : le Secteur y est imbriqué. */
 interface UserDto {
   userId: string;
   firstName: string;
   lastName: string;
+  phone?: string | null;
+  email?: string | null;
+  birthDate?: string | null;
   role: RoleId;
   bureauFunction?: BureauFunction | null;
   sector?: { sectorId: string; name: string } | null;
@@ -25,6 +28,9 @@ const toMember = (dto: UserDto): Member => ({
   role: dto.role,
   sectorId: dto.sector?.sectorId ?? null,
   bureauFunction: dto.bureauFunction ?? null,
+  phone: dto.phone ?? null,
+  email: dto.email ?? null,
+  birthDate: dto.birthDate ?? null,
 });
 
 const path = (userId: string) => `/api/users/${encodeURIComponent(userId)}`;

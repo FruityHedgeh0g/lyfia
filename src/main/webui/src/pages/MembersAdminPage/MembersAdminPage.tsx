@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useAllMembers, useChangeRole, useSetBureauFunction, useUpdateMember } from "../../features/users/useMembers";
 import { MemberInput } from "../../features/users/usersApi";
 import { BUREAU_FUNCTION_LABELS, BureauFunction, Member } from "../../features/users/types";
@@ -9,6 +9,10 @@ import AdminCrudList from "../../components/organisms/AdminCrudList/AdminCrudLis
 import FormField from "../../components/molecules/FormField/FormField";
 import Select from "../../components/atoms/Select/Select";
 import Spinner from "../../components/atoms/Spinner/Spinner";
+import SearchBar from "../../components/molecules/SearchBar/SearchBar";
+import { matchesSearch } from "../../lib/textSearch";
+import { formatDate } from "../../lib/formatDate";
+import styles from "./MembersAdminPage.module.css";
 
 /**
  * `sectorId` : le Secteur que nomme le Super admin (nouvel Admin, ou premier Secteur).
@@ -32,6 +36,18 @@ export const MembersAdminPage: React.FC = () => {
   const setBureauFunction = useSetBureauFunction();
   const { data: sectors } = useSectors();
   const sectorName = (sectorId?: string | null) => sectors?.find((s) => s.sectorId === sectorId)?.name;
+  const [search, setSearch] = useState("");
+
+  /** Rôle, Bureau et Secteur ; les coordonnées sont dans la fiche dépliée. */
+  const subtitle = (member: Member) =>
+    [
+      ROLE_LABELS[member.role],
+      member.role === "admin" && member.bureauFunction && "Bureau",
+      member.bureauFunction === "president" && BUREAU_FUNCTION_LABELS.president,
+      sectorName(member.sectorId),
+    ]
+      .filter(Boolean)
+      .join(" · ");
 
   /** Le Super admin nomme le Secteur d'un nouvel Admin, ou d'une personne qui n'en a pas encore (ADR 0004). */
   const namesSector = (member: { role: RoleId; sectorId?: string | null }, draft: MemberDraft) =>
@@ -65,77 +81,101 @@ export const MembersAdminPage: React.FC = () => {
 
   if (isLoading) return <Spinner label="Chargement des inscrits..." />;
 
+  // La recherche porte sur le texte de la ligne et les coordonnées, sans appel au serveur
+  const shown = (members ?? []).filter((m) =>
+    matchesSearch(`${m.firstName} ${m.lastName} ${subtitle(m)} ${m.phone ?? ""} ${m.email ?? ""}`, search)
+  );
+
   return (
-    <AdminCrudList
-      items={members ?? []}
-      idOf={(m) => m.userId}
-      display={(member) => ({
-        title: `${member.firstName} ${member.lastName}`,
-        subtitle: [
-          ROLE_LABELS[member.role],
-          member.role === "admin" && member.bureauFunction && "Bureau",
-          member.bureauFunction === "president" && BUREAU_FUNCTION_LABELS.president,
-          sectorName(member.sectorId),
-        ]
-          .filter(Boolean)
-          .join(" · "),
-      })}
-      toDraft={(m): MemberDraft => ({
-        firstName: m.firstName,
-        lastName: m.lastName,
-        role: m.role,
-        bureauFunction: m.bureauFunction ?? "",
-        sectorId: m.sectorId ?? "",
-      })}
-      renderFields={(draft, setDraft, member) => {
-        const roles = member ? rolesFor(member.userId, member.role) : [];
-        return (
-          <>
-            <FormField
-              label="Prénom"
-              value={draft.firstName}
-              onChange={(e) => setDraft({ ...draft, firstName: e.target.value })}
-              disabled={!member || !renames(member.userId)}
-              required
-            />
-            <FormField
-              label="Nom"
-              value={draft.lastName}
-              onChange={(e) => setDraft({ ...draft, lastName: e.target.value })}
-              disabled={!member || !renames(member.userId)}
-              required
-            />
-            {roles.length > 0 && (
-              <Select
-                label="Rôle"
-                value={draft.role}
-                onChange={(role) =>
-                  setDraft({ ...draft, role: role as RoleId, bureauFunction: bureauFunctionAfter(role as RoleId, draft.bureauFunction) })
-                }
-                options={roles.map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
-              />
-            )}
-            {member && namesSector(member, draft) && (
-              <Select
-                label="Secteur"
-                value={draft.sectorId}
-                onChange={(sectorId) => setDraft({ ...draft, sectorId })}
-                options={[{ value: "", label: "Choisissez le secteur" }, ...(sectors ?? []).map((s) => ({ value: s.sectorId, label: s.name }))]}
-              />
-            )}
-            {member && setsBureauFunction(member.userId, draft.role) && (
-              <Select
-                label="Bureau"
-                value={draft.bureauFunction}
-                onChange={(bureauFunction) => setDraft({ ...draft, bureauFunction: bureauFunction as BureauFunction | "" })}
-                options={bureauFunctionsFor(draft.role).map((f) => ({ value: f, label: f ? BUREAU_FUNCTION_LABELS[f] : "—" }))}
-              />
-            )}
-          </>
-        );
-      }}
-      onUpdate={save}
-    />
+    <div className={styles.page}>
+      {(members?.length ?? 0) > 0 && (
+        <SearchBar
+          label="Rechercher un inscrit"
+          placeholder="Nom, rôle, secteur, téléphone, e-mail…"
+          value={search}
+          onChange={setSearch}
+          count={`${shown.length} résultat(s)`}
+        />
+      )}
+      {search.trim() !== "" && shown.length === 0 ? (
+        <p className={styles.empty}>Aucun résultat pour « {search.trim()} ».</p>
+      ) : (
+        <AdminCrudList
+          items={shown}
+          idOf={(m) => m.userId}
+          display={(member) => ({ title: `${member.firstName} ${member.lastName}`, subtitle: subtitle(member) })}
+          toDraft={(m): MemberDraft => ({
+            firstName: m.firstName,
+            lastName: m.lastName,
+            role: m.role,
+            bureauFunction: m.bureauFunction ?? "",
+            sectorId: m.sectorId ?? "",
+          })}
+          renderFields={(draft, setDraft, member) => {
+            const roles = member ? rolesFor(member.userId, member.role) : [];
+            return (
+              <section className={styles.columns}>
+                <div className={styles.column}>
+                  <FormField
+                    label="Prénom"
+                    value={draft.firstName}
+                    onChange={(e) => setDraft({ ...draft, firstName: e.target.value })}
+                    disabled={!member || !renames(member.userId)}
+                    required
+                  />
+                  <FormField
+                    label="Nom"
+                    value={draft.lastName}
+                    onChange={(e) => setDraft({ ...draft, lastName: e.target.value })}
+                    disabled={!member || !renames(member.userId)}
+                    required
+                  />
+                  {roles.length > 0 && (
+                    <Select
+                      label="Rôle"
+                      value={draft.role}
+                      onChange={(role) =>
+                        setDraft({ ...draft, role: role as RoleId, bureauFunction: bureauFunctionAfter(role as RoleId, draft.bureauFunction) })
+                      }
+                      options={roles.map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
+                    />
+                  )}
+                  {member && namesSector(member, draft) && (
+                    <Select
+                      label="Secteur"
+                      value={draft.sectorId}
+                      onChange={(sectorId) => setDraft({ ...draft, sectorId })}
+                      options={[{ value: "", label: "Choisissez le secteur" }, ...(sectors ?? []).map((s) => ({ value: s.sectorId, label: s.name }))]}
+                    />
+                  )}
+                  {member && setsBureauFunction(member.userId, draft.role) && (
+                    <Select
+                      label="Bureau"
+                      value={draft.bureauFunction}
+                      onChange={(bureauFunction) => setDraft({ ...draft, bureauFunction: bureauFunction as BureauFunction | "" })}
+                      options={bureauFunctionsFor(draft.role).map((f) => ({ value: f, label: f ? BUREAU_FUNCTION_LABELS[f] : "—" }))}
+                    />
+                  )}
+                </div>
+                {member && (
+                  <div className={styles.column}>
+                    <FormField label="Téléphone" value={member.phone ?? ""} placeholder="Non renseigné" readOnly />
+                    <FormField label="E-mail" value={member.email ?? ""} placeholder="Non renseigné" readOnly />
+                    <FormField
+                      label="Date de naissance"
+                      value={member.birthDate ? formatDate(member.birthDate) : ""}
+                      placeholder="Non renseigné"
+                      readOnly
+                    />
+                  </div>
+                )}
+              </section>
+            );
+          }}
+          onUpdate={save}
+        />
+      )}
+    </div>
   );
 };
 
