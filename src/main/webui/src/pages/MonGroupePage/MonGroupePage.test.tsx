@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -11,6 +11,12 @@ import { confirmIn } from "../../test/confirm";
 
 /** Une date dans `days` jours, `AAAA-MM-JJ`. */
 const inDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+
+
+// jsdom ne dessine pas d'image : la préparation par le navigateur (ADR 0014) rend le fichier tel quel
+vi.mock("../../features/galerie/resize", () => ({
+  preparePhoto: async (file: File) => ({ name: file.name, original: file, affichage: file, vignette: file }),
+}));
 
 const renderPage = () => {
   const user = testUser("chef_de_groupe");
@@ -168,5 +174,27 @@ describe("MonGroupePage", () => {
     await userEvent.click(within(members).getByRole("button", { name: "Sortir du groupe" }));
     await confirmIn("Sortir du groupe");
     await waitFor(() => expect(within(balade).getByText("Aucun membre pour cet événement.")).toBeInTheDocument());
+  });
+
+  it("proposes photos of an Event for the Groupe, then withdraws one while it waits for the Bureau", async () => {
+    await seedLedGroupe();
+    renderPage();
+    const balade = await screen.findByRole("region", { name: "Test Balade" });
+    await userEvent.click(await within(balade).findByRole("button", { name: "Proposer des photos" }));
+    const dialog = screen.getByRole("dialog", { name: "Proposer des photos : Test Balade" });
+    await userEvent.upload(within(dialog).getByLabelText("Photos (50 au plus)"), [
+      new File(["photo"], "depart.jpg", { type: "image/jpeg" }),
+      new File(["photo"], "arrivee.jpg", { type: "image/jpeg" }),
+    ]);
+    await userEvent.type(within(dialog).getByLabelText("Description commune (facultative)"), "La balade");
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Proposer" })).toBeEnabled());
+    await userEvent.click(within(dialog).getByRole("button", { name: "Proposer" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    const proposed = await within(balade).findByRole("list", { name: "Photos proposées pour Test Balade" });
+    expect(within(proposed).getAllByRole("img")).toHaveLength(2);
+
+    await userEvent.click(within(proposed).getAllByRole("button", { name: "Retirer" })[0]);
+    await waitFor(() => expect(within(proposed).getAllByRole("img")).toHaveLength(1));
   });
 });

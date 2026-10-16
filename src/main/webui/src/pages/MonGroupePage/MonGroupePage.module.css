@@ -194,3 +194,46 @@
   color: var(--color-accent);
   background: var(--color-accent-soft);
 }
+
+/* Les photos proposées pour l'Événement, en attente du Bureau */
+.photos {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.proposals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proposal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.proposal img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  display: block;
+}
+
+.proposeForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+}

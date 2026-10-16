@@ -22,6 +22,16 @@ public class GalleryPhotoRepository implements PanacheRepositoryBase<GalleryPhot
         return listAll();
     }
 
+    /** A Secteur's Propositions waiting for its Bureau, oldest first. */
+    public List<GalleryPhotoEntity> listPropositionsOf(UUID sectorId) {
+        return list("sector.sectorId = ?1 and proposition = true order by depositedAt", sectorId);
+    }
+
+    /** A Chef de groupe's Propositions still waiting, oldest first. */
+    public List<GalleryPhotoEntity> listPropositionsBy(UUID chefId) {
+        return list("depositedBy = ?1 and proposition = true order by depositedAt", chefId);
+    }
+
     public Optional<GalleryPhotoEntity> findByMedia(UUID mediaId) {
         return find("media.mediaId", mediaId).firstResultOptional();
     }

@@ -73,6 +73,15 @@ public class GalleryPhotoEntity extends AuditTemplate {
     @Column(name = "visibilite", nullable = false)
     private VisibiliteEnum visibilite = VisibiliteEnum.BROUILLON;
 
+    /**
+     * A Proposition de photo: deposited by a Chef de groupe for their Groupe, waiting for the Bureau to validate it
+     * (choosing its Visibilité) or refuse it (deleting it); its Chef may withdraw it until then.
+     */
+    @Builder.Default
+    @ColumnDefault("false")
+    @Column(name = "proposition", nullable = false)
+    private boolean proposition = false;
+
     /** Who deposited it: they see it while it is a Brouillon. */
     @Column(name = "deposited_by")
     private UUID depositedBy;

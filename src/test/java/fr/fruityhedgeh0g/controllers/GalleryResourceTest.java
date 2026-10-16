@@ -63,6 +63,7 @@ public class GalleryResourceTest {
     static final String OTHER_BUREAU = "00000000-0000-0000-0017-000000000002";
     static final String BENEVOLE = "00000000-0000-0000-0017-000000000003";
     static final String SUPER_ADMIN = "00000000-0000-0000-0017-000000000004";
+    static final String CHEF = "00000000-0000-0000-0017-000000000005";
     static final byte[] ORIGINAL = {(byte) 0xff, (byte) 0xd8, 'o', 'r', 'i', 'g', 'i', 'n', 'a', 'l'};
     static final byte[] AFFICHAGE = {(byte) 0xff, (byte) 0xd8, 'a', 'f', 'f'};
     static final byte[] VIGNETTE = {(byte) 0xff, (byte) 0xd8, 'v', 'i', 'g'};
@@ -100,9 +101,11 @@ public class GalleryResourceTest {
             userRepository.persist(person(OTHER_BUREAU, RoleEnum.BUREAU, t));
             userRepository.persist(person(BENEVOLE, RoleEnum.BENEVOLE, null));
             userRepository.persist(person(SUPER_ADMIN, RoleEnum.SUPER_ADMIN, null));
+            UserEntity chef = person(CHEF, RoleEnum.CHEF_DE_GROUPE, a);
+            userRepository.persist(chef);
             edition = event(a, "Balade de la Rose");
             otherEvent = event(t, "Balade de Thionville");
-            GroupEntity g = GroupEntity.builder().name("Galerie motards").sector(a).build();
+            GroupEntity g = GroupEntity.builder().name("Galerie motards").sector(a).chef(chef).build();
             groupRepository.persist(g);
             group = g.getGroupId();
             editionYear = eventRepository.findById(edition).getStartDateTime().getYear();
@@ -123,7 +126,7 @@ public class GalleryResourceTest {
             sectorLeverRepository.deleteAll();
             groupRepository.delete("groupId", group);
             eventRepository.delete("eventId in ?1", List.of(edition, otherEvent));
-            userRepository.delete("userId in ?1", List.of(BUREAU, OTHER_BUREAU, BENEVOLE, SUPER_ADMIN).stream().map(UUID::fromString).toList());
+            userRepository.delete("userId in ?1", List.of(BUREAU, OTHER_BUREAU, BENEVOLE, SUPER_ADMIN, CHEF).stream().map(UUID::fromString).toList());
             sectorRepository.delete("sectorId in ?1", List.of(algrange, thionville, closed));
         });
     }
@@ -410,6 +413,75 @@ public class GalleryResourceTest {
         given().basePath("/api").when().delete("/carousel/{id}", slide).then().statusCode(204);
         given().basePath("/api").when().delete("/medias/{id}", mediaId).then().statusCode(204);
         given().basePath("/api").when().get("/medias/{id}/content", mediaId).then().statusCode(404);
+    }
+
+    // --- Propositions de photo ---
+
+    private ValidatableResponse propose(UUID eventId) {
+        return given().basePath("/api")
+                .multiPart("original", "depart.jpg", ORIGINAL, "image/jpeg")
+                .multiPart("affichage", "depart-affichage.jpg", AFFICHAGE, "image/jpeg")
+                .multiPart("vignette", "depart-vignette.jpg", VIGNETTE, "image/jpeg")
+                .multiPart("eventId", eventId.toString())
+                .when().post("/galerie/propositions").then();
+    }
+
+    @Test
+    @TestSecurity(user = "chef", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = CHEF))
+    void aChefProposesAPhotoOfAnEventForTheirGroupe() {
+        propose(edition).statusCode(200)
+                .body("proposition", equalTo(true))
+                .body("groups.name", hasItem("Galerie motards"))
+                .body("annee", equalTo(editionYear))
+                .body("visibilite", nullValue());
+        propose(otherEvent).statusCode(400);
+
+        given().basePath("/api").when().get("/galerie/propositions").then().statusCode(200).body("$", hasSize(1));
+        // The Chef sees their own Brouillon in the Album
+        album(editionYear).body("$", hasSize(1));
+    }
+
+    @Test
+    @TestSecurity(user = "chef", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = CHEF))
+    void aChefWithdrawsAPropositionUntilItIsValidated() {
+        String first = propose(edition).extract().path("photoId");
+        given().basePath("/api").when().delete("/galerie/propositions/{id}", first).then().statusCode(204);
+
+        String second = propose(edition).extract().path("photoId");
+        QuarkusTransaction.requiringNew().run(() -> photoRepository.findById(UUID.fromString(second)).setProposition(false));
+        given().basePath("/api").when().delete("/galerie/propositions/{id}", second).then().statusCode(400);
+        // Nor does a Chef change a Visibilité or delete a photo
+        given().basePath("/api").when().delete("/galerie/{id}", second).then().statusCode(403);
+    }
+
+    @Test
+    @TestSecurity(user = "bureau", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU))
+    void theBureauValidatesAPropositionWithItsVisibilite() {
+        String photoId = QuarkusTransaction.requiringNew().call(() -> {
+            String id = seededPhoto();
+            var photo = photoRepository.findById(UUID.fromString(id));
+            photo.setProposition(true);
+            photo.setDepositedBy(UUID.fromString(CHEF));
+            return id;
+        });
+        given().basePath("/api").queryParam("sectorId", algrange).when().get("/galerie/a-valider").then().statusCode(200)
+                .body("photoId", hasItem(photoId));
+
+        given().basePath("/api").contentType(ContentType.JSON).body(Map.of("visibilite", "publique"))
+                .when().post("/galerie/{id}/validation", photoId).then().statusCode(200)
+                .body("proposition", equalTo(false)).body("visibilite", equalTo("publique"));
+        given().basePath("/api").queryParam("sectorId", algrange).when().get("/galerie/a-valider").then().body("$", empty());
+        given().basePath("/api").queryParam("sectorId", thionville).when().get("/galerie/a-valider").then().statusCode(403);
+    }
+
+    @Test
+    @TestSecurity(user = "benevole", augmentors = DatabaseRoleAugmentor.class)
+    @OidcSecurity(claims = @Claim(key = "sub", value = BENEVOLE))
+    void onlyAChefDeGroupeProposes() {
+        propose(edition).statusCode(403);
     }
 
     @Test

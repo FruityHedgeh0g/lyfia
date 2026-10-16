@@ -33,6 +33,8 @@ export interface GalleryPhoto {
   depositedAt: string;
   /** Pour le Bureau de son Secteur : où le site l'utilise ; elle reste alors Publique et n'est pas supprimée. */
   usedBy?: string[];
+  /** Une Proposition de photo d'un Chef de groupe, qui attend le Bureau. */
+  proposition?: boolean;
 }
 
 /** La plus grande photo gardée, réglée par le Super admin : le navigateur réduit au-delà (ADR 0014). */

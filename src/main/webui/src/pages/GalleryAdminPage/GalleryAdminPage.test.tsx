@@ -26,7 +26,7 @@ const renderAs = (role: string) => {
 
 const thisYear = new Date().getFullYear();
 /** Les Visibilités affichées sur les vignettes. */
-const badges = (label: string) => within(screen.getAllByRole("list")[0]).queryAllByText(label);
+const badges = (label: string) => within(screen.getAllByRole("list").at(-1)!).queryAllByText(label);
 
 const jpeg = (name: string) => new File(["photo"], name, { type: "image/jpeg" });
 
@@ -115,5 +115,23 @@ describe("GalleryAdminPage", () => {
     renderAs("bureau");
     await userEvent.click(await screen.findByRole("tab", { name: "Autres images" }));
     expect(await screen.findByRole("heading", { name: "Autres images" })).toBeInTheDocument();
+  });
+
+  it("validates a Chef de groupe's Proposition with its Visibilité, or refuses one", async () => {
+    seedGalleryPhoto({ sectorId: "sector-1", annee: thisYear, alt: "Proposée", visibilite: "brouillon", proposition: true, depositedBy: "chef-1" });
+    seedGalleryPhoto({ sectorId: "sector-1", annee: thisYear, alt: "Hors sujet", visibilite: "brouillon", proposition: true, depositedBy: "chef-1" });
+    renderAs("bureau");
+
+    const queue = await screen.findByRole("region", { name: "Photos à valider" });
+    const [first, second] = within(queue).getAllByRole("listitem");
+    await userEvent.selectOptions(within(first).getByLabelText("Visibilité"), "inscrits");
+    await userEvent.click(within(first).getByRole("button", { name: "Valider" }));
+    await waitFor(() => expect(within(screen.getByRole("region", { name: "Photos à valider" })).getAllByRole("listitem")).toHaveLength(1));
+
+    await userEvent.click(within(second).getByRole("button", { name: "Refuser" }));
+    await confirmIn("Refuser");
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Photos à valider" })).not.toBeInTheDocument());
+    expect(screen.queryByAltText("Hors sujet")).not.toBeInTheDocument();
+    expect(screen.getByAltText("Proposée")).toBeInTheDocument();
   });
 });
