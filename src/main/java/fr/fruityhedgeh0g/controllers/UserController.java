@@ -37,7 +37,7 @@ public class UserController {
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("bureau")
-    public @JsonView(Views.Basic.class) List<UserDto> getAllUsers(){
+    public @JsonView(Views.Detailed.class) List<UserDto> getAllUsers(){
         return userService.listAll();
     }
 
@@ -66,6 +66,16 @@ public class UserController {
     @RolesAllowed("admin")
     public @JsonView(Views.Detailed.class) UserDto rename(@PathParam("userId") UUID userId, @NotNull NamesDto names){
         return userService.rename(UUID.fromString(token.getSubject()), userId, names);
+    }
+
+    /** The Bureau keeps a Bénévole sans compte's phone number and birth date (ADR 0012). */
+    @PATCH
+    @Path("/{userId}/coordonnees")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RolesAllowed("bureau")
+    public @JsonView(Views.Detailed.class) UserDto updateCoordonnees(@PathParam("userId") UUID userId, @NotNull ProfileDto coordonnees){
+        return userService.updateCoordonnees(UUID.fromString(token.getSubject()), userId, coordonnees);
     }
 
     @PUT

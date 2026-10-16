@@ -112,6 +112,11 @@ export function seedGroup(group: Partial<Group> & Pick<Group, "name" | "sectorId
   return groupId;
 }
 
+/** Ajoute une personne aux Inscrits telle quelle, sans les règles de l'API. */
+export function seedMember(member: Member) {
+  state.members.push(member);
+}
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const empty = (status: number) => new Response(null, { status });
@@ -246,6 +251,10 @@ const userDto = (m: Member) => ({
   userId: m.userId,
   firstName: m.firstName,
   lastName: m.lastName,
+  phone: m.phone ?? null,
+  email: m.email ?? null,
+  birthDate: m.birthDate ?? null,
+  withoutAccount: m.withoutAccount ?? false,
   role: m.role,
   bureauFunction: m.role === "bureau" ? m.bureauFunction ?? "membre_du_bureau" : m.bureauFunction ?? null,
   sector: m.sectorId ? { sectorId: m.sectorId, name: sectorOf(m.sectorId)?.name ?? "" } : null,
@@ -283,6 +292,12 @@ function users(method: string, [userId, action]: string[], body: any): Response 
     if (!roleAtLeast(state.viewer.role, "admin")) return empty(403);
     if (!body.firstName?.trim() || !body.lastName?.trim()) return empty(400);
     Object.assign(member, { firstName: body.firstName.trim(), lastName: body.lastName.trim() });
+    return json(userDto(member));
+  }
+  if (method === "PATCH" && action === "coordonnees") {
+    if (!roleAtLeast(state.viewer.role, "bureau") || !member.withoutAccount) return empty(403);
+    if (body.birthDate && body.birthDate > new Date().toISOString().slice(0, 10)) return empty(400);
+    Object.assign(member, { phone: body.phone?.trim() || null, birthDate: body.birthDate ?? member.birthDate });
     return json(userDto(member));
   }
   if (method === "PUT" && action === "role") {
@@ -417,6 +432,40 @@ async function events(method: string, [eventId, ...rest]: string[], body: any, q
     return answer(() => reg.withdraw(eventId, state.viewer.userId, query.getAll("journee"), withPassager));
   if (path === "registration/demande" && method === "PUT") return answer(() => reg.requestGroup(eventId, state.viewer.userId, body.groupId));
   if (path === "roster" && method === "GET") return answer(() => reg.fetchRoster(eventId, query.get("journee") ?? undefined));
+  // Comme EventServiceImpl.addToRoster : un Inscrit, ou un Bénévole sans compte enregistré seulement si l'ajout réussit
+  if (path === "roster" && method === "POST") {
+    if (!seesPlanification || !manages(event.sectorId)) return empty(403);
+    if (Boolean(body.personId) === Boolean(body.newPerson)) return empty(400);
+    if (!isOn("inscription-evenements", event.sectorId)) return featureOff("inscription-evenements");
+    const existing = body.personId ? state.members.find((m) => m.userId === body.personId) : undefined;
+    if (body.personId && !existing) return empty(404);
+    const n = body.newPerson;
+    if (n && (!n.firstName?.trim() || !n.lastName?.trim() || !n.birthDate)) return empty(400);
+    const person: Member = existing ?? {
+      userId: `sans-compte-${state.members.length + 1}`,
+      firstName: n.firstName.trim(),
+      lastName: n.lastName.trim(),
+      role: "benevole",
+      phone: n.phone?.trim() || null,
+      birthDate: n.birthDate,
+      withoutAccount: true,
+    };
+    const signingUp = {
+      userId: person.userId,
+      firstName: person.firstName,
+      lastName: person.lastName,
+      phone: person.phone ?? "",
+      birthDate: person.birthDate ?? "",
+      sectorId: person.sectorId ?? null,
+      withoutAccount: person.withoutAccount,
+    };
+    return answer(async () => {
+      await reg.signUp(eventId, signingUp, undefined, undefined, body.poste, body.journees, body.dechargeSignataire,
+        currentDecharge()?.documentId, state.viewer.userId);
+      if (!existing) state.members.push(person);
+      return reg.fetchRoster(eventId);
+    });
+  }
 
   const [kind, personId, action, groupId, , conducteurId] = rest;
   // .../roster/{personId}/journees/{journee}/conducteur[/{conducteurId}] : les binômes d'une Journée

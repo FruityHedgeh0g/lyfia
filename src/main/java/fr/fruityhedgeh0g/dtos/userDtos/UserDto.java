@@ -43,6 +43,10 @@ public class UserDto {
     @JsonView(Views.Detailed.class)
     LocalDate birthDate;
 
+    /** Read only: a Bénévole sans compte, recorded by the Bureau (ADR 0012). */
+    @JsonView(Views.Basic.class)
+    boolean withoutAccount;
+
     @JsonView(Views.Basic.class)
     RoleEnum role;
 

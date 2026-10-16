@@ -101,6 +101,8 @@ export interface RosterEntry {
   email?: string | null;
   birthDate?: string | null;
   decharge?: Decharge | null;
+  /** Bénévole sans compte, inscrit par le Bureau : on le joint par téléphone, ou pas du tout (ADR 0012). */
+  withoutAccount?: boolean;
 }
 
 /** Un passager sans conducteur ce jour-là, signalé au Bureau et à son Chef de groupe pour être associé. */
@@ -175,6 +177,8 @@ export interface SigningUpPerson {
   birthDate?: string | null;
   /** Secteur de la personne à partir de Membre : elle ne roule qu'aux Événements de ce Secteur (ADR 0004). */
   sectorId?: string | null;
+  /** Bénévole sans compte : le téléphone ne lui est pas demandé (ADR 0012). */
+  withoutAccount?: boolean;
 }
 
 /** Reflète DechargeDto : la décharge approuvée pour un mineur, par qui, quand, et quelle version. */
@@ -182,6 +186,8 @@ export interface Decharge {
   signataire: string;
   signedAt: string;
   documentId: string;
+  /** Le membre du Bureau qui l'a enregistrée, signée sur papier (ADR 0012). */
+  recordedBy?: string | null;
 }
 
 /** L'âge, en années révolues, à ce jour-là (`AAAA-MM-JJ`). */
@@ -344,6 +350,24 @@ export const unpair = (eventId: string, passagerId: string, journee: Journee) =>
   apiFetch<Registration>(`${base(eventId)}/roster/${id(passagerId)}/journees/${journee}/conducteur`, { method: "DELETE" });
 
 export const fetchMonGroupe = () => apiFetch<MonGroupe>("/api/events/mon-groupe");
+
+/** Reflète PublicEventService.Addition : un Inscrit (`personId`) ou un Bénévole sans compte à enregistrer (`newPerson`). */
+export interface Addition {
+  personId?: string;
+  newPerson?: { firstName: string; lastName: string; birthDate: string; phone?: string };
+  poste: Poste;
+  /** Aucune : tout l'Événement. */
+  journees?: Journee[];
+  /** Pour un mineur : le représentant légal qui a signé la décharge sur papier. */
+  dechargeSignataire?: string;
+}
+
+/**
+ * Le Bureau inscrit quelqu'un à sa place (ADR 0012), aux mêmes règles qu'une inscription ; le téléphone n'est pas
+ * demandé à un Bénévole sans compte.
+ */
+export const addToRoster = (eventId: string, addition: Addition) =>
+  phoneRequired(apiFetch<Roster>(`${base(eventId)}/roster`, { method: "POST", body: JSON.stringify(addition) }));
 
 /** La liste d'une Journée (aucune : la première de l'Événement). */
 export const fetchRoster = (eventId: string, journee?: Journee) =>

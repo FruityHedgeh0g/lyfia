@@ -1,0 +1,31 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+/* Fiche dépliée : l'édition à gauche, les coordonnées (lecture seule) à droite ; une seule colonne sur mobile */
+.columns {
+  display: grid;
+  gap: 18px;
+}
+
+@media (min-width: 720px) {
+  .columns {
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}

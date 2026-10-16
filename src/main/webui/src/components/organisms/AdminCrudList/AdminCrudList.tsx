@@ -17,6 +17,8 @@ export interface AdminCrudListProps<T, D> {
   /** Champs du formulaire, partagés entre création (`item` absent) et édition. */
   renderFields: (draft: D, setDraft: (draft: D) => void, item?: T) => React.ReactNode;
   onUpdate: (id: string, draft: D) => Promise<unknown>;
+  /** Actions propres à un élément, en bas à gauche de sa fiche ; « Enregistrer » passe alors à droite. */
+  formActions?: (item: T) => React.ReactNode;
   create?: {
     buttonLabel: string;
     submitLabel: string;
@@ -44,6 +46,7 @@ export function AdminCrudList<T, D>({
   toDraft,
   renderFields,
   onUpdate,
+  formActions,
   create,
   remove,
 }: AdminCrudListProps<T, D>) {
@@ -106,11 +109,14 @@ export function AdminCrudList<T, D>({
             {editing && draft !== null && (
               <form className={styles.form} onSubmit={handleSave(id)} noValidate>
                 {renderFields(draft, setDraft, item)}
-                <div className={styles.formActions}>
-                  <Button type="submit" label="Enregistrer" disabled={pending} />
-                  {remove && (
-                    <Button type="button" label="Supprimer" variant="danger" onClick={() => setToDeleteId(id)} disabled={pending} />
-                  )}
+                <div className={`${styles.formActions} ${formActions ? styles.split : ""}`}>
+                  {formActions && <div className={styles.extraActions}>{formActions(item)}</div>}
+                  <div className={styles.saveActions}>
+                    <Button type="submit" label="Enregistrer" disabled={pending} />
+                    {remove && (
+                      <Button type="button" label="Supprimer" variant="danger" onClick={() => setToDeleteId(id)} disabled={pending} />
+                    )}
+                  </div>
                 </div>
               </form>
             )}

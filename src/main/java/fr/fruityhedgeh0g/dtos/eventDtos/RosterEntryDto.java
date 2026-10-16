@@ -14,10 +14,11 @@ import java.util.UUID;
  * for that Journée (the order of its Liste d'attente), the {@code conducteur} a passager rides behind and the
  * {@code passager} riding behind a conducteur that Journée, {@code journees} every Journée the person signed up for,
  * {@code leadsGroup} for the Groupe's Chef, who stays with it until the Affectation changes (ADR 0010); for the Bureau
- * only, their {@code email}, {@code birthDate} and the {@code decharge} approved for a minor.
+ * only, their {@code email}, {@code birthDate} and the {@code decharge} approved for a minor; {@code withoutAccount}
+ * for a Bénévole sans compte, whom the Bureau reaches by phone, or not at all (ADR 0012).
  */
 public record RosterEntryDto(UUID personId, String firstName, String lastName, String phone, PosteEnum poste,
                              LocalDateTime signedUpAt, GroupRefDto group, DemandeDto demande, NestedUserDto conducteur,
                              NestedUserDto passager, boolean leadsGroup, List<LocalDate> journees,
-                             String email, LocalDate birthDate, DechargeDto decharge) {
+                             String email, LocalDate birthDate, DechargeDto decharge, boolean withoutAccount) {
 }

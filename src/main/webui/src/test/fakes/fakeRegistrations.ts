@@ -67,6 +67,7 @@ interface StoredEntry {
   journees: StoredJournee[];
   /** La décharge approuvée pour un mineur. */
   decharge?: Decharge | null;
+  withoutAccount?: boolean;
 }
 
 /**
@@ -130,6 +131,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       leadsGroup: leads(all, entry.groupId, entry.personId),
       journees: entry.journees.map((j) => j.journee).sort(),
       decharge: entry.decharge ?? null,
+      withoutAccount: entry.withoutAccount ?? false,
     };
   };
 
@@ -336,7 +338,9 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       poste: Poste = conducteurName ? "passager" : "conducteur",
       journees?: Journee[],
       signataire?: string,
-      dechargeDocumentId?: string
+      dechargeDocumentId?: string,
+      /** Le membre du Bureau qui inscrit la personne à sa place (ADR 0012). */
+      recordedBy?: string
     ): Promise<Registration> => {
       const event = await eventOrThrow(eventId);
       const all = eventJournees(event.startDateTime, event.endDateTime);
@@ -353,13 +357,15 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
       if (!acceptsSignUps(event.status)) throw new Error("Les inscriptions sont fermées pour cet événement.");
       if (person.sectorId && person.sectorId !== event.sectorId)
         throw new Error("Cet événement est réservé aux membres de son secteur et aux bénévoles.");
-      if (!person.phone?.trim()) throw new PhoneRequiredError();
+      if (!person.phone?.trim() && !person.withoutAccount) throw new PhoneRequiredError();
       // Comme EventServiceImpl.requireDechargeOf : la date de naissance, puis la décharge d'un mineur
       if (person.birthDate === null || person.birthDate === "") throw new SignUpRequirementError("birth-date-required");
       const minor = Boolean(person.birthDate) && added.length > 0 && ageOn(person.birthDate!, added[0]) < 18 && !existing?.decharge;
       if (minor && !dechargeDocumentId) throw new SignUpRequirementError("decharge-indisponible");
       if (minor && !signataire?.trim()) throw new SignUpRequirementError("decharge-requise");
-      const decharge = minor ? { signataire: signataire!.trim(), signedAt: new Date().toISOString().slice(0, 19), documentId: dechargeDocumentId! } : null;
+      const decharge = minor
+        ? { signataire: signataire!.trim(), signedAt: new Date().toISOString().slice(0, 19), documentId: dechargeDocumentId!, recordedBy: recordedBy ?? null }
+        : null;
       if (groupId && !existing) requireFits(poste, await groupOrThrow(groupId));
 
       const freeOn = (c: StoredEntry, j: Journee) => (journeeOf(c, j) && !passagerOf(eventId, c.personId, j) ? journeeOf(c, j) : undefined);
@@ -402,7 +408,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
         personId: person.userId,
         firstName: person.firstName,
         lastName: person.lastName,
-        phone: person.phone.trim(),
+        phone: person.phone?.trim() ?? "",
         poste,
         signedUpAt: stamp,
         groupId: null,
@@ -410,6 +416,7 @@ export function createRegistrationsApi(store: JsonStore, events: ReturnType<type
         demandeStatus: groupId ? "en_attente" : null,
         journees: newJournees,
         decharge,
+        withoutAccount: person.withoutAccount ?? false,
         ...comesWith,
       };
       write(eventId, [...read(eventId), entry]);

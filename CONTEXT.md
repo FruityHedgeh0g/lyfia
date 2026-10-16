@@ -29,6 +29,9 @@ _Avoid_: event, log (in UI copy), historique
 **Bénévole**: a Visiteur who has registered on the site. Has Mon espace and can sign up for Events. Belongs to no Secteur: the Bénévoles form one pool shared by every Secteur, riding at any Secteur's Events and promoted to Membre by the Bureau of a Secteur they rode with.
 _Avoid_: volunteer, inscrit, user
 
+**Bénévole sans compte**: a Bénévole who cannot register on the site themselves (no phone or no internet), recorded by the Bureau instead, who also signs them up for Events, under the same rules as any sign-up. A person in their own right, kept from one Event to the next, who can be promoted like any Bénévole; has no Mon espace, so the Bureau keeps their details up to date and withdraws them from Events.
+_Avoid_: invité, externe, fantôme, guest
+
 **Membre**: a Bénévole who is part of the association through one Secteur, promoted by a Bureau member once their membership fee is settled (the fee itself is handled off-site). Every Role from Membre up belongs to exactly one Secteur (the Super admin excepted) and rides only at that Secteur's Events. Nobody changes Secteur (except when the Super admin appoints them Admin of another one): a person goes back to Bénévole, losing their Secteur, and is promoted again in the other one.
 _Avoid_: adhérent
 
@@ -89,7 +92,7 @@ _Avoid_: pilote
 
 **Service**: the Poste of a person running logistics, the buvette or security at the Event, with a Groupe de service.
 
-**Décharge**: the décharge de responsabilité a minor's legal representative approves when the minor signs up for an Event (under 18 on the first Journée signed up for), for the insurance of minors: the version in force, uploaded by the Super admin, is approved once per Event, and who approved it, when and which version are kept. Until a décharge is uploaded, minors cannot sign up. Signing up needs the person's birth date (and phone number); their e-mail is their account's.
+**Décharge**: the décharge de responsabilité a minor's legal representative approves when the minor signs up for an Event (under 18 on the first Journée signed up for), for the insurance of minors: the version in force, uploaded by the Super admin, is approved once per Event, and who approved it, when and which version are kept. When the Bureau signs a minor up, the legal representative signs the décharge on paper and the Bureau records it, keeping also which Bureau member did. Until a décharge is uploaded, minors cannot sign up. Signing up needs the person's birth date (and phone number); their e-mail is their account's.
 _Avoid_: autorisation parentale, consentement
 
 **Liste d'attente**: the queue of people who asked to take part in a Journée of an Event, or to be with a Groupe at it, after the maximum the Bureau set for that Event (or for that Groupe at that Event) was reached that Journée; a maximum applies to each Journée alike. It also serves as a reserve of riders on the day. Nobody moves up automatically: the Bureau (or, for a Groupe, its Chef de groupe) chooses. Everyone counts towards the maximums, whatever their Poste; a `passager` always follows their `conducteur`.

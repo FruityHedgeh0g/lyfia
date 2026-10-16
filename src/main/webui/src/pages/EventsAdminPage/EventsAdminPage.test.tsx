@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "../../auth/AuthContext";
 import { testUser } from "../../test/testUser";
-import { createEventsApi, createRegistrationsApi, seedGroup, setFakeFeature } from "../../test/fakeApi";
+import { createEventsApi, createRegistrationsApi, seedGroup, seedMember, setFakeFeature } from "../../test/fakeApi";
 import EventsAdminPage from "./EventsAdminPage";
 import { confirmIn } from "../../test/confirm";
 import { eventJournees } from "../../lib/journees";
@@ -287,6 +287,84 @@ describe("EventsAdminPage", () => {
 
     expect(await screen.findByText("Le téléchargement de la liste est temporairement suspendu.")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Télécharger la liste (.xlsx)" })).not.toBeInTheDocument();
+  });
+
+  // --- Ajouter une personne (ADR 0012) ---
+
+  const openAddDialog = async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /Test Ouvert/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Ajouter une personne" }));
+    return screen.getByRole("dialog", { name: "Ajouter une personne" });
+  };
+
+  it("lets the Bureau add a Bénévole sans compte, without a phone, under the same rules", async () => {
+    const dialog = await openAddDialog();
+    await userEvent.click(within(dialog).getByRole("button", { name: /Personne sans compte/ }));
+    await userEvent.type(within(dialog).getByLabelText("Prénom"), "Marcel");
+    await userEvent.type(within(dialog).getByLabelText("Nom"), "Hoffmann");
+    await userEvent.type(within(dialog).getByLabelText("Date de naissance"), "1950-03-04");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Inscrire" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    // L'Événement est à son maximum : comme tout le monde, il attend
+    const waiting = screen.getByRole("list", { name: "Liste d'attente" });
+    expect(await within(waiting).findByText(/Marcel Hoffmann/)).toBeInTheDocument();
+    expect(within(waiting).getByText(/Sans compte/)).toBeInTheDocument();
+  });
+
+  it("adds an Inscrit found by name", async () => {
+    seedMember({ userId: "user-50", firstName: "Hélène", lastName: "Schmitt", role: "benevole", phone: "06 50 50 50 50", birthDate: "1980-05-05" });
+    const dialog = await openAddDialog();
+    await userEvent.type(within(dialog).getByLabelText("Chercher un inscrit"), "helene");
+    await userEvent.click(within(dialog).getByRole("button", { name: /Hélène Schmitt/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Inscrire" }));
+
+    const waiting = screen.getByRole("list", { name: "Liste d'attente" });
+    expect(await within(waiting).findByText(/Hélène Schmitt/)).toBeInTheDocument();
+  });
+
+  it("tells the Bureau when an Inscrit has not given their birth date yet", async () => {
+    const dialog = await openAddDialog();
+    await userEvent.type(within(dialog).getByLabelText("Chercher un inscrit"), "julien");
+    await userEvent.click(within(dialog).getByRole("button", { name: /Julien Meyer/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Inscrire" }));
+
+    expect(await within(dialog).findByText("Cette personne n'a pas encore renseigné sa date de naissance dans son profil.")).toBeInTheDocument();
+  });
+
+  it("warns of a homonym without blocking the new person", async () => {
+    const dialog = await openAddDialog();
+    await userEvent.click(within(dialog).getByRole("button", { name: /Personne sans compte/ }));
+    await userEvent.type(within(dialog).getByLabelText("Prénom"), "sophie");
+    await userEvent.type(within(dialog).getByLabelText("Nom"), "Kremer");
+    await userEvent.type(within(dialog).getByLabelText("Date de naissance"), "1960-01-01");
+
+    expect(within(dialog).getByText("Une personne porte déjà ce nom : est-ce elle ?")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /Choisir Sophie Kremer/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Inscrire" })).toBeEnabled();
+  });
+
+  it("asks for the legal representative who signed a minor's paper décharge", async () => {
+    const dialog = await openAddDialog();
+    await userEvent.click(within(dialog).getByRole("button", { name: /Personne sans compte/ }));
+    await userEvent.type(within(dialog).getByLabelText("Prénom"), "Lucas");
+    await userEvent.type(within(dialog).getByLabelText("Nom"), "Hoffmann");
+    const fifteen = new Date();
+    fifteen.setFullYear(fifteen.getFullYear() - 15);
+    await userEvent.type(within(dialog).getByLabelText("Date de naissance"), fifteen.toISOString().slice(0, 10));
+
+    expect(within(dialog).getByRole("button", { name: "Inscrire" })).toBeDisabled();
+    await userEvent.type(within(dialog).getByLabelText("Représentant légal ayant signé la décharge papier"), "Anne Hoffmann");
+    expect(within(dialog).getByRole("button", { name: "Inscrire" })).toBeEnabled();
+  });
+
+  it("adds nobody while Inscription aux événements is off", async () => {
+    setFakeFeature("inscription-evenements", false);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /Test Ouvert/ }));
+    await screen.findByRole("list", { name: "Participants" });
+    expect(screen.queryByRole("button", { name: "Ajouter une personne" })).not.toBeInTheDocument();
   });
 
   it("sets and clears the maximum number of Participants", async () => {

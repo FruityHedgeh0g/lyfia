@@ -19,6 +19,7 @@ import jakarta.decorator.Decorator;
 import jakarta.decorator.Delegate;
 import jakarta.inject.Inject;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -106,6 +107,31 @@ public class UserLogDecorator implements UserService{
                         default -> Log.errorf(t,"An error occurred while renaming a person.");
                     }
                 })
+                .get();
+    }
+
+    @Override
+    public UserDto updateCoordonnees(UUID actorId, UUID personId, ProfileDto coordonnees) {
+        Log.debugf("%s updates the details of %s...", actorId, personId);
+        return Try.of(() -> userService.updateCoordonnees(actorId, personId, coordonnees))
+                .onSuccess(user -> Log.infof("Details of %s updated by %s.", personId, actorId))
+                .onFailure(t -> {
+                    switch(t){
+                        case ForbiddenActionException ex -> Log.warnf("Details update refused: %s", ex.getMessage());
+                        case InvalidResourceException ex -> Log.warnf("Details update refused: %s", ex.getMessage());
+                        case UnknownResourceException ex -> Log.errorf(ex,"User %s not found.", personId);
+                        default -> Log.errorf(t,"An error occurred while updating a person's details.");
+                    }
+                })
+                .get();
+    }
+
+    @Override
+    public UserEntity doCreateWithoutAccount(String firstName, String lastName, LocalDate birthDate, String phone) {
+        Log.debugf("[INTERNAL] Recording a Bénévole sans compte...");
+        return Try.of(() -> userService.doCreateWithoutAccount(firstName, lastName, birthDate, phone))
+                .onSuccess(user -> Log.infof("Bénévole sans compte %s recorded.", user.getUserId()))
+                .onFailure(t -> Log.warnf("Bénévole sans compte refused: %s", t.getMessage()))
                 .get();
     }
 

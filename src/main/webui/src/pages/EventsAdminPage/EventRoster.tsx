@@ -1,20 +1,18 @@
 import React, { useState } from "react";
 import { useGroupActions, useRoster } from "../../features/events/useRoster";
-import { ageOn, GroupRoster, groupKindOf, passagerLabel, POSTE_LABELS, POSTES, RosterEntry, rosterExportUrl, withoutConducteur } from "../../features/events/registrationsApi";
+import { ageOn, GroupRoster, groupKindOf, passagerLabel, POSTE_LABELS, POSTES, RosterEntry, withoutConducteur } from "../../features/events/registrationsApi";
 import { useGroups } from "../../features/groups/useGroups";
 import { askWithPassager, confirmRefusal, confirmTakeOut, fullName } from "../../features/events/confirmations";
 import { useConfirm } from "../../components/molecules/ConfirmDialog/useConfirm";
 import Button from "../../components/atoms/Button/Button";
 import Select from "../../components/atoms/Select/Select";
-import ButtonLink from "../../components/atoms/ButtonLink/ButtonLink";
 import FormField from "../../components/molecules/FormField/FormField";
 import Spinner from "../../components/atoms/Spinner/Spinner";
-import FeatureNotice from "../../components/molecules/FeatureNotice/FeatureNotice";
+import SearchBar from "../../components/molecules/SearchBar/SearchBar";
 import Collapsible from "../../components/molecules/Collapsible/Collapsible";
 import { matchesSearch } from "../../lib/textSearch";
 import { Journee, journeeLabel } from "../../lib/journees";
 import { formatDate } from "../../lib/formatDate";
-import { useFeature, useFeatureOff } from "../../features/featureFlags/useFeatureFlags";
 import styles from "./EventRoster.module.css";
 
 interface EventRosterProps {
@@ -98,8 +96,6 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
   const { confirm, dialog } = useConfirm();
   const [search, setSearch] = useState("");
   const { data: groups } = useGroups();
-  const exportOn = useFeature("export-liste", sectorId);
-  const exportOff = useFeatureOff("export-liste", sectorId);
   const pending =
     moveUp.isPending || removePerson.isPending || place.isPending || changePoste.isPending || decide.isPending || takeOut.isPending || pairWith.isPending;
 
@@ -223,12 +219,13 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
   /** Un mineur ce jour-là, et qui a approuvé sa décharge (assurance des mineurs). */
   const minorLine = (entry: RosterEntry) => {
     if (!entry.birthDate || ageOn(entry.birthDate, shownJournee) >= 18) return undefined;
-    return entry.decharge
-      ? `Mineur · décharge signée par ${entry.decharge.signataire} le ${formatDate(entry.decharge.signedAt)}`
-      : "Mineur · sans décharge";
+    if (!entry.decharge) return "Mineur · sans décharge";
+    const paper = entry.decharge.recordedBy ? " (papier)" : "";
+    return `Mineur · décharge signée${paper} par ${entry.decharge.signataire} le ${formatDate(entry.decharge.signedAt)}`;
   };
 
-  const details = (entry: RosterEntry) => [entry.phone, entry.email, groupLine(entry), minorLine(entry)].filter(Boolean).join(" · ");
+  const details = (entry: RosterEntry) =>
+    [entry.withoutAccount && "Sans compte", entry.phone, entry.email, groupLine(entry), minorLine(entry)].filter(Boolean).join(" · ");
 
   const row = (entry: RosterEntry, actions: React.ReactNode) => (
     <li key={entry.personId} className={styles.row}>
@@ -271,11 +268,6 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
   return (
     <section className={styles.roster} aria-label="Inscrits">
       {dialog}
-      {exportOn ? (
-        <ButtonLink to={rosterExportUrl(eventId)} label="Télécharger la liste (.xlsx)" variant="outline" className={styles.export} download />
-      ) : (
-        exportOff && <FeatureNotice feature="export-liste" message="Le téléchargement de la liste est temporairement suspendu." />
-      )}
       {severalJournees && (
         <Select
           label="Journée"
@@ -288,11 +280,10 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
         />
       )}
       {participants.length + waiting.length > 0 && (
-        <FormField
+        <SearchBar
           label="Rechercher un inscrit"
-          type="search"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={setSearch}
           onKeyDown={(e) => {
             // Le roster est dans le formulaire de l'Événement : Entrée ne l'enregistre pas
             if (e.key === "Enter") e.preventDefault();

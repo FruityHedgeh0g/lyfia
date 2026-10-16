@@ -2,7 +2,6 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
-  max-width: 900px;
 }
 
 .toolbar {
@@ -37,7 +36,6 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-width: 900px;
 }
 
 .form {
@@ -45,7 +43,16 @@
   flex-direction: column;
   gap: 18px;
   text-align: left;
+}
+
+/* Les champs gardent une largeur de saisie ; une section (ex : la liste des inscrits d'un Événement) prend toute la ligne */
+.form > :not(section) {
   max-width: 520px;
+}
+
+/* Actions réparties à gauche et à droite : sur toute la largeur de la fiche */
+.form > .split {
+  max-width: none;
 }
 
 /* Formulaire de création : carte distincte au-dessus de la liste */
@@ -58,10 +65,22 @@
   animation: open .25s var(--ease-out);
 }
 
-.formActions {
+.formActions,
+.extraActions,
+.saveActions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
+}
+
+/* Les actions de l'élément à gauche, l'enregistrement à droite */
+.split {
+  justify-content: space-between;
+}
+
+.split .saveActions {
+  margin-left: auto;
 }
 
 @keyframes open {

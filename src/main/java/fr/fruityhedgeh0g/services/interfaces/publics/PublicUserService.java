@@ -41,6 +41,12 @@ public interface PublicUserService {
     UserDto rename(@NotNull UUID actorId, @NotNull UUID personId, @NotNull NamesDto names);
 
     /**
+     * The Bureau keeps a Bénévole sans compte's phone number and birth date up to date, having no Mon espace
+     * (ADR 0012): for the Inscrits of its Secteur, the Super admin for anyone; never for someone with an account.
+     */
+    UserDto updateCoordonnees(@NotNull UUID actorId, @NotNull UUID personId, @NotNull ProfileDto coordonnees);
+
+    /**
      * Sets the Fonction au Bureau of a Bureau member or an Admin of the actor's Secteur (ADR 0001): a Président
      * makes the previous one Membre du Bureau; none takes an Admin off the Bureau, never someone with the Bureau
      * Role. Nobody sets their own.

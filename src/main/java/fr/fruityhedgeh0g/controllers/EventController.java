@@ -226,6 +226,16 @@ public class EventController {
         return eventService.promote(eventId, personId, journees);
     }
 
+    /** The Bureau adds an Inscrit, or a new Bénévole sans compte, to the Event (ADR 0012). */
+    @POST
+    @Path("/{eventId}/roster")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RolesAllowed("bureau")
+    public RosterDto addToRoster(@PathParam("eventId") UUID eventId, @Valid @NotNull PublicEventService.Addition addition){
+        return eventService.addToRoster(eventId, me(), addition);
+    }
+
     @DELETE
     @Path("/{eventId}/roster/{personId}")
     @Produces(MediaType.APPLICATION_JSON)

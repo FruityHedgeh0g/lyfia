@@ -75,6 +75,10 @@ public class EventRegistrationEntity extends AuditTemplate {
     @Column(name = "decharge_document_id")
     private UUID dechargeDocumentId;
 
+    /** The Bureau member who recorded a décharge signed on paper, when the Bureau signed the minor up (ADR 0012). */
+    @Column(name = "decharge_recorded_by")
+    private UUID dechargeRecordedBy;
+
     /** The Journées signed up for; the sign-up goes once it has none left. */
     @OneToMany(mappedBy = "registration", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("journee")
@@ -133,11 +137,15 @@ public class EventRegistrationEntity extends AuditTemplate {
         return dechargeSignedAt != null;
     }
 
-    /** The legal representative approves that version of the décharge, now; kept for the audit. */
-    public void approveDecharge(String signataire, UUID documentId) {
+    /**
+     * The legal representative approves that version of the décharge, now; kept for the audit. {@code recordedBy}:
+     * the Bureau member recording it, signed on paper, or null when approved online.
+     */
+    public void approveDecharge(String signataire, UUID documentId, UUID recordedBy) {
         dechargeSignataire = signataire.trim();
         dechargeSignedAt = LocalDateTime.now(EventEntity.ZONE);
         dechargeDocumentId = documentId;
+        dechargeRecordedBy = recordedBy;
     }
 
     /** A new pending Demande de groupe; only someone outside any Groupe at this Event makes one. */

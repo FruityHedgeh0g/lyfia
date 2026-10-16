@@ -8,7 +8,7 @@ export const BUREAU_FUNCTION_LABELS: Record<BureauFunction, string> = {
   president: "Président",
 };
 
-/** Une personne de la liste des Inscrits : reflète UserDto côté backend (vue Basic). */
+/** Une personne de la liste des Inscrits : reflète UserDto côté backend (vue Detailed). */
 export interface Member {
   userId: string;
   firstName: string;
@@ -18,4 +18,11 @@ export interface Member {
   sectorId?: string | null;
   /** Sa Fonction au Bureau, s'il y siège ; un seul Président par Secteur. */
   bureauFunction?: BureauFunction | null;
+  /** Coordonnées saisies dans Mon profil ; l'e-mail est celui du compte. */
+  phone?: string | null;
+  email?: string | null;
+  /** AAAA-MM-JJ. */
+  birthDate?: string | null;
+  /** Bénévole sans compte, enregistré par le Bureau : ses coordonnées sont tenues par le Bureau (ADR 0012). */
+  withoutAccount?: boolean;
 }
