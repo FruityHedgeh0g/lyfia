@@ -1,4 +1,7 @@
 import React from "react";
+import PhotoListPicker from "../../components/organisms/ImagePicker/PhotoListPicker";
+import { useAuth } from "../../auth/AuthContext";
+import ImagePicker from "../../components/organisms/ImagePicker/ImagePicker";
 import { useAllPosts, usePostMutations } from "../../features/posts/usePosts";
 import { PostInput } from "../../features/posts/postsApi";
 import { POST_STATUS_LABELS } from "../../features/posts/types";
@@ -20,6 +23,7 @@ export const PostsAdminPage: React.FC = () => {
   const { data: posts, isLoading } = useAllPosts();
   const { create, update, changeStatus } = usePostMutations();
   const superAdmin = useIsSuperAdmin();
+  const { user } = useAuth();
   const { data: sectors } = useSectors();
   const sectorName = (sectorId?: string | null) =>
     sectorId ? (sectors?.find((s) => s.sectorId === sectorId)?.name ?? "Secteur") : "Tout le site";
@@ -46,7 +50,7 @@ export const PostsAdminPage: React.FC = () => {
           .filter(Boolean)
           .join(" · "),
       })}
-      toDraft={(p): PostInput => ({ title: p.title, content: p.content })}
+      toDraft={(p): PostInput => ({ title: p.title, content: p.content, bannerId: p.bannerId ?? null, attachmentIds: p.attachmentIds ?? [] })}
       renderFields={(draft, setDraft, post) => (
         <>
           {superAdmin && !post && (
@@ -60,6 +64,19 @@ export const PostsAdminPage: React.FC = () => {
             value={draft.content}
             onChange={(e) => setDraft({ ...draft, content: e.target.value })}
             required
+          />
+          <ImagePicker
+            label="Bannière"
+            format="banniere"
+            value={draft.bannerId ?? null}
+            onChange={(bannerId) => setDraft({ ...draft, bannerId })}
+            sectorId={post ? post.sectorId ?? null : draft.sectorId || user?.sector?.sectorId || null}
+          />
+          <PhotoListPicker
+            label="Photos de l'actualité"
+            value={draft.attachmentIds ?? []}
+            onChange={(attachmentIds) => setDraft({ ...draft, attachmentIds })}
+            sectorId={post ? post.sectorId ?? null : draft.sectorId || user?.sector?.sectorId || null}
           />
           {post && (
             <Button

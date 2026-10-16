@@ -1,4 +1,5 @@
 import React from "react";
+import { eventImageSrc } from "../../features/events/types";
 import { useEvents } from "../../features/events/useEvents";
 import { useMyRegistrations } from "../../features/events/useMyRegistrations";
 import { DEMANDE_STATUS_LABELS, passagerLabel, POSTE_LABELS, Registration, REGISTRATION_STATUS_LABELS } from "../../features/events/registrationsApi";
@@ -55,7 +56,7 @@ export const MyEventsPage: React.FC = () => {
         <MediaCard
           key={event.eventId}
           to={`/evenements/${event.eventId}`}
-          imageSrc={event.imageUrl || placeholderImage(event.eventId, event.name)}
+          imageSrc={eventImageSrc(event, placeholderImage(event.eventId, event.name))}
           imageAlt={event.name}
           title={event.name}
           subtitle={[

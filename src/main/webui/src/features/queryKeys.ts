@@ -21,7 +21,18 @@ export const queryKeys = {
     admin: ["posts", "admin"] as const,
     detail: (postId: string | undefined) => ["posts", "detail", postId] as const,
   },
-  medias: { all: ["medias"] as const, gallery: ["medias", "gallery"] as const },
+  medias: { all: ["medias"] as const },
+  /** La Galerie : ses Albums, chacun resserré sur un Event ou un Groupe, et les limites d'un dépôt. */
+  galerie: {
+    all: ["galerie"] as const,
+    albums: ["galerie", "albums"] as const,
+    album: (sectorId?: string, annee?: number, eventId?: string, groupId?: string) =>
+      ["galerie", "album", sectorId, annee, eventId ?? null, groupId ?? null] as const,
+    limites: ["galerie", "limites"] as const,
+    /** Les Propositions du Chef connecté. */
+    propositions: ["galerie", "propositions"] as const,
+    aValider: (sectorId?: string) => ["galerie", "a-valider", sectorId] as const,
+  },
   carousel: { all: ["carousel-items"] as const, active: ["carousel-items", "active"] as const },
   configurations: { all: ["configurations"] as const },
   featureFlags: { all: ["feature-flags"] as const, journal: ["feature-flags", "journal"] as const },

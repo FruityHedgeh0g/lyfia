@@ -18,6 +18,7 @@ import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 
 import java.util.List;
+import java.util.stream.Stream;
 import java.util.Optional;
 
 @AllArgsConstructor
@@ -34,10 +35,16 @@ public class ConfigurationServiceImpl implements ConfigurationService {
 
     @Override
     public List<ConfigurationDto> listAll() {
-        return configurationRepository.listAll()
+        List<ConfigurationDto> stored = configurationRepository.listAll()
                 .stream()
                 .map(configurationMapper::toDto)
                 .toList();
+        // The settings the site knows are listed with their default until the Super admin sets them
+        List<ConfigurationDto> defaults = GallerySettings.DEFAULTS.entrySet().stream()
+                .filter(d -> stored.stream().noneMatch(c -> c.getName().equals(d.getKey())))
+                .map(d -> ConfigurationDto.builder().name(d.getKey()).value(d.getValue()).build())
+                .toList();
+        return Stream.concat(stored.stream(), defaults.stream()).toList();
     }
 
     @Override
@@ -52,7 +59,12 @@ public class ConfigurationServiceImpl implements ConfigurationService {
     @Override
     @Transactional
     public ConfigurationDto update(ConfigurationDto configurationDto) {
+        GallerySettings.validate(configurationDto.getName(), configurationDto.getValue());
         ConfigurationEntity configurationEntity = configurationRepository.findByName(configurationDto.getName())
+                // A known setting not set yet is created
+                .or(() -> GallerySettings.DEFAULTS.containsKey(configurationDto.getName())
+                        ? Optional.of(ConfigurationEntity.builder().name(configurationDto.getName()).value(configurationDto.getValue()).build())
+                        : Optional.empty())
                 .orElseThrow(() -> new UnknownResourceException("Configuration not found: " + configurationDto.getName()));
 
         configurationEntity = configurationMapper.partialDtoToEntity(configurationEntity,configurationDto);

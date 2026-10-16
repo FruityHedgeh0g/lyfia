@@ -10,7 +10,8 @@ export interface EventInput {
   sectorId: string;
   /** 0 retire le maximum, comme côté backend. */
   maxParticipants?: number;
-  imageUrl?: string;
+  /** Le Media de son image ; null : l'image par défaut. */
+  imageMediaId?: string | null;
   address?: string;
   city?: string;
   postalCode?: string;

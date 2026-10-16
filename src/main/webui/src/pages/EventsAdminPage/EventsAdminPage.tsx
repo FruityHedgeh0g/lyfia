@@ -1,4 +1,5 @@
 import React from "react";
+import ImagePicker from "../../components/organisms/ImagePicker/ImagePicker";
 import { useEventMutations, useEvents } from "../../features/events/useEvents";
 import { EventInput } from "../../features/events/eventsApi";
 import { acceptsSignUps, allowedTransitions, EVENT_STATUS_LABELS, EventStatus } from "../../features/events/status";
@@ -31,7 +32,7 @@ const toDraft = (event: Event): EventDraft => ({
   sectorId: event.sectorId,
   status: event.status,
   maxParticipants: event.maxParticipants ? String(event.maxParticipants) : "",
-  imageUrl: event.imageUrl ?? "",
+  imageMediaId: event.imageMediaId ?? null,
   address: event.address ?? "",
   city: event.city ?? "",
   postalCode: event.postalCode ?? "",
@@ -59,7 +60,7 @@ export const EventsAdminPage: React.FC = () => {
     sectorId: isSuperAdmin ? sectorOptions[0]?.value ?? "" : ownSectorId,
     status: "planification",
     maxParticipants: "",
-    imageUrl: "",
+    imageMediaId: null,
     address: "",
     city: "",
     postalCode: "",
@@ -177,7 +178,14 @@ export const EventsAdminPage: React.FC = () => {
                 options={[event.status, ...transitions].map((s) => ({ value: s, label: EVENT_STATUS_LABELS[s] }))}
               />
             )}
-            <FormField label="Image (URL)" value={value.imageUrl} onChange={(e) => onChange({ ...value, imageUrl: e.target.value })} />
+            <ImagePicker
+              label="Image"
+              format="evenement"
+              value={value.imageMediaId ?? null}
+              onChange={(imageMediaId) => onChange({ ...value, imageMediaId })}
+              sectorId={value.sectorId || null}
+              event={event ? { eventId: event.eventId, startDateTime: event.startDateTime } : null}
+            />
             <FormField label="Adresse" value={value.address} onChange={(e) => onChange({ ...value, address: e.target.value })} />
             <FormField label="Ville" value={value.city} onChange={(e) => onChange({ ...value, city: e.target.value })} />
             <FormField label="Code postal" value={value.postalCode} onChange={(e) => onChange({ ...value, postalCode: e.target.value })} />

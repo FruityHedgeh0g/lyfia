@@ -19,12 +19,12 @@ const emptyDraft: MediaDraft = { alt: "", file: null };
 const sizeLabel = (bytes: number) => (bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} Ko` : `${(bytes / 1024 / 1024).toFixed(1)} Mo`);
 
 /**
- * Médiathèque (Bureau) : les images des actualités, du carrousel, de la galerie et du logo. Une image
+ * Les autres images (Bureau) : celles des actualités, du carrousel et du logo, hors de la Galerie. Une image
  * ajoutée ne change plus ; on décrit ce qu'elle montre pour les lecteurs d'écran.
  */
 export const MediasAdminPage: React.FC = () => {
   const { data: medias, isLoading } = useMedias();
-  const { upload, describe } = useMediaMutations();
+  const { upload, describe, remove } = useMediaMutations();
   const depositOn = useFeature("depot-medias");
   const depositOff = useFeatureOff("depot-medias");
 
@@ -34,13 +34,13 @@ export const MediasAdminPage: React.FC = () => {
     <>
     {depositOff && <FeatureNotice feature="depot-medias" message="Le dépôt de nouvelles images est temporairement suspendu." />}
     <AdminCrudList<Media, MediaDraft>
-      title="Médiathèque"
-      hint="Images JPEG, PNG, WebP ou GIF, de 8 Mo au plus."
+      title="Autres images"
+      hint="Les images des actualités, du carrousel et du logo, hors de la Galerie : JPEG, PNG, WebP ou GIF, de 8 Mo au plus."
       items={medias ?? []}
       idOf={(m) => m.mediaId}
       display={(m) => ({
         title: m.alt,
-        subtitle: `${m.originalFilename} · ${sizeLabel(m.fileSize)}`,
+        subtitle: [m.originalFilename, sizeLabel(m.fileSize), m.usedBy?.length ? `Utilisée par : ${m.usedBy.join(", ")}` : "Inutilisée"].join(" · "),
         leading: <img className={styles.thumb} src={m.url} alt="" />,
       })}
       toDraft={(m) => ({ alt: m.alt, file: null })}
@@ -59,6 +59,17 @@ export const MediasAdminPage: React.FC = () => {
         </>
       )}
       onUpdate={(mediaId, draft) => describe.mutateAsync({ mediaId, alt: draft.alt })}
+      remove={{
+        title: "Supprimer l'image ?",
+        message: (m) =>
+          m.usedBy?.length
+            ? `Cette image est utilisée par : ${m.usedBy.join(", ")}. Remplacez-la d'abord à ces endroits : elle ne sera pas supprimée.`
+            : "L'image est supprimée pour de bon.",
+        onRemove: (mediaId) => {
+          const media = medias?.find((m) => m.mediaId === mediaId);
+          return media?.usedBy?.length ? Promise.reject(new Error("Image utilisée")) : remove.mutateAsync(mediaId);
+        },
+      }}
       create={
         depositOn
           ? {

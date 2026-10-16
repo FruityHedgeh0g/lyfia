@@ -9,6 +9,7 @@ interface MediaDto {
   contentType?: string | null;
   fileSize: number;
   alt?: string | null;
+  usedBy?: string[] | null;
 }
 
 export const mediaUrl = (mediaId: string) => `/api/medias/${encodeURIComponent(mediaId)}/content`;
@@ -21,6 +22,7 @@ const toMedia = (dto: MediaDto): Media => ({
   fileSize: dto.fileSize,
   url: mediaUrl(dto.mediaId),
   alt: dto.alt || dto.originalFilename,
+  usedBy: dto.usedBy ?? [],
 });
 
 /** Images JPEG, PNG, WebP ou GIF de 8 Mo au plus (ADR 0008). */
@@ -35,11 +37,6 @@ export async function fetchMedias(): Promise<Media[]> {
   return (await apiFetch<MediaDto[]>("/api/medias")).map(toMedia);
 }
 
-/** La galerie publique : les mêmes images, refusées tant que Galerie photos est désactivée (sauf au Bureau). */
-export async function fetchGallery(): Promise<Media[]> {
-  return (await apiFetch<MediaDto[]>("/api/medias/gallery")).map(toMedia);
-}
-
 export async function uploadMedia(file: File, alt: string): Promise<Media> {
   if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) throw new Error("Seules les images JPEG, PNG, WebP et GIF sont acceptées.");
   if (file.size > MAX_IMAGE_SIZE) throw new Error("Une image pèse 8 Mo au plus.");
@@ -52,3 +49,6 @@ export async function uploadMedia(file: File, alt: string): Promise<Media> {
 export async function describeMedia(mediaId: string, alt: string): Promise<Media> {
   return toMedia(await apiFetch<MediaDto>(`/api/medias/${encodeURIComponent(mediaId)}`, { method: "PATCH", body: JSON.stringify({ alt }) }));
 }
+
+/** Le Bureau supprime une image hors de la Galerie, une fois que plus rien ne l'utilise. */
+export const deleteMedia = (mediaId: string) => apiFetch<void>(`/api/medias/${encodeURIComponent(mediaId)}`, { method: "DELETE" });

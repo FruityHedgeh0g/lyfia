@@ -27,6 +27,10 @@ public class CarouselItemEntity extends AuditTemplate {
     @Column(name = "caption", columnDefinition = "text")
     private String caption;
 
+    /** The short line beside the slide's number; none: « Une rose, un espoir ». */
+    @Column(name = "kicker")
+    private String kicker;
+
     /** None: the association's logo. */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "media_id")

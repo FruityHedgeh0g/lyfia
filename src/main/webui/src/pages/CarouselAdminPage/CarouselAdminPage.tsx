@@ -1,8 +1,11 @@
 import React from "react";
+import { DEFAULT_KICKER } from "../../components/organisms/Carousel/Carousel";
+import { useAuth } from "../../auth/AuthContext";
+import ImagePicker from "../../components/organisms/ImagePicker/ImagePicker";
 import { useCarouselItems, useCarouselMutations } from "../../features/carousel/useCarousel";
 import { CarouselItem, CarouselItemInput } from "../../features/carousel/types";
 import { useMedias } from "../../features/medias/useMedias";
-import { DEFAULT_MEDIA_VALUE, mediaImage, mediaOptions } from "../../features/medias/mediaImage";
+import { DEFAULT_MEDIA_VALUE, mediaImage } from "../../features/medias/mediaImage";
 import AdminCrudList from "../../components/organisms/AdminCrudList/AdminCrudList";
 import FormField from "../../components/molecules/FormField/FormField";
 import Select from "../../components/atoms/Select/Select";
@@ -20,9 +23,11 @@ interface Draft {
   active: boolean;
   /** Choisi par le Super admin, à la création ; "" : tout le site. */
   sectorId: string;
+  /** "" : « Une rose, un espoir ». */
+  kicker: string;
 }
 
-const emptyDraft: Draft = { title: "", caption: "", mediaId: DEFAULT_MEDIA_VALUE, linkTo: "", active: true, sectorId: "" };
+const emptyDraft: Draft = { title: "", caption: "", mediaId: DEFAULT_MEDIA_VALUE, linkTo: "", active: true, sectorId: "", kicker: "" };
 
 const toDraft = (item: CarouselItem): Draft => ({
   title: item.title,
@@ -31,6 +36,7 @@ const toDraft = (item: CarouselItem): Draft => ({
   linkTo: item.linkTo ?? "",
   active: item.active,
   sectorId: item.sectorId ?? "",
+  kicker: item.kicker ?? "",
 });
 
 function draftToInput(draft: Draft): CarouselItemInput {
@@ -41,6 +47,7 @@ function draftToInput(draft: Draft): CarouselItemInput {
     linkTo: draft.linkTo.trim() || null,
     active: draft.active,
     sectorId: draft.sectorId || null,
+    kicker: draft.kicker.trim() || null,
   };
 }
 
@@ -51,6 +58,7 @@ function draftToInput(draft: Draft): CarouselItemInput {
 export const CarouselAdminPage: React.FC = () => {
   const { data: items, isLoading } = useCarouselItems();
   const superAdmin = useIsSuperAdmin();
+  const { user } = useAuth();
   const { data: sectors } = useSectors();
   const sectorOptions = [
     { value: "", label: "Tout le site" },
@@ -62,7 +70,6 @@ export const CarouselAdminPage: React.FC = () => {
   if (isLoading || mediasLoading) return <Spinner label="Chargement du carrousel..." />;
 
   const sortedItems = items ?? [];
-  const options = mediaOptions(medias);
 
   return (
     <AdminCrudList
@@ -109,9 +116,21 @@ export const CarouselAdminPage: React.FC = () => {
           {superAdmin && !item && (
             <Select label="Secteur" value={draft.sectorId} onChange={(sectorId) => setDraft({ ...draft, sectorId })} options={sectorOptions} />
           )}
+          <FormField
+            label="Sur-titre (à côté du numéro)"
+            placeholder={DEFAULT_KICKER}
+            value={draft.kicker}
+            onChange={(e) => setDraft({ ...draft, kicker: e.target.value })}
+          />
           <FormField label="Titre" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} required />
           <FormField label="Légende" value={draft.caption} onChange={(e) => setDraft({ ...draft, caption: e.target.value })} />
-          <Select label="Image" value={draft.mediaId} onChange={(mediaId) => setDraft({ ...draft, mediaId })} options={options} />
+          <ImagePicker
+            label="Image"
+            format="carrousel"
+            value={draft.mediaId || null}
+            onChange={(mediaId) => setDraft({ ...draft, mediaId: mediaId ?? DEFAULT_MEDIA_VALUE })}
+            sectorId={(item ? item.sectorId : draft.sectorId) || (superAdmin ? null : user?.sector?.sectorId) || null}
+          />
           <FormField
             label="Lien (optionnel)"
             placeholder="/evenements ou /#benevolat"

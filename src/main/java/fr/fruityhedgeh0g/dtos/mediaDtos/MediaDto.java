@@ -1,5 +1,7 @@
 package fr.fruityhedgeh0g.dtos.mediaDtos;
 
+import java.util.List;
+import lombok.With;
 import com.fasterxml.jackson.annotation.JsonView;
 import fr.fruityhedgeh0g.dtos.Views;
 import lombok.Value;
@@ -29,4 +31,9 @@ public class MediaDto {
 
     @JsonView({Views.Basic.class,Views.Creation.class,Views.Update.class})
     long fileSize;
+
+    /** Read only: where the site uses it; it is deleted only once unused. */
+    @With
+    @JsonView(Views.Basic.class)
+    List<String> usedBy;
 }

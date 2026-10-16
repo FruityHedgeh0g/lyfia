@@ -23,6 +23,7 @@ import { mockFeatureFlags } from "./fixtures/featureFlags";
 import { FeatureFlag, JournalEntry } from "../features/featureFlags/types";
 import { mockFeatureRequests } from "./fixtures/featureRequests";
 import { FeatureRequest } from "../features/featureRequests/types";
+import { GalleryPhoto, Visibilite } from "../features/galerie/types";
 
 /**
  * Un backend en mémoire derrière `fetch`, pour les tests de pages : chaque client passé de ses fixtures à
@@ -60,6 +61,8 @@ interface State {
   posts: Post[];
   configurations: Configuration[];
   medias: Media[];
+  /** Les Photos de la Galerie, avec leur Visibilité et qui les a déposées. */
+  galerie: (GalleryPhoto & { visibilite: Visibilite; depositedBy: string; proposition: boolean })[];
   carousel: CarouselItem[];
   features: FeatureFlag[];
   /** Le Journal, les plus récentes d'abord. */
@@ -93,6 +96,7 @@ export function resetFakeApi() {
     posts: structuredClone(mockPosts),
     configurations: structuredClone(mockConfigurations),
     medias: structuredClone(mockMedias),
+    galerie: [],
     carousel: structuredClone(mockCarouselItems),
     features: structuredClone(mockFeatureFlags),
     journal: [],
@@ -110,6 +114,30 @@ export function seedGroup(group: Partial<Group> & Pick<Group, "name" | "sectorId
   const groupId = group.groupId ?? `group-seed-${++seeded}`;
   state.groups.push({ description: "", area: "", kind: "motards", chef: null, ...group, groupId });
   return groupId;
+}
+
+/** Ajoute une Photo de la Galerie telle quelle, sans les règles de l'API ; renvoie son id. */
+export function seedGalleryPhoto(photo: Partial<GalleryPhoto> & Pick<GalleryPhoto, "sectorId" | "annee"> & { depositedBy?: string }): string {
+  const photoId = photo.photoId ?? `photo-seed-${++seeded}`;
+  state.galerie.push({
+    mediaId: `media-${photoId}`,
+    alt: null,
+    event: null,
+    groups: [],
+    depositedAt: new Date(2026, 0, seeded).toISOString(),
+    depositedBy: "",
+    proposition: false,
+    ...photo,
+    visibilite: photo.visibilite ?? "brouillon",
+    photoId,
+  });
+  return photoId;
+}
+
+/** Donne à une actualité ses « Photos de l'actualité », sans les règles de l'API. */
+export function seedPostPhotos(postId: string, mediaIds: string[]) {
+  const post = state.posts.find((p) => p.postId === postId);
+  if (post) post.attachmentIds = mediaIds;
 }
 
 /** Ajoute une personne aux Inscrits telle quelle, sans les règles de l'API. */
@@ -146,6 +174,7 @@ async function handle(input: RequestInfo | URL, init: RequestInit = {}): Promise
   if (parts[0] === "api" && parts[1] === "features") return features(method, parts.slice(2), body, url.searchParams);
   if (parts[0] === "api" && parts[1] === "feature-requests") return featureRequests(method, body);
   if (parts[0] === "api" && parts[1] === "medias") return medias(method, parts.slice(2), body);
+  if (parts[0] === "api" && parts[1] === "galerie") return galerie(method, parts.slice(2), body, url.searchParams);
   if (parts[0] === "api" && parts[1] === "carousel") return carousel(method, parts.slice(2), body, url.searchParams);
   if (parts[0] === "api" && parts[1] === "configurations") return configurations(method, parts[2], body);
   if (parts[0] === "api" && parts[1] === "posts") return posts(method, parts.slice(2), body, url.searchParams);
@@ -500,14 +529,23 @@ function posts(method: string, [postId, action]: string[], body: any, query: URL
     if (method === "POST") {
       const { userId, firstName, lastName } = state.viewer;
       const sectorId = isSuperAdmin() ? (body.sectorId ?? null) : state.viewer.sectorId;
-      const post: Post = { postId: `post-new-${state.posts.length + 1}`, title: body.title, content: body.content, status: "brouillon", author: { userId, firstName, lastName }, sectorId };
+      const post: Post = {
+        postId: `post-new-${state.posts.length + 1}`,
+        title: body.title,
+        content: body.content,
+        status: "brouillon",
+        author: { userId, firstName, lastName },
+        sectorId,
+        bannerId: body.bannerId ?? null,
+        attachmentIds: body.attachmentIds ?? [],
+      };
       state.posts.unshift(post);
       return json(post);
     }
     const post = state.posts.find((p) => p.postId === body.postId);
     if (method !== "PATCH" || !post) return empty(method === "PATCH" ? 404 : 405);
     if (!manages(post.sectorId)) return empty(403);
-    Object.assign(post, { title: body.title, content: body.content });
+    Object.assign(post, { title: body.title, content: body.content, bannerId: body.bannerId ?? null, attachmentIds: body.attachmentIds ?? [] });
     return json(post);
   }
   const offPost = state.posts.find((p) => p.postId === postId && p.status === "publie" && offFor(p));
@@ -538,10 +576,6 @@ const mediaDto = ({ url: _url, contentType, ...m }: Media) => ({ ...m, mimeType:
 
 function medias(method: string, [mediaId]: string[], body: any): Response {
   const isBureau = roleAtLeast(state.viewer.role, "bureau");
-  if (mediaId === "gallery" && method === "GET") {
-    if (!isOn("galerie-photos") && !isBureau) return featureOff("galerie-photos");
-    return json(state.medias.map(mediaDto));
-  }
   if (!mediaId) {
     if (method === "GET") return json(state.medias.map(mediaDto));
     if (method !== "POST") return empty(405);
@@ -568,6 +602,151 @@ function medias(method: string, [mediaId]: string[], body: any): Response {
   return json(mediaDto(media));
 }
 
+/** Comme GalleryService : la Visibilité de chaque photo décide qui la voit ; le Bureau gère son Secteur (ADR 0013). */
+async function galerie(method: string, [photoId, ...rest]: string[], body: any, query: URLSearchParams): Promise<Response> {
+  const isBureau = roleAtLeast(state.viewer.role, "bureau");
+  const managed = (p: { sectorId: string }) => isBureau && manages(p.sectorId);
+  const sees = (p: (typeof state.galerie)[number]) =>
+    (isBureau || isOn("galerie-photos", p.sectorId)) &&
+    (managed(p) ||
+      (Boolean(state.viewer.userId) && p.depositedBy === state.viewer.userId) ||
+      p.visibilite === "publique" ||
+      (p.visibilite === "inscrits" && state.viewer.role !== "visiteur"));
+  const dto = (p: (typeof state.galerie)[number]): GalleryPhoto => {
+    const { depositedBy: _by, ...photo } = p;
+    return { ...photo, visibilite: managed(p) ? p.visibilite : null };
+  };
+  const eventOf = async (eventId: string | null | undefined) =>
+    eventId ? (await createEventsApi().fetchEventById(eventId, true, true)) ?? null : null;
+
+  if (photoId === "albums" && method === "GET") {
+    if (!isBureau && !isOn("galerie-photos")) return featureOff("galerie-photos");
+    const counts = new Map<string, number>();
+    state.galerie.filter(sees).forEach((p) => counts.set(`${p.sectorId}|${p.annee}`, (counts.get(`${p.sectorId}|${p.annee}`) ?? 0) + 1));
+    return json(
+      [...counts.entries()].map(([key, count]) => {
+        const [sectorId, annee] = key.split("|");
+        return { sectorId, sectorName: state.sectors.find((s) => s.sectorId === sectorId)?.name ?? "", annee: Number(annee), count };
+      })
+    );
+  }
+  if (photoId === "limites" && method === "GET") return roleAtLeast(state.viewer.role, "chef_de_groupe") ? json({ maxPx: 3000, maxMo: 5 }) : empty(403);
+
+  // Les Propositions de photo d'un Chef de groupe, pour le Groupe qu'il mène
+  if (photoId === "propositions") {
+    if (!roleAtLeast(state.viewer.role, "chef_de_groupe")) return empty(403);
+    const mine = state.galerie.filter((p) => p.proposition && p.depositedBy === state.viewer.userId);
+    if (method === "GET" && !rest[0]) return json(mine.map(dto));
+    if (method === "DELETE") {
+      const photo = state.galerie.find((p) => p.photoId === rest[0]);
+      if (!photo || photo.depositedBy !== state.viewer.userId) return empty(403);
+      if (!photo.proposition) return empty(400);
+      state.galerie = state.galerie.filter((p) => p !== photo);
+      return empty(204);
+    }
+    if (method === "POST") {
+      if (!isOn("depot-medias")) return featureOff("depot-medias");
+      const led = state.groups.find((g) => g.chef?.userId === state.viewer.userId);
+      if (!led) return empty(403);
+      const form = body as FormData;
+      const event = await eventOf(form.get("eventId") as string | null);
+      if (!event || event.sectorId !== led.sectorId) return empty(400);
+      const id = `photo-${state.galerie.length + 1}`;
+      const photo = {
+        photoId: id,
+        mediaId: `media-${id}`,
+        alt: (form.get("alt") as string | null) ?? null,
+        sectorId: led.sectorId,
+        annee: new Date(event.startDateTime).getFullYear(),
+        event: { eventId: event.eventId, name: event.name, startDateTime: event.startDateTime },
+        groups: [{ groupId: led.groupId, name: led.name }],
+        visibilite: "brouillon" as Visibilite,
+        depositedAt: new Date().toISOString(),
+        depositedBy: state.viewer.userId,
+        proposition: true,
+      };
+      state.galerie.push(photo);
+      return json(dto(photo));
+    }
+    return empty(405);
+  }
+  if (!photoId && method === "GET") {
+    const sectorId = query.get("sectorId") ?? "";
+    if (!isBureau && !isOn("galerie-photos", sectorId)) return featureOff("galerie-photos");
+    return json(
+      state.galerie
+        .filter((p) => p.sectorId === sectorId && p.annee === Number(query.get("annee")))
+        .filter((p) => !query.get("eventId") || p.event?.eventId === query.get("eventId"))
+        .filter((p) => !query.get("groupId") || p.groups.some((g) => g.groupId === query.get("groupId")))
+        .filter(sees)
+        .map(dto)
+    );
+  }
+  if (!isBureau) return empty(403);
+  if (photoId === "a-valider" && method === "GET") {
+    const sectorId = query.get("sectorId") ?? "";
+    if (!manages(sectorId)) return empty(403);
+    return json(state.galerie.filter((p) => p.sectorId === sectorId && p.proposition).map(dto));
+  }
+  if (!photoId && method === "POST") {
+    if (!isOn("depot-medias")) return featureOff("depot-medias");
+    const form = body as FormData;
+    const sectorId = String(form.get("sectorId") ?? state.viewer.sectorId ?? "");
+    if (!manages(sectorId)) return empty(403);
+    const event = await eventOf(form.get("eventId") as string | null);
+    const annee = event ? new Date(event.startDateTime).getFullYear() : Number(form.get("annee"));
+    if (!annee) return empty(400);
+    const id = `photo-${state.galerie.length + 1}`;
+    const photo = {
+      photoId: id,
+      mediaId: `media-${id}`,
+      alt: (form.get("alt") as string | null) ?? null,
+      sectorId,
+      annee,
+      event: event ? { eventId: event.eventId, name: event.name, startDateTime: event.startDateTime } : null,
+      groups: form.getAll("groupId").map((g) => ({ groupId: String(g), name: state.groups.find((x) => x.groupId === g)?.name ?? "" })),
+      visibilite: "brouillon" as Visibilite,
+      depositedAt: new Date().toISOString(),
+      depositedBy: state.viewer.userId,
+      proposition: false,
+    };
+    state.galerie.push(photo);
+    return json(dto(photo));
+  }
+  if (photoId === "visibilite" && method === "PUT") {
+    const photos = (body.photoIds as string[]).map((id) => state.galerie.find((p) => p.photoId === id));
+    if (photos.some((p) => !p || !managed(p))) return empty(403);
+    photos.forEach((p) => Object.assign(p!, { visibilite: body.visibilite, proposition: false }));
+    return json(photos.map((p) => dto(p!)));
+  }
+  const photo = state.galerie.find((p) => p.photoId === photoId);
+  if (!photo) return empty(404);
+  if (!managed(photo)) return empty(403);
+  if (rest[0] === "validation" && method === "POST") {
+    Object.assign(photo, { visibilite: body.visibilite, proposition: false });
+    return json(dto(photo));
+  }
+  if (method === "PATCH") {
+    const event = await eventOf(body.eventId);
+    Object.assign(photo, {
+      alt: body.alt || null,
+      event: event ? { eventId: event.eventId, name: event.name, startDateTime: event.startDateTime } : null,
+      annee: event ? new Date(event.startDateTime).getFullYear() : body.annee,
+      groups: (body.groupIds as string[]).map((g) => ({ groupId: g, name: state.groups.find((x) => x.groupId === g)?.name ?? "" })),
+    });
+    return json(dto(photo));
+  }
+  if (method === "DELETE") {
+    state.galerie = state.galerie.filter((p) => p !== photo);
+    return empty(204);
+  }
+  return empty(405);
+}
+
+/** Comme MediaUses : seule une photo Publique de la Galerie sert sur le site public. */
+const usableOnThePublicSite = (mediaId: string | null | undefined) =>
+  !mediaId || state.galerie.every((p) => p.mediaId !== mediaId || p.visibilite === "publique");
+
 function carousel(method: string, [id, action, direction]: string[], body: any, query: URLSearchParams): Response {
   const isBureau = roleAtLeast(state.viewer.role, "bureau");
   const ordered = () => [...state.carousel].sort((a, b) => a.order - b.order);
@@ -579,6 +758,7 @@ function carousel(method: string, [id, action, direction]: string[], body: any, 
     }
     if (method !== "POST") return empty(405);
     if (!isBureau) return empty(403);
+    if (!usableOnThePublicSite(body.mediaId)) return empty(400);
     const sectorId = isSuperAdmin() ? (body.sectorId ?? null) : state.viewer.sectorId;
     const item: CarouselItem = { id: `carousel-new-${state.carousel.length + 1}`, order: Math.max(0, ...state.carousel.map((i) => i.order)) + 1, ...body, sectorId };
     state.carousel.push(item);
@@ -589,6 +769,7 @@ function carousel(method: string, [id, action, direction]: string[], body: any, 
   if (!item) return empty(404);
   if (!manages(item.sectorId)) return empty(403);
   if (method === "PUT" && !action) {
+    if (!usableOnThePublicSite(body.mediaId)) return empty(400);
     Object.assign(item, { ...body, sectorId: item.sectorId });
     return json(item);
   }

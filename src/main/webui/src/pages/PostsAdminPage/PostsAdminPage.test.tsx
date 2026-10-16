@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import { seedGalleryPhoto } from "../../test/fakeApi";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "../../auth/AuthContext";
@@ -60,5 +61,38 @@ describe("PostsAdminPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Créer le brouillon" }));
 
     expect(await screen.findByRole("button", { name: /Balade à Thionville/ })).toHaveTextContent("Secteur Thionville");
+  });
+
+  it("gives a Post its photos from the Galerie, in the order chosen", async () => {
+    const year = new Date().getFullYear();
+    seedGalleryPhoto({ photoId: "depart", sectorId: "sector-1", annee: year, alt: "Le départ", visibilite: "publique" });
+    seedGalleryPhoto({ photoId: "arrivee", sectorId: "sector-1", annee: year, alt: "L'arrivée", visibilite: "publique" });
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "+ Nouvelle actualité" }));
+    await userEvent.type(screen.getByLabelText("Titre"), "Compte rendu");
+    await userEvent.type(screen.getByLabelText("Contenu"), "La balade");
+
+    const pickers = screen.getAllByRole("button", { name: "Choisir dans la Galerie" });
+    // Le premier sélecteur est la bannière, le second les photos de l'actualité
+    await userEvent.click(pickers[1]);
+    await userEvent.click(await within(screen.getByRole("dialog")).findByRole("button", { name: "Choisir : Le départ" }));
+    await userEvent.click(pickers[1]);
+    await userEvent.click(await within(screen.getByRole("dialog")).findByRole("button", { name: "Choisir : L'arrivée" }));
+    const list = screen.getByRole("list", { name: "Photos de l'actualité" });
+    expect(within(list).getAllByRole("img").map((i) => i.getAttribute("src"))).toEqual([
+      expect.stringContaining("media-depart"),
+      expect.stringContaining("media-arrivee"),
+    ]);
+
+    await userEvent.click(within(list).getByRole("button", { name: "Avancer la photo 2" }));
+    expect(within(list).getAllByRole("img")[0]).toHaveAttribute("src", expect.stringContaining("media-arrivee"));
+    await userEvent.click(screen.getByRole("button", { name: "Créer le brouillon" }));
+
+    await userEvent.click(await screen.findByRole("button", { name: /Compte rendu/ }));
+    const saved = await screen.findByRole("list", { name: "Photos de l'actualité" });
+    expect(within(saved).getAllByRole("img").map((i) => i.getAttribute("src"))).toEqual([
+      expect.stringContaining("media-arrivee"),
+      expect.stringContaining("media-depart"),
+    ]);
   });
 });

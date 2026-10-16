@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import EventImages from "./EventImages";
+import { eventImageSrc } from "../../features/events/types";
 import { Link, useParams } from "react-router-dom";
 import { useEvent } from "../../features/events/useEvents";
 import { acceptsSignUps, EVENT_STATUS_LABELS, statusTone } from "../../features/events/status";
@@ -174,7 +176,7 @@ export const EventDetailPage: React.FC = () => {
 
   return (
     <article>
-      <PageHero eyebrow="Événement" title={event.name} imageSrc={event.imageUrl || undefined}>
+      <PageHero eyebrow="Événement" title={event.name} imageSrc={eventImageSrc(event, undefined)}>
         <Badge label={EVENT_STATUS_LABELS[event.status]} tone={statusTone(event.status)} />
         <span className={styles.heroMeta}>
           <Icon name="calendar" size={18} />
@@ -188,10 +190,11 @@ export const EventDetailPage: React.FC = () => {
           <div>
             <img
               className={styles.image}
-              src={event.imageUrl || placeholderImage(event.eventId, event.name)}
+              src={eventImageSrc(event, placeholderImage(event.eventId, event.name))}
               alt={event.name}
             />
             <p className={styles.description}>{event.description}</p>
+            <EventImages event={event} />
           </div>
 
           <aside className={styles.card}>

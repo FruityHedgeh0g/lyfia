@@ -1,4 +1,5 @@
 import React from "react";
+import { eventImageSrc } from "../../../features/events/types";
 import { useEvents } from "../../../features/events/useEvents";
 import { EVENT_STATUS_LABELS, statusTone } from "../../../features/events/status";
 import { isUpcoming } from "../../../features/events/eventsApi";
@@ -22,7 +23,7 @@ function renderCard(event: Event, options: { headingLevel?: "h2" | "h3"; dimmed?
     <MediaCard
       key={event.eventId}
       to={`/evenements/${event.eventId}`}
-      imageSrc={event.imageUrl || placeholderImage(event.eventId, event.name)}
+      imageSrc={eventImageSrc(event, placeholderImage(event.eventId, event.name))}
       imageAlt={event.name}
       title={event.name}
       subtitle={formatDateRange(event.startDateTime, event.endDateTime)}

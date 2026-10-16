@@ -1,5 +1,7 @@
 package fr.fruityhedgeh0g.entities;
 
+import jakarta.persistence.OrderColumn;
+import jakarta.persistence.ManyToOne;
 import fr.fruityhedgeh0g.entities.medias.MediaEntity;
 import fr.fruityhedgeh0g.enums.PostStatusEnum;
 import jakarta.persistence.*;
@@ -66,11 +68,13 @@ public class PostEntity extends AuditTemplate {
         return status == PostStatusEnum.PUBLIE;
     }
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "media_id")
     private MediaEntity banner;
 
+    /** Its "Photos de l'actualité", in the order the Bureau chose, 12 at most. */
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "post_attachments", joinColumns = @JoinColumn(name = "post_id"), inverseJoinColumns = @JoinColumn(name = "media_id"))
+    @OrderColumn(name = "position")
     private List<MediaEntity> attachments;
 }
