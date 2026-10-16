@@ -45,6 +45,6 @@ describe("FeatureFlagsPage", () => {
 
     expect(await within(perSecteur).findByRole("button", { name: "Activer pour Secteur Algrange" })).toBeInTheDocument();
     expect(within(perSecteur).getByText("Secteur Algrange : désactivée")).toBeInTheDocument();
-    expect(screen.queryByRole("list", { name: "Galerie photos par secteur" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Carrousel par secteur" })).not.toBeInTheDocument();
   });
 });

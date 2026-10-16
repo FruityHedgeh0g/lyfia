@@ -116,8 +116,8 @@ class JournalResourceTest {
     @Test
     void eachRefusalIsCounted() {
         QuarkusTransaction.requiringNew().run(() -> featureRepository.findById(FEATURE).setIsActive(false));
-        given().when().get("/api/medias/gallery").then().statusCode(503);
-        given().when().get("/api/medias/gallery").then().statusCode(503);
+        given().when().get("/api/galerie/albums").then().statusCode(503);
+        given().when().get("/api/galerie/albums").then().statusCode(503);
         given().when().get("/api/features").then()
                 .body("find { it.name == '" + FEATURE + "' }.refusedCount", equalTo(2));
     }

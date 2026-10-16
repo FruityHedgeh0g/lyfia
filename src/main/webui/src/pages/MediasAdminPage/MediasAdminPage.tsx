@@ -19,7 +19,7 @@ const emptyDraft: MediaDraft = { alt: "", file: null };
 const sizeLabel = (bytes: number) => (bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} Ko` : `${(bytes / 1024 / 1024).toFixed(1)} Mo`);
 
 /**
- * Médiathèque (Bureau) : les images des actualités, du carrousel, de la galerie et du logo. Une image
+ * Les autres images (Bureau) : celles des actualités, du carrousel et du logo, hors de la Galerie. Une image
  * ajoutée ne change plus ; on décrit ce qu'elle montre pour les lecteurs d'écran.
  */
 export const MediasAdminPage: React.FC = () => {
@@ -34,8 +34,8 @@ export const MediasAdminPage: React.FC = () => {
     <>
     {depositOff && <FeatureNotice feature="depot-medias" message="Le dépôt de nouvelles images est temporairement suspendu." />}
     <AdminCrudList<Media, MediaDraft>
-      title="Médiathèque"
-      hint="Images JPEG, PNG, WebP ou GIF, de 8 Mo au plus."
+      title="Autres images"
+      hint="Les images des actualités, du carrousel et du logo, hors de la Galerie : JPEG, PNG, WebP ou GIF, de 8 Mo au plus."
       items={medias ?? []}
       idOf={(m) => m.mediaId}
       display={(m) => ({

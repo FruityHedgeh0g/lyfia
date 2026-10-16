@@ -1,0 +1,86 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(2, 12, 24, .92);
+}
+
+.dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+  max-height: 100%;
+  outline: none;
+}
+
+.image {
+  max-width: 100%;
+  max-height: calc(100vh - 120px);
+  object-fit: contain;
+  display: block;
+}
+
+.caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 12px;
+  margin: 0;
+  color: #fff;
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.alt {
+  font-weight: 700;
+}
+
+.details,
+.count {
+  opacity: .75;
+}
+
+.close {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  padding: 8px;
+  border: 0;
+  background: rgba(0, 0, 0, .4);
+  color: #fff;
+  cursor: pointer;
+}
+
+.nav {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 64px;
+  border: 0;
+  background: rgba(0, 0, 0, .4);
+  color: #fff;
+  font-size: 40px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.previous {
+  left: 8px;
+}
+
+.next {
+  right: 8px;
+}
+
+.close:focus-visible,
+.nav:focus-visible {
+  outline: 3px solid var(--color-accent);
+}

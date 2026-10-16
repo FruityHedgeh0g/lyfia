@@ -159,9 +159,9 @@ class FeatureLeverResourceTest {
 
     @Test
     void galerieOffRefusesThePublicGallery() {
-        given().when().get("/api/medias/gallery").then().statusCode(200);
+        given().when().get("/api/galerie/albums").then().statusCode(200);
         turn(FeatureEnum.GALERIE_PHOTOS, false);
-        refusedAs(given().when().get("/api/medias/gallery").then(), FeatureEnum.GALERIE_PHOTOS);
+        refusedAs(given().when().get("/api/galerie/albums").then(), FeatureEnum.GALERIE_PHOTOS);
         // The medias themselves still serve the rest of the site (logo, carousel, Posts)
         given().when().get("/api/medias").then().statusCode(200);
     }
@@ -171,7 +171,7 @@ class FeatureLeverResourceTest {
     @OidcSecurity(claims = @Claim(key = "sub", value = BUREAU))
     void theBureauStillSeesTheGalleryItPrepares() {
         turn(FeatureEnum.GALERIE_PHOTOS, false);
-        given().when().get("/api/medias/gallery").then().statusCode(200);
+        given().when().get("/api/galerie/albums").then().statusCode(200);
     }
 
     // --- Actualités, Carrousel: what the public sees ---

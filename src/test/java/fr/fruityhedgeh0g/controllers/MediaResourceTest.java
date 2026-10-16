@@ -1,7 +1,7 @@
 package fr.fruityhedgeh0g.controllers;
 
 import fr.fruityhedgeh0g.repositories.CarouselItemRepository;
-import fr.fruityhedgeh0g.repositories.MediaContentRepository;
+import fr.fruityhedgeh0g.repositories.MediaFileRepository;
 import fr.fruityhedgeh0g.repositories.MediaRepository;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.common.http.TestHTTPEndpoint;
@@ -29,14 +29,14 @@ public class MediaResourceTest {
     static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 1, 2, 3};
 
     @Inject MediaRepository mediaRepository;
-    @Inject MediaContentRepository contentRepository;
+    @Inject MediaFileRepository fileRepository;
     @Inject CarouselItemRepository carouselRepository;
 
     @AfterEach
     void cleanUp() {
         QuarkusTransaction.requiringNew().run(() -> {
             carouselRepository.deleteAll();
-            contentRepository.deleteAll();
+            fileRepository.deleteAll();
             mediaRepository.deleteAll();
         });
     }

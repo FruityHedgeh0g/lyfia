@@ -75,7 +75,7 @@ class SectorLeverResourceTest {
     @BeforeEach
     void seed() {
         QuarkusTransaction.requiringNew().run(() -> {
-            for (FeatureEnum feature : List.of(INSCRIPTION, FeatureEnum.EXPORT_LISTE, FeatureEnum.GALERIE_PHOTOS, FeatureEnum.ACTUALITES))
+            for (FeatureEnum feature : List.of(INSCRIPTION, FeatureEnum.EXPORT_LISTE, FeatureEnum.GALERIE_PHOTOS, FeatureEnum.ACTUALITES, FeatureEnum.CARROUSEL))
                 featureRepository.persist(FeatureEntity.builder().name(feature.id()).description("Test").isActive(true).build());
             SectorEntity a = sector("Algrange", false);
             SectorEntity t = sector("Thionville", false);
@@ -202,7 +202,7 @@ class SectorLeverResourceTest {
     @TestSecurity(user = "superadmin", augmentors = DatabaseRoleAugmentor.class)
     @OidcSecurity(claims = @Claim(key = "sub", value = SUPER_ADMIN))
     void onlyFeaturesAboutASecteurHaveSecteurLevers() {
-        switchIn(FeatureEnum.GALERIE_PHOTOS, algrange, false).statusCode(400);
+        switchIn(FeatureEnum.CARROUSEL, algrange, false).statusCode(400);
         switchIn(FeatureEnum.ACTUALITES, algrange, false).statusCode(200);
         switchIn(INSCRIPTION, closed, false).statusCode(400);
         switchIn(INSCRIPTION, UUID.randomUUID(), false).statusCode(404);

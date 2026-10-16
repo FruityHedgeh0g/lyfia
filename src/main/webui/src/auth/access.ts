@@ -75,7 +75,7 @@ export const ACCESS = {
   adminEvents: { path: "/administration/evenements", label: "Gestion événements", minRole: "bureau", section: "admin", group: "Organisation" },
   adminPosts: { path: "/administration/actualites", label: "Actualités", minRole: "bureau", section: "admin", group: "Contenu" },
   adminCarousel: { path: "/administration/carrousel", label: "Carrousel", minRole: "bureau", section: "admin", group: "Contenu" },
-  adminMedias: { path: "/administration/medias", label: "Médiathèque", minRole: "bureau", section: "admin", group: "Contenu" },
+  adminMedias: { path: "/administration/galerie", label: "Galerie", minRole: "bureau", section: "admin", group: "Contenu" },
   adminConfiguration: { path: "/administration/configuration", label: "Configuration", minRole: "super_admin", section: "admin", group: "Site" },
   adminFeatureFlags: { path: "/administration/fonctionnalites", label: "Fonctionnalités", minRole: "super_admin", section: "admin", group: "Site" },
   adminJournal: { path: "/administration/journal", label: "Journal", minRole: "super_admin", section: "admin", group: "Site" },

@@ -1,0 +1,22 @@
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.filters > * {
+  flex: 1 1 200px;
+  max-width: 320px;
+}
+
+.error {
+  color: var(--color-danger);
+}
+
+.empty {
+  padding: 28px;
+  border: 2px dashed var(--color-border);
+  color: var(--color-muted);
+  text-align: center;
+}

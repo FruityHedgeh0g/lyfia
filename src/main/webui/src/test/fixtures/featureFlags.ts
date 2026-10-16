@@ -3,7 +3,7 @@ import { FeatureFlag } from "../../features/featureFlags/types";
 export const mockFeatureFlags: FeatureFlag[] = [
   { name: "dons-en-ligne", description: "Afficher le module de don en ligne sur le site public.", isActive: false },
   { name: "inscription-evenements", description: "Permettre l'inscription en ligne aux événements.", isActive: true, perSecteur: true, offSectors: [] },
-  { name: "galerie-photos", description: "Afficher la galerie photos publique.", isActive: true },
+  { name: "galerie-photos", description: "Afficher la galerie photos publique.", isActive: true, perSecteur: true, offSectors: [] },
   { name: "actualites", description: "Montrer les actualités au public.", isActive: true, perSecteur: true, offSectors: [] },
   { name: "carrousel", description: "Montrer le carrousel de la page d'accueil.", isActive: true },
   { name: "depot-medias", description: "Permettre au Bureau de déposer des images dans la médiathèque.", isActive: true },
