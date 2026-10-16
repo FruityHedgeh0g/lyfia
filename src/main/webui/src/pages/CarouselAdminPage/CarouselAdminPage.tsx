@@ -1,4 +1,5 @@
 import React from "react";
+import { DEFAULT_KICKER } from "../../components/organisms/Carousel/Carousel";
 import { useAuth } from "../../auth/AuthContext";
 import ImagePicker from "../../components/organisms/ImagePicker/ImagePicker";
 import { useCarouselItems, useCarouselMutations } from "../../features/carousel/useCarousel";
@@ -22,9 +23,11 @@ interface Draft {
   active: boolean;
   /** Choisi par le Super admin, à la création ; "" : tout le site. */
   sectorId: string;
+  /** "" : « Une rose, un espoir ». */
+  kicker: string;
 }
 
-const emptyDraft: Draft = { title: "", caption: "", mediaId: DEFAULT_MEDIA_VALUE, linkTo: "", active: true, sectorId: "" };
+const emptyDraft: Draft = { title: "", caption: "", mediaId: DEFAULT_MEDIA_VALUE, linkTo: "", active: true, sectorId: "", kicker: "" };
 
 const toDraft = (item: CarouselItem): Draft => ({
   title: item.title,
@@ -33,6 +36,7 @@ const toDraft = (item: CarouselItem): Draft => ({
   linkTo: item.linkTo ?? "",
   active: item.active,
   sectorId: item.sectorId ?? "",
+  kicker: item.kicker ?? "",
 });
 
 function draftToInput(draft: Draft): CarouselItemInput {
@@ -43,6 +47,7 @@ function draftToInput(draft: Draft): CarouselItemInput {
     linkTo: draft.linkTo.trim() || null,
     active: draft.active,
     sectorId: draft.sectorId || null,
+    kicker: draft.kicker.trim() || null,
   };
 }
 
@@ -111,6 +116,12 @@ export const CarouselAdminPage: React.FC = () => {
           {superAdmin && !item && (
             <Select label="Secteur" value={draft.sectorId} onChange={(sectorId) => setDraft({ ...draft, sectorId })} options={sectorOptions} />
           )}
+          <FormField
+            label="Sur-titre (à côté du numéro)"
+            placeholder={DEFAULT_KICKER}
+            value={draft.kicker}
+            onChange={(e) => setDraft({ ...draft, kicker: e.target.value })}
+          />
           <FormField label="Titre" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} required />
           <FormField label="Légende" value={draft.caption} onChange={(e) => setDraft({ ...draft, caption: e.target.value })} />
           <ImagePicker

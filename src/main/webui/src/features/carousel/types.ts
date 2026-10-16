@@ -12,6 +12,8 @@ export interface CarouselItem {
   order: number;
   /** Le Secteur dont le Bureau le gère ; null : tout le site (ADR 0004). */
   sectorId?: string | null;
+  /** Le sur-titre à côté du numéro de la diapositive ; vide : « Une rose, un espoir ». */
+  kicker?: string | null;
 }
 
 /** `sectorId` n'est choisi que par le Super admin, à la création ; les autres écrivent pour leur Secteur. */

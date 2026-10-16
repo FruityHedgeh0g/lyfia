@@ -201,6 +201,11 @@
   background: var(--brand-red);
 }
 
+/* La diapositive en cours se voit même en pause, avant que sa barre ne se remplisse */
+.barActive::before {
+  background: rgba(255, 255, 255, .6);
+}
+
 .barDone .progress {
   transform: translateY(-50%) scaleX(1);
   background: #fff;

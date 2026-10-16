@@ -9,6 +9,8 @@ export interface CarouselSlide {
   alt: string;
   title?: string;
   caption?: string;
+  /** Le sur-titre à côté du numéro ; à défaut, « Une rose, un espoir ». */
+  kicker?: string;
   /** Chemin interne (route ou ancre "/#section"), résolu via React Router. */
   to?: string;
   /** "contain" pour une image à ne pas recadrer (ex : logo par défaut). */
@@ -31,6 +33,9 @@ const clampIndex = (idx: number, len: number) => {
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+/** Le sur-titre d'une diapositive qui n'en a pas. */
+export const DEFAULT_KICKER = "Une rose, un espoir";
+
 /** Carrousel plein écran de l'accueil : fondu enchaîné, voile marine, progression par barres. */
 export const Carousel: React.FC<CarouselProps> = ({
   slides,
@@ -50,10 +55,20 @@ export const Carousel: React.FC<CarouselProps> = ({
   const next = () => setIndex((prev) => clampIndex(prev + 1, len));
   const prev = () => setIndex((prev) => clampIndex(prev - 1, len));
 
+  // Le temps déjà passé sur la diapositive : une pause (survol, focus) le garde, comme la barre de progression qui
+  // reprend où elle s'était arrêtée ; une nouvelle diapositive repart de zéro
+  const elapsed = useRef(0);
+  useEffect(() => {
+    elapsed.current = 0;
+  }, [index]);
   useEffect(() => {
     if (!running) return;
-    const id = window.setTimeout(() => setIndex((i) => clampIndex(i + 1, len)), delay);
-    return () => window.clearTimeout(id);
+    const started = performance.now();
+    const id = window.setTimeout(() => setIndex((i) => clampIndex(i + 1, len)), Math.max(0, delay - elapsed.current));
+    return () => {
+      window.clearTimeout(id);
+      elapsed.current += performance.now() - started;
+    };
   }, [running, delay, len, index]);
 
   const onKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (e) => {
@@ -118,7 +133,7 @@ export const Carousel: React.FC<CarouselProps> = ({
               {(s.title || s.caption || s.to) && (
                 <div className={styles.content}>
                   <p className={styles.kicker}>
-                    <span>{pad(i + 1)}</span> Une rose, un espoir
+                    <span>{pad(i + 1)}</span> {s.kicker || DEFAULT_KICKER}
                   </p>
                   {s.title && <h2 className={styles.title}>{s.title}</h2>}
                   {s.caption && <p className={styles.caption}>{s.caption}</p>}
