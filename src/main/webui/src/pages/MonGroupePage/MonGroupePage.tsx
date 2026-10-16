@@ -11,6 +11,7 @@ import Collapsible from "../../components/molecules/Collapsible/Collapsible";
 import { useConfirm } from "../../components/molecules/ConfirmDialog/useConfirm";
 import { askWithPassager, confirmRefusal, confirmTakeOut, fullName } from "../../features/events/confirmations";
 import Spinner from "../../components/atoms/Spinner/Spinner";
+import EventPhotos from "./EventPhotos";
 import styles from "./MonGroupePage.module.css";
 
 type GroupEvent = MonGroupe["events"][number];
@@ -196,6 +197,8 @@ export const MonGroupePage: React.FC = () => {
                 );
               })}
             </div>
+
+            <EventPhotos eventId={event.eventId} eventName={event.name} />
           </section>
         );
       })}

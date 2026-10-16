@@ -29,6 +29,9 @@ export const queryKeys = {
     album: (sectorId?: string, annee?: number, eventId?: string, groupId?: string) =>
       ["galerie", "album", sectorId, annee, eventId ?? null, groupId ?? null] as const,
     limites: ["galerie", "limites"] as const,
+    /** Les Propositions du Chef connecté. */
+    propositions: ["galerie", "propositions"] as const,
+    aValider: (sectorId?: string) => ["galerie", "a-valider", sectorId] as const,
   },
   carousel: { all: ["carousel-items"] as const, active: ["carousel-items", "active"] as const },
   configurations: { all: ["configurations"] as const },

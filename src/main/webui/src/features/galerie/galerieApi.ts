@@ -42,3 +42,28 @@ export const setVisibilite = (photoIds: string[], visibilite: Visibilite) =>
   apiFetch<GalleryPhoto[]>("/api/galerie/visibilite", { method: "PUT", body: JSON.stringify({ photoIds, visibilite }) });
 
 export const deletePhoto = (photoId: string) => apiFetch<void>(`/api/galerie/${encodeURIComponent(photoId)}`, { method: "DELETE" });
+
+/** Un Chef de groupe propose une photo d'un Event pour le Groupe qu'il mène ; elle attend le Bureau. */
+export function proposePhoto(photo: PreparedPhoto, eventId: string, alt?: string): Promise<GalleryPhoto> {
+  const form = new FormData();
+  form.append("original", photo.original, photo.name);
+  form.append("affichage", photo.affichage, `affichage-${photo.name}`);
+  form.append("vignette", photo.vignette, `vignette-${photo.name}`);
+  form.append("eventId", eventId);
+  if (alt?.trim()) form.append("alt", alt.trim());
+  return apiFetch<GalleryPhoto>("/api/galerie/propositions", { method: "POST", body: form });
+}
+
+/** Les Propositions du Chef connecté, qui attendent encore le Bureau. */
+export const fetchMyPropositions = () => apiFetch<GalleryPhoto[]>("/api/galerie/propositions");
+
+/** Le Chef retire une Proposition tant qu'elle n'est pas validée. */
+export const withdrawProposition = (photoId: string) =>
+  apiFetch<void>(`/api/galerie/propositions/${encodeURIComponent(photoId)}`, { method: "DELETE" });
+
+/** « À valider » : les Propositions d'un Secteur, pour son Bureau. */
+export const fetchAValider = (sectorId: string) => apiFetch<GalleryPhoto[]>(`/api/galerie/a-valider?sectorId=${encodeURIComponent(sectorId)}`);
+
+/** Le Bureau valide une Proposition en choisissant sa Visibilité ; la refuser, c'est la supprimer. */
+export const validatePhoto = (photoId: string, visibilite: Visibilite) =>
+  apiFetch<GalleryPhoto>(`/api/galerie/${encodeURIComponent(photoId)}/validation`, { method: "POST", body: JSON.stringify({ visibilite }) });

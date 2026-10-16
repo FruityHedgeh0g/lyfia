@@ -4,6 +4,7 @@ import fr.fruityhedgeh0g.dtos.galleryDtos.AlbumDto;
 import fr.fruityhedgeh0g.dtos.galleryDtos.GalleryPhotoChangeDto;
 import fr.fruityhedgeh0g.dtos.galleryDtos.GalleryPhotoDto;
 import fr.fruityhedgeh0g.dtos.galleryDtos.VisibiliteChangeDto;
+import fr.fruityhedgeh0g.enums.VisibiliteEnum;
 import fr.fruityhedgeh0g.services.GallerySettings;
 import fr.fruityhedgeh0g.services.GalleryService;
 import fr.fruityhedgeh0g.services.MediaFileService;
@@ -23,6 +24,7 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
 
@@ -42,6 +44,13 @@ public class GalleryController {
     @Inject
     GalleryService galleryService;
 
+    @Inject
+    JsonWebToken token;
+
+    private UUID me() {
+        return UUID.fromString(token.getSubject());
+    }
+
     /** The Albums the viewer may open: Secteur and Année, latest first. */
     @GET
     @Path("/albums")
@@ -59,11 +68,11 @@ public class GalleryController {
         return galleryService.album(sectorId, annee, eventId, groupId);
     }
 
-    /** The largest photo kept, which the depositor's browser scales down to (ADR 0014). */
+    /** The largest photo kept, which the depositor's browser scales down to (ADR 0014): the Bureau's, and a Chef's proposing. */
     @GET
     @Path("/limites")
     @Produces(MediaType.APPLICATION_JSON)
-    @RolesAllowed("bureau")
+    @RolesAllowed("chef_de_groupe")
     public GallerySettings.Limits getLimits(){
         return galleryService.limits();
     }
@@ -93,6 +102,68 @@ public class GalleryController {
     private static MediaFileService.Upload upload(FileUpload file, InputStream content) {
         return new MediaFileService.Upload(file.fileName(), file.contentType(), file.size(), content);
     }
+
+    // --- Propositions de photo: a Chef de groupe proposes, the Bureau validates or refuses ---
+
+    /** A Chef de groupe proposes a photo of an Event for the Groupe they lead, with its variants. */
+    @POST
+    @Path("/propositions")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RolesAllowed("chef_de_groupe")
+    public GalleryPhotoDto propose(@RestForm("original") FileUpload original, @RestForm("affichage") FileUpload affichage,
+                                   @RestForm("vignette") FileUpload vignette, @RestForm("eventId") UUID eventId,
+                                   @RestForm("alt") String alt) throws IOException {
+        if (original == null || affichage == null || vignette == null)
+            throw new BadRequestException("A photo comes with its original, its display size and its thumbnail.");
+        try (InputStream o = Files.newInputStream(original.uploadedFile());
+             InputStream a = Files.newInputStream(affichage.uploadedFile());
+             InputStream v = Files.newInputStream(vignette.uploadedFile())) {
+            return galleryService.propose(me(), new GalleryService.Proposition(eventId, alt,
+                    upload(original, o), upload(affichage, a), upload(vignette, v)));
+        }
+    }
+
+    /** The Chef de groupe's own Propositions, still waiting for the Bureau. */
+    @GET
+    @Path("/propositions")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RolesAllowed("chef_de_groupe")
+    public List<GalleryPhotoDto> getMyPropositions(){
+        return galleryService.propositionsBy(me());
+    }
+
+    /** The Chef de groupe withdraws a Proposition of theirs until it is validated. */
+    @DELETE
+    @Path("/propositions/{photoId}")
+    @RolesAllowed("chef_de_groupe")
+    public void withdraw(@PathParam("photoId") UUID photoId){
+        galleryService.withdraw(me(), photoId);
+    }
+
+    /** The Propositions waiting for the Bureau of the Secteur. */
+    @GET
+    @Path("/a-valider")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RolesAllowed("bureau")
+    public List<GalleryPhotoDto> getToValidate(@QueryParam("sectorId") UUID sectorId){
+        if (sectorId == null) throw new BadRequestException("Name the Secteur.");
+        return galleryService.propositionsOf(sectorId);
+    }
+
+    /** The Bureau validates a Proposition with its Visibilité; refusing it is DELETE /galerie/{photoId}. */
+    @POST
+    @Path("/{photoId}/validation")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RolesAllowed("bureau")
+    public GalleryPhotoDto validate(@PathParam("photoId") UUID photoId, @NotNull ValidationDto validation){
+        if (validation.visibilite() == null) throw new BadRequestException("A validation gives a Visibilité.");
+        return galleryService.validate(photoId, validation.visibilite());
+    }
+
+    /** The Visibilité the Bureau gives a Proposition it validates. */
+    public record ValidationDto(VisibiliteEnum visibilite) {}
 
     @PATCH
     @Path("/{photoId}")

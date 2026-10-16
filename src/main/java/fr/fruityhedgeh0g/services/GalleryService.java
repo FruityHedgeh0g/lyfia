@@ -19,6 +19,7 @@ import fr.fruityhedgeh0g.repositories.GalleryPhotoRepository;
 import fr.fruityhedgeh0g.repositories.GroupRepository;
 import fr.fruityhedgeh0g.repositories.SectorRepository;
 import fr.fruityhedgeh0g.security.Viewer;
+import fr.fruityhedgeh0g.services.interfaces.internals.InternalGroupService;
 import fr.fruityhedgeh0g.utilities.logging.Logged;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -51,6 +52,7 @@ public class GalleryService {
     @Inject SectorRepository sectorRepository;
     @Inject EventRepository eventRepository;
     @Inject GroupRepository groupRepository;
+    @Inject InternalGroupService internalGroupService;
     @Inject MediaFileService mediaFileService;
     @Inject MediaUses mediaUses;
     @Inject GallerySettings settings;
@@ -60,6 +62,10 @@ public class GalleryService {
     /** What a deposit tells about the photo, with its original and the two variants its depositor's browser made. */
     public record Deposit(UUID sectorId, UUID eventId, Integer annee, List<UUID> groupIds, String alt,
                           MediaFileService.Upload original, MediaFileService.Upload affichage, MediaFileService.Upload vignette) {}
+
+    /** What a Chef de groupe proposes: a photo of one of the Events of their Groupe's Secteur, with its variants. */
+    public record Proposition(UUID eventId, String alt, MediaFileService.Upload original, MediaFileService.Upload affichage,
+                              MediaFileService.Upload vignette) {}
 
     /** The Albums the viewer may open, latest Année first; while Galerie photos is off, none for the public. */
     public List<AlbumDto> albums() {
@@ -110,6 +116,73 @@ public class GalleryService {
         return managedDto(photo);
     }
 
+    /**
+     * A Chef de groupe proposes a photo of an Event for the Groupe they lead: a Brouillon of that Event and that
+     * Groupe, waiting for the Bureau. Dépôt de médias stops Propositions too.
+     */
+    @Transactional
+    public GalleryPhotoDto propose(UUID chefId, Proposition proposition) {
+        featureLevers.require(FeatureEnum.DEPOT_MEDIAS);
+        GroupEntity group = internalGroupService.doGetEntityLedBy(chefId)
+                .orElseThrow(() -> new ForbiddenActionException(chefId + " leads no Groupe."));
+        SectorEntity sector = group.getSector();
+        if (sector == null || sector.isClosed())
+            throw new InvalidResourceException("A Secteur fermé is read-only: " + group.getGroupId());
+        if (proposition.eventId() == null) throw new InvalidResourceException("A Proposition is of an Event.");
+        GallerySettings.Limits limits = settings.limits();
+        MediaFileService.requireImage(proposition.original(), limits.maxBytes());
+        MediaFileService.requireImage(proposition.affichage(), limits.maxBytes());
+        MediaFileService.requireImage(proposition.vignette(), limits.maxBytes());
+
+        GalleryPhotoEntity photo = GalleryPhotoEntity.builder()
+                .sector(sector)
+                .proposition(true)
+                .depositedBy(chefId)
+                .depositedAt(LocalDateTime.now())
+                .build();
+        tell(photo, proposition.eventId(), null, List.of(group.getGroupId()));
+        photo.setMedia(mediaFileService.store(proposition.original(),
+                Map.of(MediaVariantEnum.AFFICHAGE, proposition.affichage(), MediaVariantEnum.VIGNETTE, proposition.vignette()), proposition.alt()));
+        photoRepository.persist(photo);
+        return GalleryPhotoDto.of(photo, false, List.of());
+    }
+
+    /** A Chef de groupe's Propositions still waiting for the Bureau. */
+    public List<GalleryPhotoDto> propositionsBy(UUID chefId) {
+        return photoRepository.listPropositionsBy(chefId).stream().map(p -> GalleryPhotoDto.of(p, false, List.of())).toList();
+    }
+
+    /** The Chef withdraws a Proposition of theirs until the Bureau validates it. */
+    @Transactional
+    public void withdraw(UUID chefId, UUID photoId) {
+        GalleryPhotoEntity photo = photoRepository.findByIdOptional(photoId)
+                .orElseThrow(() -> new UnknownResourceException("Photo not found: " + photoId));
+        if (!chefId.equals(photo.getDepositedBy()))
+            throw new ForbiddenActionException(chefId + " did not propose " + photoId);
+        if (!photo.isProposition())
+            throw new InvalidResourceException("A validated photo is the Bureau's: " + photoId);
+        MediaEntity media = photo.getMedia();
+        photoRepository.delete(photo);
+        photoRepository.flush();
+        mediaFileService.delete(media);
+    }
+
+    /** The Propositions waiting for the Bureau of the Secteur ("À valider"). */
+    public List<GalleryPhotoDto> propositionsOf(UUID sectorId) {
+        SectorEntity sector = sectorOrThrow(sectorId);
+        if (!manages(sector)) throw new ForbiddenActionException("The Secteur " + sectorId + " is not yours.");
+        return photoRepository.listPropositionsOf(sectorId).stream().map(this::managedDto).toList();
+    }
+
+    /** The Bureau validates a Proposition, choosing its Visibilité; refusing one is deleting it. */
+    @Transactional
+    public GalleryPhotoDto validate(UUID photoId, VisibiliteEnum visibilite) {
+        GalleryPhotoEntity photo = managedPhotoOrThrow(photoId);
+        photo.setProposition(false);
+        photo.setVisibilite(visibilite);
+        return managedDto(photo);
+    }
+
     /** The Bureau corrects what a photo tells: its description, Event or Année, and Groupes. */
     @Transactional
     public GalleryPhotoDto change(UUID photoId, GalleryPhotoChangeDto change) {
@@ -126,7 +199,10 @@ public class GalleryService {
         // A photo used on the public site stays Publique
         if (visibilite != VisibiliteEnum.PUBLIQUE)
             photos.forEach(photo -> mediaUses.requireUnused(photo.getMedia().getMediaId(), "A photo in use stays Publique"));
-        photos.forEach(photo -> photo.setVisibilite(visibilite));
+        photos.forEach(photo -> {
+            photo.setVisibilite(visibilite);
+            photo.setProposition(false);
+        });
         return photos.stream().map(this::managedDto).toList();
     }
 

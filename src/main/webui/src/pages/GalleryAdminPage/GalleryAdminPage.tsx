@@ -15,6 +15,7 @@ import FeatureNotice from "../../components/molecules/FeatureNotice/FeatureNotic
 import MediasAdminPage from "../MediasAdminPage/MediasAdminPage";
 import { albumFilters } from "../GalleryPage/GalleryPage";
 import DepositDialog from "./DepositDialog";
+import ToValidate from "./ToValidate";
 import PhotoEditDialog from "./PhotoEditDialog";
 import styles from "./GalleryAdminPage.module.css";
 
@@ -120,6 +121,8 @@ const Albums: React.FC = () => {
         {editable && depositOn && <Button type="button" label="Déposer des photos" onClick={() => setDepositing(true)} />}
       </div>
 
+      {editable && <ToValidate sectorId={sectorId} onOpen={setEditing} />}
+
       {editable && shown.length > 0 && (
         <div className={styles.selection}>
           <Button
@@ -162,7 +165,11 @@ const Albums: React.FC = () => {
               ) : (
                 <span />
               )}
-              {photo.visibilite && <Badge label={VISIBILITE_LABELS[photo.visibilite]} tone={VISIBILITE_TONES[photo.visibilite]} />}
+              {photo.proposition ? (
+                <Badge label="À valider" tone="accent" />
+              ) : (
+                photo.visibilite && <Badge label={VISIBILITE_LABELS[photo.visibilite]} tone={VISIBILITE_TONES[photo.visibilite]} />
+              )}
             </>
           )}
         />
