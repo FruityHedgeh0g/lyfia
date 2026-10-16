@@ -251,6 +251,31 @@ public class EventServiceImpl implements EventService {
         EventEntity event = lockedEventOrThrow(eventId);
         UserEntity person = internalUserService.doGetEntityById(personId)
                 .orElseThrow(() -> new UnknownResourceException("User not found: " + personId));
+        return toDto(signUp(event, person, signUp, null));
+    }
+
+    @Override
+    @Transactional
+    public RosterDto addToRoster(UUID eventId, UUID actorId, Addition addition) {
+        EventEntity event = lockedEventOrThrow(eventId);
+        requireManaged(event);
+        if ((addition.personId() == null) == (addition.newPerson() == null))
+            throw new InvalidResourceException("Add either an Inscrit or a new Bénévole sans compte.");
+        // Checked before recording anyone, so a refused addition leaves no Bénévole sans compte behind
+        featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS, event.getSector());
+        UserEntity person = addition.personId() != null
+                ? internalUserService.doGetEntityById(addition.personId())
+                        .orElseThrow(() -> new UnknownResourceException("User not found: " + addition.personId()))
+                : internalUserService.doCreateWithoutAccount(addition.newPerson().firstName(), addition.newPerson().lastName(),
+                        addition.newPerson().birthDate(), addition.newPerson().phone());
+        signUp(event, person, new SignUp(addition.poste(), null, null, addition.journees(), addition.dechargeSignataire()), actorId);
+        return rosterOf(event, null);
+    }
+
+    /** {@code recordedBy}: the Bureau member signing the person up on their behalf, null when they sign up themselves. */
+    private EventRegistrationEntity signUp(EventEntity event, UserEntity person, SignUp signUp, UUID recordedBy) {
+        UUID eventId = event.getEventId();
+        UUID personId = person.getUserId();
         boolean comesWithSomeone = signUp.conducteurName() != null && !signUp.conducteurName().isBlank();
         if (comesWithSomeone && signUp.poste() != PosteEnum.PASSAGER)
             throw new InvalidResourceException("Only a passager names a conducteur.");
@@ -262,7 +287,7 @@ public class EventServiceImpl implements EventService {
         if (existing.isPresent() && existing.get().getPoste() != signUp.poste())
             throw new InvalidResourceException(personId + " is already signed up for " + eventId + " as " + existing.get().getPoste().id());
         List<LocalDate> added = existing.map(r -> chosen.stream().filter(d -> r.journee(d).isEmpty()).toList()).orElse(chosen);
-        if (existing.isPresent() && added.isEmpty()) return toDto(existing.get());
+        if (existing.isPresent() && added.isEmpty()) return existing.get();
         featureLevers.require(FeatureEnum.INSCRIPTION_EVENEMENTS, event.getSector());
         requireSignUpOpenTo(event, person);
         UUID decharge = requireDechargeOf(person, existing.orElse(null), added, signUp.dechargeSignataire());
@@ -276,10 +301,10 @@ public class EventServiceImpl implements EventService {
             return created;
         });
         if (asked != null) registration.requestGroup(asked);
-        if (decharge != null) registration.approveDecharge(signUp.dechargeSignataire(), decharge);
+        if (decharge != null) registration.approveDecharge(signUp.dechargeSignataire(), decharge, recordedBy);
         addJournees(event, registration, added, conducteur);
         if (existing.isEmpty() && conducteur != null) comeWith(event, registration, conducteur);
-        return toDto(registration);
+        return registration;
     }
 
     /**
@@ -737,7 +762,7 @@ public class EventServiceImpl implements EventService {
                 at == null ? null : personOf(at.getConducteur()), at == null ? null : personOf(at.getPassager()),
                 registration.isChefOfItsGroup(), registration.journeeDates(),
                 forBureau ? person.getEmail() : null, forBureau ? person.getBirthDate() : null,
-                forBureau ? DechargeDto.of(registration) : null);
+                forBureau ? DechargeDto.of(registration) : null, person.isWithoutAccount());
     }
 
     /** true when the Event has no maximum or still has {@code needed} places under it that Journée (every Poste counts). */
@@ -746,7 +771,7 @@ public class EventServiceImpl implements EventService {
                 || journeeRepository.countParticipants(event.getEventId(), journee) + needed <= event.getMaxParticipants();
     }
 
-    /** Sign-up is open while Ouvert or Complet, to someone with a phone number. */
+    /** Sign-up is open while Ouvert or Complet, to someone with a phone number unless a Bénévole sans compte (ADR 0012). */
     private static void requireSignUpOpenTo(EventEntity event, UserEntity person) {
         refuseInClosedSector(event);
         // The Super admin is a dedicated account: its holder rides through their own (ADR 0006)
@@ -758,7 +783,7 @@ public class EventServiceImpl implements EventService {
         EventStatusEnum current = event.currentStatus();
         if (!current.acceptsSignUps())
             throw new InvalidResourceException("Sign-up is closed for an Event in " + current.id());
-        if (!person.hasPhone())
+        if (!person.hasPhone() && !person.isWithoutAccount())
             throw new PhoneRequiredException("A phone number is required to sign up: " + person.getUserId());
     }
 

@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "../../auth/AuthContext";
 import { testUser } from "../../test/testUser";
+import { seedMember } from "../../test/fakeApi";
 import MembersAdminPage from "./MembersAdminPage";
 
 const renderAs = (role: string) => {
@@ -38,6 +39,19 @@ describe("MembersAdminPage", () => {
     expect(screen.getByLabelText("Téléphone")).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Date de naissance")).toHaveValue("");
     expect(screen.getByLabelText("Date de naissance")).toHaveAttribute("placeholder", "Non renseigné");
+  });
+
+  it("lets the Bureau keep a Bénévole sans compte's phone and birth date (ADR 0012)", async () => {
+    seedMember({ userId: "sans-compte-1", firstName: "Marcel", lastName: "Hoffmann", role: "benevole", birthDate: "1950-03-04", withoutAccount: true });
+    renderAs("bureau");
+    const marcel = await screen.findByRole("button", { name: /Marcel Hoffmann/ });
+    expect(marcel).toHaveTextContent("Sans compte");
+    await userEvent.click(marcel);
+    await userEvent.type(screen.getByLabelText("Téléphone"), "03 82 00 00 00");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await userEvent.click(await screen.findByRole("button", { name: /Marcel Hoffmann/ }));
+    expect(await screen.findByLabelText("Téléphone")).toHaveValue("03 82 00 00 00");
   });
 
   it("finds an Inscrit by phone or e-mail", async () => {

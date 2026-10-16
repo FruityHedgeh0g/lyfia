@@ -188,6 +188,12 @@ public class EventLogDecorator implements EventService{
     }
 
     @Override
+    public RosterDto addToRoster(UUID eventId, UUID actorId, Addition addition) {
+        return logged(() -> eventService.addToRoster(eventId, actorId, addition),
+                "Addition by " + actorId + " to event " + eventId + (addition.personId() != null ? " of " + addition.personId() : " of a Bénévole sans compte"));
+    }
+
+    @Override
     public RegistrationDto requestGroup(UUID eventId, UUID personId, UUID groupId) {
         return logged(() -> eventService.requestGroup(eventId, personId, groupId),
                 "Demande de groupe of " + personId + " for group " + groupId + " at event " + eventId);

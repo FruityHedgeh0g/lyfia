@@ -16,6 +16,7 @@ interface UserDto {
   phone?: string | null;
   email?: string | null;
   birthDate?: string | null;
+  withoutAccount?: boolean;
   role: RoleId;
   bureauFunction?: BureauFunction | null;
   sector?: { sectorId: string; name: string } | null;
@@ -31,6 +32,7 @@ const toMember = (dto: UserDto): Member => ({
   phone: dto.phone ?? null,
   email: dto.email ?? null,
   birthDate: dto.birthDate ?? null,
+  withoutAccount: dto.withoutAccount ?? false,
 });
 
 const path = (userId: string) => `/api/users/${encodeURIComponent(userId)}`;
@@ -47,6 +49,11 @@ export async function fetchAllMembers(): Promise<Member[]> {
 /** Admin et Super admin seulement ; personne ne se renomme soi-même (ADR 0007). */
 export async function updateMember(userId: string, names: MemberInput): Promise<Member> {
   return toMember(await apiFetch<UserDto>(path(userId), { method: "PATCH", body: JSON.stringify(names) }));
+}
+
+/** Le Bureau tient le téléphone et la date de naissance d'un Bénévole sans compte, qui n'a pas Mon profil (ADR 0012). */
+export async function updateCoordonnees(userId: string, coordonnees: { phone: string; birthDate: string | null }): Promise<Member> {
+  return toMember(await apiFetch<UserDto>(`${path(userId)}/coordonnees`, { method: "PATCH", body: JSON.stringify(coordonnees) }));
 }
 
 /** `sectorId` : le Secteur que nomme le Super admin (nouvel Admin, ou premier Secteur). */

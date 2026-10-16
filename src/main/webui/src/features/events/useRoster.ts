@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { changePoste, pair, Poste, decideDemande, unpair, fetchMonGroupe, fetchRoster, placeInGroup, promote, remove, setGroupMaximum, takeOutOfGroup } from "./registrationsApi";
+import { Addition, addToRoster, changePoste, pair, Poste, decideDemande, unpair, fetchMonGroupe, fetchRoster, placeInGroup, promote, remove, setGroupMaximum, takeOutOfGroup } from "./registrationsApi";
 import { queryKeys } from "../queryKeys";
 import { useAuth } from "../../auth/AuthContext";
 import { Journee } from "../../lib/journees";
@@ -62,7 +62,16 @@ export function useRoster(eventId: string, journee?: Journee) {
     onSuccess: invalidate,
   });
 
-  return { roster, moveUp, removePerson, place, changePoste: changePosteOf };
+  /** Le Bureau ajoute un Inscrit ou un Bénévole sans compte ; ce dernier rejoint aussi les Inscrits. */
+  const addPerson = useMutation({
+    mutationFn: (addition: Addition) => addToRoster(eventId, addition),
+    onSuccess: () => {
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.all });
+    },
+  });
+
+  return { roster, moveUp, removePerson, place, changePoste: changePosteOf, addPerson };
 }
 
 /** Maximum d'un Groupe à un Événement, enregistré avec la fiche de l'Événement. */
