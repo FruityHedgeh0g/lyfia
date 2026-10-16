@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import EventImages from "./EventImages";
 import { eventImageSrc } from "../../features/events/types";
 import { Link, useParams } from "react-router-dom";
 import { useEvent } from "../../features/events/useEvents";
@@ -193,6 +194,7 @@ export const EventDetailPage: React.FC = () => {
               alt={event.name}
             />
             <p className={styles.description}>{event.description}</p>
+            <EventImages event={event} />
           </div>
 
           <aside className={styles.card}>

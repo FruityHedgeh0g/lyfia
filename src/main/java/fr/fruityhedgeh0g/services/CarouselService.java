@@ -120,6 +120,7 @@ public class CarouselService {
             throw new InvalidResourceException("A slide links to a page of the site: " + linkTo);
         item.setTitle(input.title().trim());
         item.setCaption(input.caption());
+        item.setKicker(input.kicker() == null || input.kicker().isBlank() ? null : input.kicker().trim());
         item.setLinkTo(linkTo);
         item.setActive(input.active() == null || input.active());
         item.setMedia(mediaUses.usable(input.mediaId()));

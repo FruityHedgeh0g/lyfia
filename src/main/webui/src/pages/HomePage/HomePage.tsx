@@ -51,6 +51,7 @@ const HeroSlides: React.FC = () => {
       alt,
       title: item.title,
       caption: item.caption,
+      kicker: item.kicker ?? undefined,
       to: item.linkTo ?? undefined,
       fit: isDefault ? "contain" : "cover",
     };

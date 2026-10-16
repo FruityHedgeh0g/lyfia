@@ -676,6 +676,8 @@ async function galerie(method: string, [photoId, ...rest]: string[], body: any, 
     return json(
       state.galerie
         .filter((p) => p.sectorId === sectorId && p.annee === Number(query.get("annee")))
+        .filter((p) => !query.get("eventId") || p.event?.eventId === query.get("eventId"))
+        .filter((p) => !query.get("groupId") || p.groups.some((g) => g.groupId === query.get("groupId")))
         .filter(sees)
         .map(dto)
     );

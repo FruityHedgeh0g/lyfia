@@ -32,8 +32,10 @@ export function albumFilters(photos: GalleryPhoto[]) {
 export const GalleryPage: React.FC = () => {
   const { data: albums, isLoading, isError } = useAlbums();
   const { sectorId: secteurChoice } = useSecteurChoice();
-  const [chosen, setChosen] = useState("");
-  const [eventId, setEventId] = useState("");
+  // Un lien (« En images » d'un Event) ouvre la Galerie sur un Album et un Event
+  const [linked] = useState(() => new URLSearchParams(window.location.search));
+  const [chosen, setChosen] = useState(linked.get("album") ?? "");
+  const [eventId, setEventId] = useState(linked.get("evenement") ?? "");
   const [groupId, setGroupId] = useState("");
   const [open, setOpen] = useState<number | null>(null);
 

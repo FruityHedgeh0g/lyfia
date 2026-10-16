@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "../../auth/AuthContext";
-import { createEventsApi, createRegistrationsApi, seedDecharge, seedGroup, setFakeFeature, setFakeFeatureOffIn } from "../../test/fakeApi";
+import { createEventsApi, createRegistrationsApi, seedDecharge, seedGalleryPhoto, seedGroup, setFakeFeature, setFakeFeatureOffIn } from "../../test/fakeApi";
 import EventDetailPage from "./EventDetailPage";
 import { testUser } from "../../test/testUser";
 import { confirmIn } from "../../test/confirm";
@@ -266,5 +266,35 @@ describe("EventDetailPage sign-up", () => {
     await userEvent.click(screen.getByRole("button", { name: "Me désinscrire" }));
     await confirmIn("Me désinscrire");
     expect(await screen.findByRole("button", { name: "M'inscrire comme conducteur" })).toBeInTheDocument();
+  });
+
+  // --- En images ---
+
+  const seedPhotos = () => {
+    const annee = new Date(inDays(10)).getFullYear();
+    const event = { eventId, name: "Test Balade", startDateTime: inDays(10) };
+    seedGalleryPhoto({ sectorId: "sector-1", annee, event, alt: "Le départ", visibilite: "publique" });
+    seedGalleryPhoto({ sectorId: "sector-1", annee, event, alt: "Entre nous", visibilite: "inscrits" });
+    seedGalleryPhoto({ sectorId: "sector-1", annee, event, alt: "À trier", visibilite: "brouillon" });
+    seedGalleryPhoto({ sectorId: "sector-1", annee, alt: "Une autre sortie", visibilite: "publique" });
+  };
+
+  it("shows the Event's photos the viewer may see, with a link to its Album", async () => {
+    seedPhotos();
+    renderPage("benevole");
+    const images = await screen.findByRole("region", { name: "En images" });
+    expect(within(images).getAllByRole("img").map((i) => i.getAttribute("alt"))).toEqual(["Le départ", "Entre nous"]);
+    expect(within(images).getByRole("link", { name: "Voir l'album" })).toHaveAttribute(
+      "href",
+      expect.stringContaining(`evenement=${eventId}`)
+    );
+  });
+
+  it("shows no photos while Galerie photos is off for the Event's Secteur", async () => {
+    seedPhotos();
+    setFakeFeatureOffIn("galerie-photos", "sector-1");
+    renderPage("benevole");
+    await screen.findByRole("heading", { name: "Test Balade" });
+    expect(screen.queryByRole("region", { name: "En images" })).not.toBeInTheDocument();
   });
 });

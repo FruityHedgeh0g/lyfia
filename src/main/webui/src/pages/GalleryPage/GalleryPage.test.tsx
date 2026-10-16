@@ -78,4 +78,16 @@ describe("GalleryPage", () => {
     renderAs("visiteur");
     expect(await screen.findByText("Aucune photo publiée pour le moment.")).toBeInTheDocument();
   });
+
+  it("opens on the Album and Event of a link from an Event's page", async () => {
+    seedGalleryPhoto({ sectorId: "sector-1", annee: 2026, alt: "Le départ", visibilite: "publique", event: edition });
+    seedGalleryPhoto({ sectorId: "sector-1", annee: 2026, alt: "Le stand", visibilite: "publique" });
+    seedGalleryPhoto({ sectorId: "sector-1", annee: 2025, alt: "L'an dernier", visibilite: "publique" });
+    window.history.pushState({}, "", "/galerie?album=sector-1%3A2026&evenement=event-edition");
+    renderAs("visiteur");
+    expect(await screen.findByAltText("Le départ")).toBeInTheDocument();
+    expect(thumbnails()).toEqual(["Le départ"]);
+    expect(screen.getByLabelText("Événement")).toHaveValue("event-edition");
+    window.history.pushState({}, "", "/");
+  });
 });
