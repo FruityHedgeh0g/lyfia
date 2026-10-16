@@ -44,9 +44,10 @@ public class UserEntity extends AuditTemplate{
 
     /**
      * A Bénévole sans compte (ADR 0012): recorded by the Bureau, with an identifier of the site's and no Keycloak
-     * account; never signs in.
+     * account; never signs in. The default lets Hibernate add the column to a database that already has people.
      */
     @Builder.Default
+    @ColumnDefault("false")
     @Column(name = "without_account", nullable = false)
     private boolean withoutAccount = false;
 
