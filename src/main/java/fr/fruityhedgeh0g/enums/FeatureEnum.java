@@ -13,7 +13,7 @@ public enum FeatureEnum {
     /** The online donation workflow, once it exists; never the Faire un don page. */
     DONS_EN_LIGNE("dons-en-ligne", false),
     INSCRIPTION_EVENEMENTS("inscription-evenements", true),
-    GALERIE_PHOTOS("galerie-photos", false),
+    GALERIE_PHOTOS("galerie-photos", true),
     ACTUALITES("actualites", true),
     CARROUSEL("carrousel", false),
     DEPOT_MEDIAS("depot-medias", false),

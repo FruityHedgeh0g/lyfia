@@ -9,6 +9,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /** What the person making the current request may see, beyond what their Role opens. */
@@ -29,6 +30,17 @@ public class Viewer {
     /** The Bureau and above prepare the content the public sees (Posts, the carousel, the medias). */
     public boolean preparesContent() {
         return Arc.container().requestContext().isActive() && identity.get().hasRole(RoleEnum.BUREAU.id());
+    }
+
+    /** true when someone is signed in: they see the Photos de la Galerie réservées aux Inscrits. */
+    public boolean signedIn() {
+        return Arc.container().requestContext().isActive() && !identity.get().isAnonymous();
+    }
+
+    /** The person making the request, if signed in. */
+    public Optional<UUID> personId() {
+        if (!signedIn()) return Optional.empty();
+        return DatabaseRoleAugmentor.subjectOf(identity.get());
     }
 
     /** Who makes the current request, for the logs: the person's id, or "anonymous". */
