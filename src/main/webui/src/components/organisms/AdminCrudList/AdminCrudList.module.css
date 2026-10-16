@@ -60,10 +60,22 @@
   animation: open .25s var(--ease-out);
 }
 
-.formActions {
+.formActions,
+.extraActions,
+.saveActions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
+}
+
+/* Les actions de l'élément à gauche, l'enregistrement à droite */
+.split {
+  justify-content: space-between;
+}
+
+.split .saveActions {
+  margin-left: auto;
 }
 
 @keyframes open {

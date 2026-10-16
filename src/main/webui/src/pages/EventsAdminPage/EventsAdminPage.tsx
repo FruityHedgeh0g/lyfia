@@ -13,6 +13,7 @@ import Spinner from "../../components/atoms/Spinner/Spinner";
 import { useConfirm } from "../../components/molecules/ConfirmDialog/useConfirm";
 import { useGroupMaximum } from "../../features/events/useRoster";
 import EventRoster from "./EventRoster";
+import EventRosterActions from "./EventRosterActions";
 import { fetchRoster } from "../../features/events/registrationsApi";
 import { eventJournees, journeeLabel } from "../../lib/journees";
 
@@ -183,7 +184,6 @@ export const EventsAdminPage: React.FC = () => {
                 eventId={event.eventId}
                 sectorId={event.sectorId}
                 editable={event.status !== "archive"}
-                acceptsSignUps={acceptsSignUps(event.status)}
                 maxima={value.groupMaxima}
                 onMaximum={(groupId, maximum) => onChange({ ...value, groupMaxima: { ...value.groupMaxima, [groupId]: maximum } })}
                 maximumError={groupMaximum.error}
@@ -193,6 +193,14 @@ export const EventsAdminPage: React.FC = () => {
         );
       }}
       onUpdate={save}
+      formActions={(event) => (
+        <EventRosterActions
+          eventId={event.eventId}
+          sectorId={event.sectorId}
+          editable={event.status !== "archive"}
+          acceptsSignUps={acceptsSignUps(event.status)}
+        />
+      )}
       create={{
         buttonLabel: "+ Nouvel événement",
         submitLabel: "Créer l'événement",
