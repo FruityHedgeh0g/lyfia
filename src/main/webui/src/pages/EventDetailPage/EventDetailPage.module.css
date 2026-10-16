@@ -149,3 +149,21 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* « En images » : les photos de l'Événement */
+.images {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.imagesTitle {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
+.albumLink {
+  align-self: flex-start;
+  font-weight: 700;
+}
