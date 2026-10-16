@@ -16,6 +16,7 @@ import { matchesSearch } from "../../lib/textSearch";
 import { Journee, journeeLabel } from "../../lib/journees";
 import { formatDate } from "../../lib/formatDate";
 import { useFeature, useFeatureOff } from "../../features/featureFlags/useFeatureFlags";
+import AddPersonDialog from "./AddPersonDialog";
 import styles from "./EventRoster.module.css";
 
 interface EventRosterProps {
@@ -24,6 +25,8 @@ interface EventRosterProps {
   sectorId: string;
   /** false une fois l'Événement archivé : la liste est figée. */
   editable: boolean;
+  /** true tant que l'Événement prend des inscriptions (Ouvert ou Complet) : le Bureau peut y ajouter quelqu'un. */
+  acceptsSignUps?: boolean;
   /** Maximums des Groupes saisis, par groupId, envoyés par « Enregistrer » avec la fiche de l'Événement. */
   maxima: Record<string, string>;
   onMaximum: (groupId: string, maximum: string) => void;
@@ -92,9 +95,11 @@ const GroupRow: React.FC<GroupRowProps> = ({ entry, editable, maximum, onMaximum
  * si son passager suit. Les deux listes se replient et une recherche les filtre
  * ensemble, sans appel au serveur.
  */
-export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, editable, maxima, onMaximum, maximumError }) => {
+export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, editable, acceptsSignUps = false, maxima, onMaximum, maximumError }) => {
   const [journee, setJournee] = useState<Journee | undefined>(undefined);
-  const { roster, moveUp, removePerson, place, changePoste } = useRoster(eventId, journee);
+  const [adding, setAdding] = useState(false);
+  const { roster, moveUp, removePerson, place, changePoste, addPerson } = useRoster(eventId, journee);
+  const inscriptionOn = useFeature("inscription-evenements", sectorId);
   const { decide, takeOut, pairWith } = useGroupActions();
   const { confirm, dialog } = useConfirm();
   const [search, setSearch] = useState("");
@@ -224,12 +229,13 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
   /** Un mineur ce jour-là, et qui a approuvé sa décharge (assurance des mineurs). */
   const minorLine = (entry: RosterEntry) => {
     if (!entry.birthDate || ageOn(entry.birthDate, shownJournee) >= 18) return undefined;
-    return entry.decharge
-      ? `Mineur · décharge signée par ${entry.decharge.signataire} le ${formatDate(entry.decharge.signedAt)}`
-      : "Mineur · sans décharge";
+    if (!entry.decharge) return "Mineur · sans décharge";
+    const paper = entry.decharge.recordedBy ? " (papier)" : "";
+    return `Mineur · décharge signée${paper} par ${entry.decharge.signataire} le ${formatDate(entry.decharge.signedAt)}`;
   };
 
-  const details = (entry: RosterEntry) => [entry.phone, entry.email, groupLine(entry), minorLine(entry)].filter(Boolean).join(" · ");
+  const details = (entry: RosterEntry) =>
+    [entry.withoutAccount && "Sans compte", entry.phone, entry.email, groupLine(entry), minorLine(entry)].filter(Boolean).join(" · ");
 
   const row = (entry: RosterEntry, actions: React.ReactNode) => (
     <li key={entry.personId} className={styles.row}>
@@ -272,6 +278,24 @@ export const EventRoster: React.FC<EventRosterProps> = ({ eventId, sectorId, edi
   return (
     <section className={styles.roster} aria-label="Inscrits">
       {dialog}
+      {editable && acceptsSignUps && inscriptionOn && (
+        <>
+          <div className={styles.export}>
+            <Button type="button" label="Ajouter une personne" variant="outline" onClick={() => setAdding(true)} />
+          </div>
+          <AddPersonDialog
+            isOpen={adding}
+            onClose={() => {
+              setAdding(false);
+              addPerson.reset();
+            }}
+            journees={roster.data.journees.map((j) => j.journee)}
+            onAdd={(addition) => addPerson.mutateAsync(addition)}
+            pending={addPerson.isPending}
+            error={addPerson.error}
+          />
+        </>
+      )}
       {exportOn ? (
         <ButtonLink to={rosterExportUrl(eventId)} label="Télécharger la liste (.xlsx)" variant="outline" className={styles.export} download />
       ) : (

@@ -1,7 +1,7 @@
 import React from "react";
 import { useEventMutations, useEvents } from "../../features/events/useEvents";
 import { EventInput } from "../../features/events/eventsApi";
-import { allowedTransitions, EVENT_STATUS_LABELS, EventStatus } from "../../features/events/status";
+import { acceptsSignUps, allowedTransitions, EVENT_STATUS_LABELS, EventStatus } from "../../features/events/status";
 import { Event } from "../../features/events/types";
 import { useIsSuperAdmin, useSectors } from "../../features/sectors/useSector";
 import { useAuth } from "../../auth/AuthContext";
@@ -183,6 +183,7 @@ export const EventsAdminPage: React.FC = () => {
                 eventId={event.eventId}
                 sectorId={event.sectorId}
                 editable={event.status !== "archive"}
+                acceptsSignUps={acceptsSignUps(event.status)}
                 maxima={value.groupMaxima}
                 onMaximum={(groupId, maximum) => onChange({ ...value, groupMaxima: { ...value.groupMaxima, [groupId]: maximum } })}
                 maximumError={groupMaximum.error}

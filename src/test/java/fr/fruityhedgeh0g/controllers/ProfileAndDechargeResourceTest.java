@@ -192,7 +192,7 @@ public class ProfileAndDechargeResourceTest {
             UserEntity minor = userRepository.findById(UUID.fromString(MINOR_ID));
             minor.setEmail("mineur@example.org");
             var registration = fr.fruityhedgeh0g.entities.EventRegistrationEntity.conducteur(eventRepository.findById(event), minor, false);
-            registration.approveDecharge("Parent Test", document);
+            registration.approveDecharge("Parent Test", document, null);
             registrationRepository.persist(registration);
         });
 

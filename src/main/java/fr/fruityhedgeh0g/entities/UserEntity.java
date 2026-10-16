@@ -42,6 +42,14 @@ public class UserEntity extends AuditTemplate{
     @Column(name = "birth_date")
     private LocalDate birthDate;
 
+    /**
+     * A Bénévole sans compte (ADR 0012): recorded by the Bureau, with an identifier of the site's and no Keycloak
+     * account; never signs in.
+     */
+    @Builder.Default
+    @Column(name = "without_account", nullable = false)
+    private boolean withoutAccount = false;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @ColumnDefault("'BENEVOLE'")
@@ -98,7 +106,7 @@ public class UserEntity extends AuditTemplate{
         return birthDate != null && Period.between(birthDate, day).getYears() < 18;
     }
 
-    /** A phone number is required before signing up for an Event. */
+    /** A phone number is required before signing up for an Event, except of a Bénévole sans compte (ADR 0012). */
     public boolean hasPhone() {
         return phone != null && !phone.isBlank();
     }

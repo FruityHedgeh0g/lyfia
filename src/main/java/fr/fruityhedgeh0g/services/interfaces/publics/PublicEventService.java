@@ -52,6 +52,25 @@ public interface PublicEventService {
      * by their legal representative, named in {@code dechargeSignataire} (SignUpRequirementException otherwise).
      */
     RegistrationDto signUp(@NotNull UUID eventId, @NotNull UUID personId, @NotNull SignUp signUp);
+    /**
+     * Someone the Bureau adds to an Event (ADR 0012): an Inscrit ({@code personId}), or a Bénévole sans compte recorded
+     * on the way ({@code newPerson}); a Poste, the Journées (none: every Journée) and, for a minor, the legal
+     * representative who signed the décharge on paper.
+     */
+    record Addition(UUID personId, NewPerson newPerson, @NotNull PosteEnum poste, List<LocalDate> journees,
+                    String dechargeSignataire) {
+    }
+
+    /** A Bénévole sans compte: names and birth date required, phone optional. */
+    record NewPerson(String firstName, String lastName, LocalDate birthDate, String phone) {
+    }
+
+    /**
+     * The Bureau of the Event's Secteur signs someone up on their behalf, under the rules of {@link #signUp} (the
+     * Inscription aux événements Feature included), except the phone number for a Bénévole sans compte; the décharge
+     * of a minor, signed on paper, is recorded with the Bureau member {@code actorId} (ADR 0012).
+     */
+    RosterDto addToRoster(@NotNull UUID eventId, @NotNull UUID actorId, @NotNull @Valid Addition addition);
     /** A new Demande de groupe, for someone signed up and not yet with a Groupe. */
     RegistrationDto requestGroup(@NotNull UUID eventId, @NotNull UUID personId, @NotNull UUID groupId);
     /**

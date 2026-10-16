@@ -23,4 +23,6 @@ export interface Member {
   email?: string | null;
   /** AAAA-MM-JJ. */
   birthDate?: string | null;
+  /** Bénévole sans compte, enregistré par le Bureau : ses coordonnées sont tenues par le Bureau (ADR 0012). */
+  withoutAccount?: boolean;
 }

@@ -128,6 +128,8 @@ public class UserServiceImpl implements UserService {
             return userMapper.toDto(person);
         });
 
+        // A Bénévole sans compte has no Keycloak account to mirror to (ADR 0012)
+        if (changed.isWithoutAccount()) return changed;
         try {
             keycloakRoleMirror.setRoleGroup(personId, role);
         } catch (RuntimeException e) {
@@ -177,13 +179,52 @@ public class UserServiceImpl implements UserService {
     public UserDto updateProfile(UUID personId, ProfileDto profile) {
         UserEntity person = userRepository.findByIdOptional(personId)
                 .orElseThrow(() -> new UnknownResourceException("User not found: " + personId));
-        person.setPhone(isBlank(profile.phone()) ? null : profile.phone().trim());
-        if (profile.birthDate() != null) {
-            if (profile.birthDate().isAfter(LocalDate.now()) || profile.birthDate().isBefore(LocalDate.of(1900, 1, 1)))
-                throw new InvalidResourceException("A birth date lies between 1900 and today: " + profile.birthDate());
-            person.setBirthDate(profile.birthDate());
-        }
+        applyCoordonnees(person, profile);
         return userMapper.toDto(person);
+    }
+
+    @Override
+    @Transactional
+    public UserDto updateCoordonnees(UUID actorId, UUID personId, ProfileDto coordonnees) {
+        UserEntity actor = userRepository.findByIdOptional(actorId)
+                .orElseThrow(() -> new ForbiddenActionException("Unknown actor: " + actorId));
+        UserEntity person = userRepository.findByIdOptional(personId)
+                .orElseThrow(() -> new UnknownResourceException("User not found: " + personId));
+        if (!person.isWithoutAccount())
+            throw new ForbiddenActionException(personId + " keeps their own details in Mon profil.");
+        if (actor.getRole() != RoleEnum.SUPER_ADMIN && !isInscritOf(person, actor.getSector()))
+            throw new ForbiddenActionException(personId + " is not an Inscrit of your Secteur.");
+        applyCoordonnees(person, coordonnees);
+        return userMapper.toDto(person);
+    }
+
+    @Override
+    @Transactional
+    public UserEntity doCreateWithoutAccount(String firstName, String lastName, LocalDate birthDate, String phone) {
+        if (isBlank(firstName) || isBlank(lastName))
+            throw new InvalidResourceException("A person has a first and a last name.");
+        if (birthDate == null)
+            throw new InvalidResourceException("A birth date is required to sign up.");
+        UserEntity person = UserEntity.builder()
+                .userId(UUID.randomUUID())
+                .withoutAccount(true)
+                .firstName(firstName.trim())
+                .lastName(lastName.trim())
+                .role(RoleEnum.BENEVOLE)
+                .build();
+        applyCoordonnees(person, new ProfileDto(phone, birthDate));
+        userRepository.persist(person);
+        return person;
+    }
+
+    /** The phone number (blank: none) and the birth date (left out: kept), between 1900 and today. */
+    private static void applyCoordonnees(UserEntity person, ProfileDto coordonnees) {
+        person.setPhone(isBlank(coordonnees.phone()) ? null : coordonnees.phone().trim());
+        if (coordonnees.birthDate() != null) {
+            if (coordonnees.birthDate().isAfter(LocalDate.now()) || coordonnees.birthDate().isBefore(LocalDate.of(1900, 1, 1)))
+                throw new InvalidResourceException("A birth date lies between 1900 and today: " + coordonnees.birthDate());
+            person.setBirthDate(coordonnees.birthDate());
+        }
     }
 
     @Override

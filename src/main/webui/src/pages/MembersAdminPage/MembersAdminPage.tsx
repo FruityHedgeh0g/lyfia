@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useAllMembers, useChangeRole, useSetBureauFunction, useUpdateMember } from "../../features/users/useMembers";
+import { useAllMembers, useChangeRole, useSetBureauFunction, useUpdateCoordonnees, useUpdateMember } from "../../features/users/useMembers";
 import { MemberInput } from "../../features/users/usersApi";
 import { BUREAU_FUNCTION_LABELS, BureauFunction, Member } from "../../features/users/types";
 import { useAuth } from "../../auth/AuthContext";
@@ -17,8 +17,9 @@ import styles from "./MembersAdminPage.module.css";
 /**
  * `sectorId` : le Secteur que nomme le Super admin (nouvel Admin, ou premier Secteur).
  * `bureauFunction` : la Fonction au Bureau, "" pour un Admin qui n'y siège pas.
+ * `phone` et `birthDate` : tenus par le Bureau pour un Bénévole sans compte seulement (ADR 0012).
  */
-type MemberDraft = MemberInput & { role: RoleId; bureauFunction: BureauFunction | ""; sectorId: string };
+type MemberDraft = MemberInput & { role: RoleId; bureauFunction: BureauFunction | ""; sectorId: string; phone: string; birthDate: string };
 
 /** Le Rôle Bureau siège toujours au Bureau ; un Admin, s'il y est appelé (ADR 0001). */
 const bureauFunctionsFor = (role: RoleId): (BureauFunction | "")[] =>
@@ -34,6 +35,7 @@ export const MembersAdminPage: React.FC = () => {
   const updateMember = useUpdateMember();
   const changeRole = useChangeRole();
   const setBureauFunction = useSetBureauFunction();
+  const updateCoordonnees = useUpdateCoordonnees();
   const { data: sectors } = useSectors();
   const sectorName = (sectorId?: string | null) => sectors?.find((s) => s.sectorId === sectorId)?.name;
   const [search, setSearch] = useState("");
@@ -42,6 +44,7 @@ export const MembersAdminPage: React.FC = () => {
   const subtitle = (member: Member) =>
     [
       ROLE_LABELS[member.role],
+      member.withoutAccount && "Sans compte",
       member.role === "admin" && member.bureauFunction && "Bureau",
       member.bureauFunction === "president" && BUREAU_FUNCTION_LABELS.president,
       sectorName(member.sectorId),
@@ -66,13 +69,16 @@ export const MembersAdminPage: React.FC = () => {
   const setsBureauFunction = (userId: string, role: RoleId) =>
     roleAtLeast(viewerRole, "admin") && userId !== user?.userId && bureauFunctionsFor(role).length > 0;
 
-  const save = async (userId: string, { role, bureauFunction, sectorId, ...names }: MemberDraft) => {
+  const save = async (userId: string, { role, bureauFunction, sectorId, phone, birthDate, ...names }: MemberDraft) => {
     const currentMember = members?.find((m) => m.userId === userId);
+    // Un Bénévole sans compte n'a pas Mon profil : le Bureau tient ses coordonnées (ADR 0012)
+    if (currentMember?.withoutAccount && (phone !== (currentMember.phone ?? "") || birthDate !== (currentMember.birthDate ?? "")))
+      await updateCoordonnees.mutateAsync({ userId, phone, birthDate: birthDate || null });
     const renamed = names.firstName !== currentMember?.firstName || names.lastName !== currentMember?.lastName;
     if (renamed && renames(userId)) await updateMember.mutateAsync({ userId, ...names });
     let saved: Member | undefined = currentMember;
     // Seul le Super admin nomme un Secteur : le Secteur actuel n'est jamais renvoyé avec le Rôle
-    const namedSector = currentMember && namesSector(currentMember, { role, bureauFunction, sectorId, ...names }) ? sectorId : "";
+    const namedSector = currentMember && namesSector(currentMember, { role, bureauFunction, sectorId, phone, birthDate, ...names }) ? sectorId : "";
     if (role !== currentMember?.role) saved = await changeRole.mutateAsync({ userId, role, sectorId: namedSector || undefined });
     // Le changement de Rôle a déjà réglé la Fonction qu'il laisse ; seul ce qui en diffère est demandé
     if (setsBureauFunction(userId, role) && (bureauFunction || null) !== (saved?.bureauFunction ?? null))
@@ -110,6 +116,8 @@ export const MembersAdminPage: React.FC = () => {
             role: m.role,
             bureauFunction: m.bureauFunction ?? "",
             sectorId: m.sectorId ?? "",
+            phone: m.phone ?? "",
+            birthDate: m.birthDate ?? "",
           })}
           renderFields={(draft, setDraft, member) => {
             const roles = member ? rolesFor(member.userId, member.role) : [];
@@ -159,14 +167,35 @@ export const MembersAdminPage: React.FC = () => {
                 </div>
                 {member && (
                   <div className={styles.column}>
-                    <FormField label="Téléphone" value={member.phone ?? ""} placeholder="Non renseigné" readOnly />
-                    <FormField label="E-mail" value={member.email ?? ""} placeholder="Non renseigné" readOnly />
-                    <FormField
-                      label="Date de naissance"
-                      value={member.birthDate ? formatDate(member.birthDate) : ""}
-                      placeholder="Non renseigné"
-                      readOnly
-                    />
+                    {member.withoutAccount ? (
+                      <>
+                        <FormField
+                          label="Téléphone"
+                          type="tel"
+                          value={draft.phone}
+                          onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
+                          placeholder="Non renseigné"
+                        />
+                        <FormField label="E-mail" value="" placeholder="Sans compte" readOnly />
+                        <FormField
+                          label="Date de naissance"
+                          type="date"
+                          value={draft.birthDate}
+                          onChange={(e) => setDraft({ ...draft, birthDate: e.target.value })}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <FormField label="Téléphone" value={member.phone ?? ""} placeholder="Non renseigné" readOnly />
+                        <FormField label="E-mail" value={member.email ?? ""} placeholder="Non renseigné" readOnly />
+                        <FormField
+                          label="Date de naissance"
+                          value={member.birthDate ? formatDate(member.birthDate) : ""}
+                          placeholder="Non renseigné"
+                          readOnly
+                        />
+                      </>
+                    )}
                   </div>
                 )}
               </section>
