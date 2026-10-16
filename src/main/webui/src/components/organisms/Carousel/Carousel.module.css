@@ -201,9 +201,16 @@
   background: var(--brand-red);
 }
 
-/* La diapositive en cours se voit même en pause, avant que sa barre ne se remplisse */
+/* La diapositive en cours : une piste rouge, la couleur de sa progression, qui la distingue des diapositives déjà vues
+   (blanches) même en pause, quand sa barre n'a pas encore commencé à se remplir (après un clic sur une flèche) */
 .barActive::before {
-  background: rgba(255, 255, 255, .6);
+  height: 5px;
+  background: var(--brand-red);
+  opacity: .45;
+}
+
+.barActive .progress {
+  height: 5px;
 }
 
 .barDone .progress {
