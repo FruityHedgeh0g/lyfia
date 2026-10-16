@@ -1,24 +1,41 @@
-/* Mosaïque : la première photo est mise à la une sur 2 × 2 cases */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  grid-auto-rows: 220px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-auto-rows: 200px;
   grid-auto-flow: dense;
   gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .item {
   position: relative;
-  margin: 0;
   overflow: hidden;
   background: var(--color-bg-soft);
 }
 
+/* Mosaïque : la première photo est mise à la une sur 2 × 2 cases */
 @media (min-width: 720px) {
-  .item:first-child {
+  .featured .item:first-child {
     grid-column: span 2;
     grid-row: span 2;
   }
+}
+
+.open {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+
+.open:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: -3px;
 }
 
 .image {
@@ -26,7 +43,7 @@
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform .7s var(--ease-out), filter .7s var(--ease-out);
+  transition: transform .7s var(--ease-out);
 }
 
 .item:hover .image {
@@ -43,6 +60,7 @@
   color: #fff;
   font-size: var(--text-sm);
   font-weight: 600;
+  text-align: left;
   transform: translateY(8px);
   opacity: .92;
   transition: transform var(--duration) var(--ease-out), opacity var(--duration) var(--ease-out);
@@ -62,13 +80,19 @@
   opacity: 1;
 }
 
-.error {
-  color: var(--color-danger);
+/* Sélection et Visibilité, en haut de la vignette, au-dessus du bouton d'agrandissement */
+.overlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  pointer-events: none;
 }
 
-.empty {
-  padding: 28px;
-  border: 2px dashed var(--color-border);
-  color: var(--color-muted);
-  text-align: center;
+.overlay > * {
+  pointer-events: auto;
 }
