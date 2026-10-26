@@ -8,7 +8,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @QuarkusTest
@@ -20,14 +20,14 @@ class AuthResourceTest {
     void loggedInGoesBackToThePageTheyCameFrom() {
         given().redirects().follow(false).queryParam("redirect", "/evenements/42?tab=roster")
                 .when().get("/login")
-                .then().statusCode(303).header("Location", endsWith("/evenements/42?tab=roster"));
+                .then().statusCode(303).header("Location", matchesPattern("^https?://[^/]+/evenements/42\\?tab=roster$"));
     }
 
     @Test
     @TestSecurity(user = "benevole")
     void withoutAPageGoesHome() {
         given().redirects().follow(false).when().get("/login")
-                .then().statusCode(303).header("Location", endsWith("/"));
+                .then().statusCode(303).header("Location", matchesPattern("^https?://[^/]+/$"));
     }
 
     @Test

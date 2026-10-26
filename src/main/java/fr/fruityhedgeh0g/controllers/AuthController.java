@@ -4,7 +4,9 @@ import io.quarkus.security.Authenticated;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriInfo;
 
 import java.net.URI;
 
@@ -20,8 +22,9 @@ public class AuthController {
     @GET
     @Path("/login")
     @Authenticated
-    public Response login(@QueryParam("redirect") String redirect) {
-        return Response.seeOther(URI.create(sitePath(redirect))).build();
+    public Response login(@QueryParam("redirect") String redirect, @Context UriInfo uriInfo) {
+        // Absolute: a relative Location would be resolved against the API root (/api/), not the site's
+        return Response.seeOther(uriInfo.getBaseUri().resolve(sitePath(redirect))).build();
     }
 
     /** Only a path of this site, so the login cannot be used to send someone elsewhere. */
