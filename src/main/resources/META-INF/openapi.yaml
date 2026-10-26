@@ -1,0 +1,26 @@
+# Merged by SmallRye OpenAPI with the document it builds from the JAX-RS resources.
+# The generated result is stored in docs/api/ by every production build.
+openapi: 3.1.0
+info:
+  title: Lyfia API
+  version: 1.0.0
+  description: |
+    REST API behind the site and member space of the association Une Rose Un Espoir.
+    The domain vocabulary (Secteur, Groupe, Journée, Passager...) is defined in CONTEXT.md.
+
+    Authentication is the OIDC session cookie set by `GET /api/auth/login`, which sends
+    the browser to Keycloak. Calls sent with `X-Requested-With: JavaScript` get 499 instead
+    of that redirect when the session is missing or expired.
+
+    Visiteurs read some resources without logging in (GET on groups, configurations,
+    medias, carousel, galerie, features, sectors, events and posts); every other call
+    requires a session, and the Role then decides what it may do.
+security:
+- SecurityScheme: []
+components:
+  securitySchemes:
+    SecurityScheme:
+      type: apiKey
+      in: cookie
+      name: q_session
+      description: OIDC session cookie, obtained through GET /api/auth/login (Keycloak)
